@@ -1,0 +1,10 @@
+# Build & Package Artifacts
+*.dmg
+*.zip
+.build/
+node_modules/
+
+# OS Files
+.DS_Store
+*.log
+*~

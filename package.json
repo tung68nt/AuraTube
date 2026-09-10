@@ -1,0 +1,31 @@
+{
+  "name": "auratube",
+  "version": "1.0.0",
+  "description": "Ad-free YouTube Client for Web and Desktop (macOS)",
+  "main": "main.js",
+  "scripts": {
+    "start": "node server.js",
+    "web": "node server.js",
+    "desktop": "electron .",
+    "dev": "node server.js",
+    "build:app": "electron-packager . AuraTube --platform=darwin --arch=arm64 --icon=assets/icon --out=dist --overwrite && rm -rf /Applications/PureTube.app /Applications/AuraTube.app && cp -R dist/AuraTube-darwin-arm64/AuraTube.app /Applications/"
+  },
+  "keywords": [
+    "youtube",
+    "adfree",
+    "electron",
+    "ytdlp",
+    "invidious"
+  ],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "cors": "^2.8.5",
+    "express": "^4.21.2",
+    "undici": "^8.10.1"
+  },
+  "devDependencies": {
+    "@electron/packager": "^20.3.0",
+    "electron": "^35.0.0"
+  }
+}

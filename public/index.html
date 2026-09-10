@@ -1,0 +1,359 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>YouTube</title>
+  <meta name="description" content="AuraTube - Trình xem YouTube không quảng cáo, giao diện phẳng chuẩn Google, tích hợp tài khoản và SponsorBlock.">
+  <meta name="referrer" content="no-referrer">
+  <link rel="icon" type="image/png" href="/img/icon.png">
+  <link rel="stylesheet" href="/css/style.css?v=15">
+</head>
+<body>
+
+  <!-- Top Navbar (Exact Flat YouTube Style) -->
+  <header class="navbar">
+    <div class="nav-left">
+      <button class="menu-btn" id="menuToggleBtn" title="Trình đơn">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor"><path d="M3 18h18v-2H3v2zm0-5h18v-2H3v2zm0-7v2h18V6H3z"/></svg>
+      </button>
+
+      <div class="brand-logo" id="brandHomeBtn">
+        <!-- Authentic YouTube Logo Silhouette with AuraTube Gradient -->
+        <svg class="brand-badge-svg" viewBox="0 0 24 24" width="28" height="28">
+          <defs>
+            <linearGradient id="auraGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%" stop-color="#FF334B"/>
+              <stop offset="100%" stop-color="#E60023"/>
+            </linearGradient>
+          </defs>
+          <path fill="url(#auraGrad)" d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814z"/>
+          <polygon fill="#FFFFFF" points="9.545,15.568 15.818,12 9.545,8.432"/>
+        </svg>
+        <span class="brand-text">Aura<span class="brand-accent">Tube</span></span>
+        <span class="yt-country-badge">VN</span>
+      </div>
+    </div>
+
+    <!-- Center Search Pill & Mic -->
+    <div class="nav-center">
+      <div class="search-box-wrap">
+        <div class="search-input-box">
+          <input type="text" id="searchInput" class="search-input" placeholder="Tìm kiếm" autocomplete="off">
+        </div>
+        <button id="searchBtn" class="search-submit-btn" title="Tìm kiếm">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+        </button>
+      </div>
+
+      <button class="mic-btn" id="voiceSearchBtn" title="Tìm kiếm bằng giọng nói">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3z"/><path d="M17 11c0 2.76-2.24 5-5 5s-5-2.24-5-5H5c0 3.53 2.61 6.43 6 6.92V21h2v-3.08c3.39-.49 6-3.39 6-6.92h-2z"/></svg>
+      </button>
+    </div>
+
+    <!-- Right Controls -->
+    <div class="nav-right"></div>
+  </header>
+
+  <!-- Main Layout -->
+  <div class="app-layout">
+    <!-- Sidebar Navigation (Exact YouTube Flat Standard) -->
+    <aside class="sidebar">
+      <a href="#" class="nav-item active" data-view="trending">
+        <svg viewBox="0 0 24 24"><path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z"/></svg>
+        Trang chủ
+      </a>
+      <a href="#" class="nav-item" data-view="shorts">
+        <svg viewBox="0 0 24 24"><path d="M17.77 10.32l-1.2-.5L18 9.06c1.84-.96 2.53-3.23 1.56-5.06s-3.24-2.53-5.07-1.56L6 6.94c-1.29.68-2.07 2.04-2 3.49.07 1.42.93 2.67 2.22 3.25.03.01 1.2.5 1.2.5L6 14.93c-1.83.97-2.53 3.24-1.56 5.07.97 1.83 3.24 2.53 5.07 1.56l8.5-4.5c1.29-.68 2.06-2.04 1.99-3.49-.07-1.42-.94-2.68-2.23-3.25zM10 14.5v-5l4.5 2.5-4.5 2.5z"/></svg>
+        Shorts
+      </a>
+      <a href="#" class="nav-item" data-view="subscriptions">
+        <svg viewBox="0 0 24 24"><path d="M18.7 8.7H5.3V7h13.4v1.7zm-1.7-5H7v1.7h10V3.7zm3.4 8.3v10H3.6V12h16.8zm-1.7 1.7H5.3v6.6h11.7v-6.6zM10 14.2l4.5 2.3-4.5 2.3v-4.6z"/></svg>
+        Kênh đăng ký
+      </a>
+
+      <div class="sidebar-divider"></div>
+
+      <div class="sidebar-heading">Bạn</div>
+      <a href="#" class="nav-item" data-view="bookmarks">
+        <svg viewBox="0 0 24 24"><path d="M17 3H7c-1.1 0-2 .9-2 2v16l7-3 7 3V5c0-1.1-.9-2-2-2zm0 15l-5-2.18L7 18V5h10v13z"/></svg>
+        Xem sau
+      </a>
+      <a href="#" class="nav-item" data-view="history">
+        <svg viewBox="0 0 24 24"><path d="M13 3c-4.97 0-9 4.03-9 9H1l3.89 3.89.07.14L9 12H6c0-3.87 3.13-7 7-7s7 3.13 7 7-3.13 7-7 7c-1.93 0-3.68-.79-4.94-2.06l-1.42 1.42C8.27 19.99 10.51 21 13 21c4.97 0 9-4.03 9-9s-4.03-9-9-9zm-1 5v5l4.28 2.54.72-1.21-3.5-2.08V8H12z"/></svg>
+        Video đã xem
+      </a>
+      <a href="#" class="nav-item" data-view="downloads">
+        <svg viewBox="0 0 24 24"><path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z"/></svg>
+        Tệp đã tải về
+      </a>
+
+      <div class="sidebar-divider"></div>
+      <div style="padding: 12px; font-size: 11px; color: #717171; line-height: 1.6;">
+        © 2026 AuraTube<br>Bản quyền giao diện Google YouTube<br>Trình phát sạch không quảng cáo
+      </div>
+    </aside>
+
+    <!-- Main Content Area -->
+    <main class="content-area">
+      <!-- Category Tag Chips (Fixed height, completely flat, no scrollbar cut) -->
+      <div class="tags-bar">
+        <button class="tag-chip active" data-tag="all">Tất cả</button>
+        <button class="tag-chip" data-tag="nhạc việt remix hot trend">Âm nhạc</button>
+        <button class="tag-chip" data-tag="lofi chill beat học bài">Trực tiếp</button>
+        <button class="tag-chip" data-tag="gaming highlight việt nam">Trò chơi</button>
+        <button class="tag-chip" data-tag="tin tức 24h mới nhất việt nam">Tin tức</button>
+        <button class="tag-chip" data-tag="podcast phát triển bản thân việt nam">Podcast</button>
+        <button class="tag-chip" data-tag="review công nghệ việt nam">Khoa học</button>
+        <button class="tag-chip" data-tag="bóng đá việt nam highlight">Bóng đá</button>
+      </div>
+
+      <!-- Section Title Header -->
+      <div class="section-header">
+        <h1 class="section-title" id="sectionTitle">Thịnh hành</h1>
+      </div>
+
+      <!-- Video Grid -->
+      <div class="video-grid" id="videoGrid">
+        <!-- Injected via JavaScript -->
+      </div>
+
+      <!-- Watch View Overlay -->
+      <div class="watch-overlay" id="watchOverlay">
+        <button class="back-btn" id="backBtn">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
+          Quay lại
+        </button>
+
+        <div class="watch-layout">
+          <!-- Left Column: Player & Video Info -->
+          <div class="watch-primary">
+            <!-- Video Player Wrapper -->
+            <div class="player-wrapper" id="playerWrapper">
+              <!-- Miniplayer Top Header -->
+              <div class="miniplayer-top-bar">
+                <div class="miniplayer-title" id="miniplayerTitle">Đang phát</div>
+                <div class="miniplayer-actions">
+                  <button class="mini-action-btn" id="expandMiniplayerBtn" title="Phóng to">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M7 14H5v5h5v-2H7v-3zm-2-4h2V7h3V5H5v5zm12 7h-3v2h5v-5h-2v3zM14 5v2h3v3h2V5h-5z"/></svg>
+                  </button>
+                  <button class="mini-action-btn" id="closeMiniplayerBtn" title="Đóng">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+                  </button>
+                </div>
+              </div>
+
+              <video id="mainVideo" playsinline referrerpolicy="no-referrer"></video>
+              <audio id="audioTrack" playsinline></audio>
+
+              <!-- Audio-Only Mode Interface -->
+              <div class="audio-mode-card" id="audioModeCard">
+                <div class="audio-mode-bg" id="audioModeBg"></div>
+                <div class="audio-mode-content">
+                  <div class="audio-vinyl-container">
+                    <img id="audioModeCover" class="audio-mode-cover" src="" alt="Album Cover" />
+                    <div class="audio-vinyl-grooves"></div>
+                    <div class="audio-vinyl-center"></div>
+                  </div>
+                  <div class="audio-mode-info">
+                    <span class="audio-mode-badge">
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"/></svg>
+                      Chế độ Chỉ Audio • Không nén
+                    </span>
+                    <h3 class="audio-mode-title" id="audioModeTitle">Đang phát âm thanh</h3>
+                    <p class="audio-mode-channel" id="audioModeChannel"></p>
+                    <div class="audio-waveform-bars" id="audioWaveform">
+                      <span></span><span></span><span></span><span></span><span></span>
+                      <span></span><span></span><span></span><span></span><span></span>
+                      <span></span><span></span><span></span><span></span><span></span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Loading Buffer Spinner -->
+              <div class="player-spinner" id="playerSpinner">
+                <div class="spinner-ring"></div>
+              </div>
+
+              <!-- Custom Player Controls -->
+              <div class="player-controls">
+                <div class="seek-container" id="seekBar">
+                  <div class="seek-buffered" id="seekBuffered"></div>
+                  <div class="seek-progress" id="seekProgress"></div>
+                </div>
+
+                <div class="controls-row">
+                  <div class="controls-left">
+                    <button class="ctrl-btn" id="playPauseBtn" title="Phát (k)">
+                      <svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+                    </button>
+                    
+                    <button class="ctrl-btn" id="volumeBtn" title="Tắt tiếng (m)">
+                      <svg viewBox="0 0 24 24"><path d="M3 9v6h4l5 5V4L9 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z"/></svg>
+                    </button>
+                    <input type="range" id="volumeSlider" class="volume-slider" min="0" max="1" step="0.05" value="1">
+
+                    <div class="time-display" id="timeDisplay">0:00 / 0:00</div>
+                  </div>
+
+                  <div class="controls-right">
+                    <select id="qualitySelect" class="quality-select" title="Chất lượng">
+                      <option value="2160">4K Ultra HD (2160p)</option>
+                      <option value="1440">2K Quad HD (1440p)</option>
+                      <option value="1080" selected>1080p Full HD</option>
+                      <option value="720">720p HD</option>
+                      <option value="480">480p</option>
+                      <option value="360">360p</option>
+                      <option value="audio">Chỉ Audio</option>
+                    </select>
+
+                    <select id="speedSelect" class="speed-select" title="Tốc độ phát">
+                      <option value="0.5">0.5x</option>
+                      <option value="0.75">0.75x</option>
+                      <option value="1" selected>1.0x</option>
+                      <option value="1.25">1.25x</option>
+                      <option value="1.5">1.5x</option>
+                      <option value="2">2.0x</option>
+                    </select>
+
+                    <button class="ctrl-btn" id="pipBtn" title="Hình trong hình">
+                      <svg viewBox="0 0 24 24"><path d="M19 7h-8v6h8V7zm2-4H3c-1.1 0-2 .9-2 2v14c0 1.1.9 1.98 2 1.98h18c1.1 0 2-.88 2-1.98V5c0-1.1-.9-2-2-2zm0 16.01H3V4.98h18v14.03z"/></svg>
+                    </button>
+
+                    <button class="ctrl-btn" id="fullscreenBtn" title="Toàn màn hình (f)">
+                      <svg viewBox="0 0 24 24"><path d="M7 14H5v5h5v-2H7v-3zm-2-4h2V7h3V5H5v5zm12 7h-3v2h5v-5h-2v3zM14 5v2h3v3h2V5h-5z"/></svg>
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Video Details Section (Official YouTube Design) -->
+            <div class="watch-details">
+              <h1 class="watch-title" id="watchTitle">Đang tải...</h1>
+              
+              <div class="watch-action-bar">
+                <div class="uploader-info">
+                  <div class="uploader-avatar" id="uploaderAvatar">Y</div>
+                  <div>
+                    <div class="uploader-name" id="uploaderName">Kênh YouTube</div>
+                    <div class="uploader-subs" id="videoViews">-- lượt xem</div>
+                  </div>
+                  <button class="yt-subscribe-btn" id="subscribeBtn">Đăng ký</button>
+                </div>
+
+                <div class="actions-group">
+                  <button class="btn-pill" id="shareBtn" title="Chia sẻ liên kết">
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><path d="M15 5.63L20.66 12 15 18.37V14h-1c-3.96 0-7.14 1-9.75 3.09 1.84-4.07 5.11-6.4 9.89-7.1l.86-.13V5.63M14 3v6C6.22 10.13 3.11 15.42 2 21c2.78-3.97 6.44-6 12-6v6l8-9-8-9z"/></svg>
+                    <span>Chia sẻ</span>
+                  </button>
+
+                  <button class="btn-pill" id="downloadWatchBtn" title="Tải video hoặc audio">
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                    <span>Tải xuống</span>
+                  </button>
+
+                  <button class="btn-pill" id="bookmarkBtn" title="Lưu vào danh sách xem sau">
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>
+                    <span>Lưu video</span>
+                  </button>
+                </div>
+              </div>
+
+              <div class="description-box" id="videoDesc">
+                Đang tải mô tả...
+              </div>
+            </div>
+          </div>
+
+          <!-- Right Column: Up Next / Related Videos (Official YouTube) -->
+          <div class="watch-secondary">
+            <div class="related-header">Video liên quan</div>
+            <div class="related-list" id="relatedList">
+              <!-- Dynamically populated -->
+            </div>
+          </div>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <!-- Premium & Clean Download Dialog (Downie / macOS Native Style) -->
+  <div class="modal-backdrop" id="downloadModal">
+    <div class="modal-card download-modal-card">
+      <div class="dl-header">
+        <h3 class="dl-title">Tải phương tiện</h3>
+        <button id="closeModalBtn" class="dl-close-btn" title="Đóng (ESC)">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        </button>
+      </div>
+
+      <!-- Media Preview Card -->
+      <div class="dl-preview-card">
+        <div class="dl-thumb-wrap">
+          <img id="dlModalThumb" src="" alt="" class="dl-thumb-img">
+          <span id="dlModalDuration" class="dl-duration-badge">0:00</span>
+        </div>
+        <div class="dl-preview-info">
+          <h4 id="downloadModalTitle" class="dl-video-title">Đang tải video...</h4>
+          <div class="dl-video-meta">
+            <span id="dlModalAuthor" class="dl-author-name">YouTube</span>
+            <span class="dl-meta-dot">•</span>
+            <span id="dlModalViews" class="dl-views-count">Lượt xem</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Segmented Format Control -->
+      <div class="dl-segmented-bar">
+        <button class="dl-segment-btn active" id="dlTabVideo" data-type="video">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="2" width="20" height="20" rx="2.18" ry="2.18"/><line x1="7" y1="2" x2="7" y2="22"/><line x1="17" y1="2" x2="17" y2="22"/><line x1="2" y1="12" x2="22" y2="12"/><line x1="2" y1="7" x2="7" y2="7"/><line x1="2" y1="17" x2="7" y2="17"/><line x1="17" y1="17" x2="22" y2="17"/><line x1="17" y1="7" x2="22" y2="7"/></svg>
+          <span>Video (MP4)</span>
+        </button>
+        <button class="dl-segment-btn" id="dlTabAudio" data-type="audio">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>
+          <span>Âm thanh (MP3)</span>
+        </button>
+      </div>
+
+      <!-- Dynamic Options List -->
+      <div class="download-options-list" id="downloadOptionsList">
+        <!-- Option items rendered dynamically -->
+      </div>
+
+      <!-- Primary CTA Action Button -->
+      <button class="dl-submit-btn" id="dlSubmitBtn">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+          <polyline points="7 10 12 15 17 10"/>
+          <line x1="12" y1="15" x2="12" y2="3"/>
+        </svg>
+        <span id="dlSubmitBtnText">Tải xuống 1080p MP4</span>
+      </button>
+
+      <!-- Clean Footer -->
+      <div class="dl-footer">
+        <div class="dl-path-group">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+          <span class="dl-path-text">~/Downloads/YouTube_Adfree</span>
+        </div>
+        <button class="dl-finder-link" id="dlOpenFinderBtn">
+          <span>Mở thư mục</span>
+          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+        </button>
+      </div>
+    </div>
+  </div>
+
+
+
+  <!-- Toast Notification -->
+  <div class="toast" id="toast">
+    <span id="toastMessage">Thông báo</span>
+  </div>
+
+  <script src="/js/player.js?v=15"></script>
+  <script src="/js/app.js?v=15"></script>
+</body>
+</html>

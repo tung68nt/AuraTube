@@ -1,0 +1,1100 @@
+/* Official YouTube Miniplayer Theme with Full macOS Light/Dark Mode Sync */
+@import url('https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;600;700&display=swap');
+
+:root {
+  /* Default: macOS Light Theme (Matching BatFlow and Apple Popovers) */
+  --yt-bg: rgba(255, 255, 255, 0.95);
+  --yt-topbar-bg: rgba(255, 255, 255, 0.92);
+  --yt-border: rgba(0, 0, 0, 0.08);
+  --yt-divider: rgba(0, 0, 0, 0.06);
+  --yt-text-primary: #0f0f0f;
+  --yt-text-secondary: #555555;
+  --yt-text-muted: #888888;
+  --yt-chip-bg: #f2f2f5;
+  --yt-chip-hover: #e5e5ea;
+  --yt-chip-border: rgba(0, 0, 0, 0.06);
+  --yt-chip-text: #1d1d1f;
+  --yt-search-bg: #f2f2f5;
+  --yt-search-border: rgba(0, 0, 0, 0.08);
+  --yt-search-text: #0f0f0f;
+  --yt-sub-bg: #0f0f0f;
+  --yt-sub-text: #ffffff;
+  --yt-sub-hover: #272727;
+  --yt-shadow: 0 16px 32px -4px rgba(0, 0, 0, 0.12), 0 4px 10px -2px rgba(0, 0, 0, 0.05), 0 0 0 1px rgba(0, 0, 0, 0.07);
+  --yt-icon-btn-hover: rgba(0, 0, 0, 0.06);
+  --yt-red: #ff0000;
+  --yt-red-hover: #cc0000;
+  --yt-radius-card: 18px;
+  --yt-radius-pill: 20px;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --yt-bg: rgba(22, 22, 26, 0.95);
+    --yt-topbar-bg: rgba(22, 22, 26, 0.92);
+    --yt-border: rgba(255, 255, 255, 0.12);
+    --yt-divider: rgba(255, 255, 255, 0.08);
+    --yt-text-primary: #f1f1f1;
+    --yt-text-secondary: #aaaaaa;
+    --yt-text-muted: #717171;
+    --yt-chip-bg: #2c2c30;
+    --yt-chip-hover: #3a3a40;
+    --yt-chip-border: rgba(255, 255, 255, 0.12);
+    --yt-chip-text: #f1f1f1;
+    --yt-search-bg: #202024;
+    --yt-search-border: rgba(255, 255, 255, 0.14);
+    --yt-search-text: #f1f1f1;
+    --yt-sub-bg: #ffffff;
+    --yt-sub-text: #0f0f0f;
+    --yt-sub-hover: #d9d9d9;
+    --yt-shadow: 0 20px 40px -6px rgba(0, 0, 0, 0.48), 0 6px 14px -2px rgba(0, 0, 0, 0.28), 0 0 0 1px rgba(255, 255, 255, 0.10);
+    --yt-icon-btn-hover: rgba(255, 255, 255, 0.12);
+  }
+}
+
+:root[data-theme="light"],
+body[data-theme="light"] {
+  --yt-bg: rgba(255, 255, 255, 0.95);
+  --yt-topbar-bg: rgba(255, 255, 255, 0.92);
+  --yt-border: rgba(0, 0, 0, 0.08);
+  --yt-divider: rgba(0, 0, 0, 0.06);
+  --yt-text-primary: #0f0f0f;
+  --yt-text-secondary: #555555;
+  --yt-text-muted: #888888;
+  --yt-chip-bg: #f2f2f5;
+  --yt-chip-hover: #e5e5ea;
+  --yt-chip-border: rgba(0, 0, 0, 0.06);
+  --yt-chip-text: #1d1d1f;
+  --yt-search-bg: #f2f2f5;
+  --yt-search-border: rgba(0, 0, 0, 0.08);
+  --yt-search-text: #0f0f0f;
+  --yt-sub-bg: #0f0f0f;
+  --yt-sub-text: #ffffff;
+  --yt-sub-hover: #272727;
+  --yt-shadow: 0 16px 32px -4px rgba(0, 0, 0, 0.12), 0 4px 10px -2px rgba(0, 0, 0, 0.05), 0 0 0 1px rgba(0, 0, 0, 0.07);
+  --yt-icon-btn-hover: rgba(0, 0, 0, 0.06);
+}
+
+:root[data-theme="dark"],
+body[data-theme="dark"] {
+  --yt-bg: rgba(22, 22, 26, 0.95);
+  --yt-topbar-bg: rgba(22, 22, 26, 0.92);
+  --yt-border: rgba(255, 255, 255, 0.12);
+  --yt-divider: rgba(255, 255, 255, 0.08);
+  --yt-text-primary: #f1f1f1;
+  --yt-text-secondary: #aaaaaa;
+  --yt-text-muted: #717171;
+  --yt-chip-bg: #2c2c30;
+  --yt-chip-hover: #3a3a40;
+  --yt-chip-border: rgba(255, 255, 255, 0.12);
+  --yt-chip-text: #f1f1f1;
+  --yt-search-bg: #202024;
+  --yt-search-border: rgba(255, 255, 255, 0.14);
+  --yt-search-text: #f1f1f1;
+  --yt-sub-bg: #ffffff;
+  --yt-sub-text: #0f0f0f;
+  --yt-sub-hover: #d9d9d9;
+  --yt-shadow: 0 20px 40px -6px rgba(0, 0, 0, 0.48), 0 6px 14px -2px rgba(0, 0, 0, 0.28), 0 0 0 1px rgba(255, 255, 255, 0.10);
+  --yt-icon-btn-hover: rgba(255, 255, 255, 0.12);
+}
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  user-select: none;
+}
+
+body {
+  margin: 0;
+  padding: 0 14px 16px 14px;
+  background: transparent;
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Roboto", "Segoe UI", Arial, sans-serif;
+  color: var(--yt-text-primary);
+  overflow: hidden;
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  box-sizing: border-box;
+}
+
+/* Master Popover Container - Pure Apple & YouTube Glass Aesthetics */
+.yt-popover {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  background: var(--yt-bg);
+  backdrop-filter: blur(28px) saturate(190%);
+  -webkit-backdrop-filter: blur(28px) saturate(190%);
+  border-radius: var(--yt-radius-card);
+  box-shadow: var(--yt-shadow);
+  overflow: hidden;
+  position: relative;
+  transition: background 0.25s ease, border-color 0.25s ease, box-shadow 0.25s ease;
+}
+
+/* 1. Official YouTube Top Bar */
+.yt-topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 42px;
+  padding: 0 14px;
+  background: var(--yt-topbar-bg);
+  border-bottom: 1px solid var(--yt-divider);
+  -webkit-app-region: drag;
+  flex-shrink: 0;
+}
+
+.yt-logo-group {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  cursor: default;
+}
+
+.yt-logo-icon {
+  width: 24px;
+  height: 17px;
+  display: block;
+}
+
+.yt-logo-text {
+  font-family: "Roboto", -apple-system, BlinkMacSystemFont, sans-serif;
+  font-size: 16px;
+  font-weight: 700;
+  letter-spacing: -0.5px;
+  color: var(--yt-text-primary);
+}
+
+.yt-badge-sub {
+  font-size: 10px;
+  color: var(--yt-text-muted);
+  margin-left: 2px;
+  font-weight: 500;
+}
+
+.yt-topbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  -webkit-app-region: no-drag;
+}
+
+.yt-icon-btn {
+  background: transparent;
+  border: none;
+  color: var(--yt-text-secondary);
+  cursor: pointer;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s ease;
+}
+
+.yt-icon-btn:hover {
+  background: var(--yt-icon-btn-hover);
+  color: var(--yt-text-primary);
+}
+
+.yt-icon-btn.active {
+  background: rgba(255, 0, 0, 0.18);
+  color: #ff3333;
+}
+
+/* 2. Video Player Section */
+.yt-player-box {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  background: #000000;
+  overflow: hidden;
+  flex-shrink: 0;
+}
+
+#miniVideo {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  background: #000;
+  z-index: 1;
+}
+
+/* Idle Placeholder */
+.yt-placeholder {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: #141414;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  z-index: 2;
+  cursor: pointer;
+}
+
+.yt-placeholder svg {
+  color: var(--yt-red);
+}
+
+.yt-placeholder span {
+  font-size: 12px;
+  color: #aaaaaa;
+  font-weight: 500;
+}
+
+/* Official YouTube Player Overlay */
+.yt-controls-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 5;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  background: linear-gradient(180deg, rgba(0,0,0,0.5) 0%, transparent 30%, transparent 60%, rgba(0,0,0,0.85) 100%);
+  opacity: 0;
+  transition: opacity 0.2s ease;
+  pointer-events: none;
+}
+
+.yt-player-box:hover .yt-controls-overlay,
+.yt-controls-overlay.visible {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+/* Center Big Play Button */
+.yt-center-play {
+  align-self: center;
+  margin: auto;
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.7);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  color: #fff;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: transform 0.15s ease, background 0.15s ease;
+}
+
+.yt-center-play:hover {
+  transform: scale(1.12);
+  background: var(--yt-red);
+  border-color: transparent;
+}
+
+/* Bottom Progress Bar - Generous Scrub Hit Area, Buttery Smooth 60fps */
+.yt-scrub-bar {
+  width: 100%;
+  height: 22px;
+  display: flex;
+  align-items: center;
+  cursor: pointer;
+  padding: 0 10px;
+  position: relative;
+  touch-action: none;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+.yt-progress-rail {
+  width: 100%;
+  height: 4px;
+  background: rgba(255, 255, 255, 0.28);
+  border-radius: 2px;
+  position: relative;
+  transition: height 0.1s ease;
+  pointer-events: none;
+}
+
+.yt-scrub-bar:hover .yt-progress-rail,
+.yt-scrub-bar.scrubbing .yt-progress-rail {
+  height: 6px;
+}
+
+.yt-progress-buffered {
+  position: absolute;
+  left: 0;
+  top: 0;
+  height: 100%;
+  width: 0%;
+  border-radius: 2px;
+  background: rgba(255, 255, 255, 0.45);
+}
+
+.yt-progress-played {
+  position: absolute;
+  left: 0;
+  top: 0;
+  height: 100%;
+  width: 0%;
+  border-radius: 2px;
+  background: var(--yt-red);
+}
+
+.yt-scrub-ball {
+  position: absolute;
+  right: -7px;
+  top: 50%;
+  transform: translateY(-50%) scale(0);
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--yt-red);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.5);
+  transition: transform 0.1s ease;
+  pointer-events: none;
+}
+
+.yt-scrub-bar:hover .yt-scrub-ball,
+.yt-scrub-bar.scrubbing .yt-scrub-ball {
+  transform: translateY(-50%) scale(1);
+}
+
+/* Bottom Controls Row */
+.yt-bottom-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 10px 6px 10px;
+}
+
+.yt-controls-left, .yt-controls-right {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+}
+
+.yt-btn {
+  background: transparent;
+  border: none;
+  color: #ffffff;
+  cursor: pointer;
+  width: 28px;
+  height: 28px;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: opacity 0.15s ease;
+}
+
+.yt-btn:hover {
+  opacity: 0.75;
+}
+
+.yt-time-stamp {
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  color: #dddddd;
+  margin-left: 6px;
+  font-weight: 500;
+}
+
+.yt-quality-badge {
+  font-size: 10px;
+  font-weight: 600;
+  background: rgba(255, 255, 255, 0.18);
+  padding: 2px 6px;
+  border-radius: 4px;
+  color: #fff;
+}
+
+/* 3. Official YouTube Metadata Section */
+.yt-metadata-section {
+  padding: 10px 14px 6px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.yt-video-title {
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.4;
+  color: var(--yt-text-primary);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.yt-channel-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.yt-channel-left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.yt-avatar {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  background: #cc0000;
+  color: #fff;
+  font-weight: 700;
+  font-size: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.yt-channel-info {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.yt-channel-name {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--yt-text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.yt-channel-subtext {
+  font-size: 11px;
+  color: var(--yt-text-secondary);
+}
+
+.yt-sub-btn {
+  background: var(--yt-sub-bg);
+  color: var(--yt-sub-text);
+  border: none;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 6px 14px;
+  border-radius: var(--yt-radius-pill);
+  cursor: pointer;
+  transition: all 0.15s ease;
+  flex-shrink: 0;
+}
+
+.yt-sub-btn:hover {
+  background: var(--yt-sub-hover);
+}
+
+/* 4. Structured Action Grid - 100% Unified, Professional & Tactile (Zero Emojis) */
+.yt-actions-container {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  padding: 4px 14px 10px 14px;
+  flex-shrink: 0;
+}
+
+.yt-actions-row {
+  display: flex;
+  gap: 8px;
+}
+
+.yt-action-chip,
+.yt-chip-btn {
+  flex: 1;
+  height: 35px;
+  background: var(--yt-chip-bg);
+  border: 1px solid var(--yt-chip-border);
+  color: var(--yt-chip-text);
+  border-radius: 18px;
+  font-family: -apple-system, BlinkMacSystemFont, "Roboto", "Segoe UI", sans-serif;
+  font-size: 12px;
+  font-weight: 500;
+  padding: 0 10px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease, transform 0.1s ease;
+  white-space: nowrap;
+  box-shadow: none;
+  user-select: none;
+  -webkit-user-select: none;
+  outline: none;
+}
+
+.yt-action-chip .yt-chip-icon,
+.yt-chip-btn .yt-chip-icon,
+.yt-action-chip svg,
+.yt-chip-btn svg {
+  width: 15px;
+  height: 15px;
+  flex-shrink: 0;
+  stroke: currentColor;
+  transition: transform 0.15s ease;
+}
+
+.yt-action-chip .yt-chip-label,
+.yt-chip-btn .yt-chip-label {
+  line-height: 1;
+  font-weight: 500;
+}
+
+.yt-action-chip:hover,
+.yt-chip-btn:hover {
+  background: var(--yt-chip-hover);
+  border-color: rgba(128, 128, 128, 0.18);
+}
+
+.yt-action-chip:active,
+.yt-chip-btn:active {
+  transform: scale(0.97);
+}
+
+/* Active State (e.g. Liked, Mode Switch, Dock State) */
+.yt-action-chip.active,
+.yt-chip-btn.active {
+  background: var(--yt-sub-bg);
+  color: var(--yt-sub-text);
+  border-color: transparent;
+  font-weight: 600;
+}
+
+.yt-action-chip.active .yt-chip-icon,
+.yt-chip-btn.active .yt-chip-icon,
+.yt-action-chip.active svg,
+.yt-chip-btn.active svg {
+  stroke: currentColor;
+}
+
+/* 5. Clean Search Bar */
+.yt-search-container {
+  padding: 4px 14px 12px 14px;
+  position: relative;
+  flex-shrink: 0;
+}
+
+.yt-search-wrapper {
+  display: flex;
+  align-items: center;
+  background: var(--yt-search-bg);
+  border: 1px solid var(--yt-search-border);
+  border-radius: 20px;
+  padding: 0 12px;
+  height: 34px;
+  transition: border-color 0.2s ease, background 0.2s ease, box-shadow 0.2s ease;
+  position: relative;
+}
+
+.yt-search-wrapper:focus-within {
+  border-color: #065fd4;
+  background: var(--yt-topbar-bg);
+  box-shadow: 0 0 0 2px rgba(6, 95, 212, 0.15);
+}
+
+.yt-search-icon {
+  color: var(--yt-text-muted);
+  margin-right: 8px;
+  flex-shrink: 0;
+}
+
+.yt-search-input {
+  flex: 1;
+  background: transparent;
+  border: none;
+  outline: none;
+  font-size: 12px;
+  color: var(--yt-text-primary);
+  font-family: inherit;
+}
+
+.yt-search-input::placeholder {
+  color: var(--yt-text-muted);
+}
+
+.yt-search-clear {
+  background: transparent;
+  border: none;
+  color: var(--yt-text-muted);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  padding: 0;
+  margin-left: 4px;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.yt-search-clear:hover {
+  background: var(--yt-chip-hover);
+  color: var(--yt-text-primary);
+}
+
+/* Instant Search Results Dropdown - Floating Upwards with Rich Preview */
+.yt-dropdown-results {
+  position: absolute;
+  bottom: calc(100% + 8px);
+  left: 14px;
+  right: 14px;
+  background: var(--yt-bg);
+  backdrop-filter: blur(28px) saturate(190%);
+  -webkit-backdrop-filter: blur(28px) saturate(190%);
+  border: 1px solid var(--yt-border);
+  border-radius: 14px;
+  box-shadow: 0 -12px 36px -4px rgba(0, 0, 0, 0.35), 0 0 0 1px var(--yt-border);
+  max-height: 290px;
+  overflow-y: auto;
+  z-index: 100;
+  display: none;
+  padding: 6px;
+  animation: searchPopUp 0.18s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes searchPopUp {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.yt-dropdown-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 8px 4px 8px;
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--yt-text-muted);
+  border-bottom: 1px solid var(--yt-divider);
+  margin-bottom: 4px;
+}
+
+.yt-dropdown-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 8px;
+  cursor: pointer;
+  border-radius: 8px;
+  transition: background 0.12s ease;
+}
+
+.yt-dropdown-item:hover,
+.yt-dropdown-item.selected {
+  background: var(--yt-chip-hover);
+}
+
+.yt-dropdown-thumb-box {
+  position: relative;
+  width: 60px;
+  height: 34px;
+  border-radius: 6px;
+  overflow: hidden;
+  background: #000;
+  flex-shrink: 0;
+}
+
+.yt-dropdown-thumb {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.yt-dropdown-text {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.yt-dropdown-title {
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--yt-text-primary);
+  line-height: 1.3;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.yt-dropdown-meta {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 10px;
+  color: var(--yt-text-muted);
+}
+
+.yt-dropdown-author {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 140px;
+}
+
+/* Custom Sleek Scrollbar */
+.yt-dropdown-results::-webkit-scrollbar {
+  width: 5px;
+}
+.yt-dropdown-results::-webkit-scrollbar-track {
+  background: transparent;
+}
+.yt-dropdown-results::-webkit-scrollbar-thumb {
+  background: rgba(128, 128, 128, 0.35);
+  border-radius: 4px;
+}
+.yt-dropdown-results::-webkit-scrollbar-thumb:hover {
+  background: rgba(128, 128, 128, 0.6);
+}
+
+/* 6. Apple-Style Unified Action Card (MacClean & BatFlow Native Design) */
+.yt-menu-card {
+  margin: 0 14px 8px 14px;
+  background: var(--yt-chip-bg);
+  border: 1px solid var(--yt-border);
+  border-radius: 10px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  flex-shrink: 0;
+}
+
+.yt-menu-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 7px 10px;
+  background: transparent;
+  border: none;
+  color: var(--yt-text-primary);
+  font-family: inherit;
+  font-size: 11px;
+  font-weight: 500;
+  text-align: left;
+  cursor: pointer;
+  width: 100%;
+  transition: background 0.12s ease;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.yt-menu-row:hover {
+  background: var(--yt-chip-hover);
+}
+
+.yt-menu-row:active {
+  background: rgba(128, 128, 128, 0.2);
+}
+
+.yt-menu-row.destructive:hover {
+  background: rgba(255, 59, 48, 0.12);
+  color: #ff3b30;
+}
+
+.yt-menu-row.destructive .yt-menu-label {
+  transition: color 0.12s ease;
+}
+
+.yt-menu-row.destructive:hover .yt-menu-label {
+  color: #ff3b30;
+}
+
+.yt-menu-divider {
+  height: 1px;
+  background: var(--yt-divider);
+  margin-left: 36px;
+  margin-right: 8px;
+}
+
+/* Modern Squircle Action Icon (BatFlow Style) */
+.yt-action-icon-box {
+  width: 22px;
+  height: 22px;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  transition: transform 0.12s ease;
+}
+
+.yt-action-icon-box.blue {
+  background: rgba(10, 132, 255, 0.15);
+  border: 0.8px solid rgba(10, 132, 255, 0.3);
+  color: #007aff;
+}
+
+.yt-action-icon-box.purple {
+  background: rgba(175, 82, 222, 0.15);
+  border: 0.8px solid rgba(175, 82, 222, 0.3);
+  color: #af52de;
+}
+
+.yt-action-icon-box.cyan {
+  background: rgba(50, 173, 230, 0.15);
+  border: 0.8px solid rgba(50, 173, 230, 0.3);
+  color: #32ade6;
+}
+
+.yt-action-icon-box.red {
+  background: rgba(255, 59, 48, 0.15);
+  border: 0.8px solid rgba(255, 59, 48, 0.3);
+  color: #ff3b30;
+}
+
+.yt-menu-label {
+  flex: 1;
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--yt-text-primary);
+  line-height: 1.2;
+}
+
+.yt-menu-text-col {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.yt-menu-sublabel {
+  font-size: 9.5px;
+  color: var(--yt-text-muted);
+}
+
+.yt-menu-badge {
+  font-size: 9.5px;
+  font-weight: 600;
+  font-family: -apple-system, BlinkMacSystemFont, sans-serif;
+  color: var(--yt-text-muted);
+  background: var(--yt-chip-hover);
+  padding: 1.5px 6px;
+  border-radius: 4px;
+}
+
+/* Native Apple iOS/macOS Green Toggle Switch */
+.yt-switch {
+  position: relative;
+  display: inline-block;
+  width: 32px;
+  height: 18px;
+  flex-shrink: 0;
+}
+
+.yt-switch input {
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.yt-slider {
+  position: absolute;
+  cursor: pointer;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(120, 120, 128, 0.28);
+  transition: 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  border-radius: 18px;
+}
+
+.yt-slider:before {
+  position: absolute;
+  content: "";
+  height: 14px;
+  width: 14px;
+  left: 2px;
+  bottom: 2px;
+  background-color: #ffffff;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+  transition: 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  border-radius: 50%;
+}
+
+.yt-switch input:checked + .yt-slider {
+  background-color: #34c759;
+}
+
+.yt-switch input:checked + .yt-slider:before {
+  transform: translateX(14px);
+}
+
+/* 7. Sleek Branding Micro-Footer (Tulie Tech Realtime) */
+.yt-micro-footer {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 18px 8px 18px;
+  margin-top: auto;
+  user-select: none;
+  -webkit-user-select: none;
+  flex-shrink: 0;
+}
+
+.yt-status-dot {
+  width: 4.5px;
+  height: 4.5px;
+  border-radius: 50%;
+  background: #34c759;
+  box-shadow: 0 0 6px rgba(52, 199, 89, 0.6);
+  animation: pulseDot 2.2s infinite ease-in-out;
+}
+
+@keyframes pulseDot {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.55; transform: scale(0.85); }
+}
+
+.yt-brand-title {
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--yt-text-primary);
+  opacity: 0.8;
+}
+
+.yt-brand-sub {
+  font-size: 9.5px;
+  font-weight: 400;
+  color: var(--yt-text-muted);
+}
+
+/* 8. About Modal Overlay */
+.yt-about-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.45);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 999;
+  padding: 16px;
+  animation: fadeIn 0.15s ease;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.yt-about-card {
+  background: var(--yt-bg);
+  border: 1px solid var(--yt-border);
+  border-radius: 14px;
+  padding: 18px;
+  width: 100%;
+  max-width: 290px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  box-shadow: 0 16px 36px rgba(0, 0, 0, 0.35);
+  animation: modalScale 0.18s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes modalScale {
+  from { opacity: 0; transform: scale(0.94); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+.yt-about-icon {
+  margin-bottom: 8px;
+}
+
+.yt-about-title {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--yt-text-primary);
+  margin-bottom: 2px;
+}
+
+.yt-about-version {
+  font-size: 10.5px;
+  color: var(--yt-text-muted);
+  margin-bottom: 2px;
+}
+
+.yt-about-author {
+  font-size: 10.5px;
+  color: var(--yt-text-secondary);
+  margin-bottom: 12px;
+}
+
+.yt-about-features {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  width: 100%;
+  background: var(--yt-chip-bg);
+  border-radius: 8px;
+  padding: 8px 10px;
+  text-align: left;
+  margin-bottom: 12px;
+}
+
+.yt-about-feat-row {
+  font-size: 10px;
+  color: var(--yt-text-primary);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.yt-about-copy {
+  font-size: 9px;
+  color: var(--yt-text-muted);
+  margin-bottom: 12px;
+}
+
+.yt-about-close-btn {
+  background: #065fd4;
+  color: #fff;
+  border: none;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 6px 24px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: opacity 0.15s ease;
+}
+
+.yt-about-close-btn:hover {
+  opacity: 0.9;
+}

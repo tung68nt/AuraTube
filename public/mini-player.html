@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html lang="vi" data-theme="light">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>YouTube Mini</title>
+  <link rel="stylesheet" href="/css/mini-player.css">
+</head>
+<body>
+  <div class="yt-popover">
+    <!-- 1. Official YouTube Top Bar -->
+    <header class="yt-topbar">
+      <div class="yt-logo-group">
+        <svg class="yt-logo-icon" viewBox="0 0 28.57 20" xmlns="http://www.w3.org/2000/svg">
+          <path d="M27.9727 3.12324C27.6435 1.89323 26.6768 0.926623 25.4468 0.597366C23.2197 0 14.285 0 14.285 0C14.285 0 5.35042 0 3.12323 0.597366C1.89323 0.926623 0.926623 1.89323 0.597366 3.12324C0 5.35042 0 10 0 10C0 10 0 14.6496 0.597366 16.8768C0.926623 18.1068 1.89323 19.0734 3.12323 19.4026C5.35042 20 14.285 20 14.285 20C14.285 20 23.2197 20 25.4468 19.4026C26.6768 19.0734 27.6435 18.1068 27.9727 16.8768C28.5701 14.6496 28.5701 10 28.5701 10C28.5701 10 28.5677 5.35042 27.9727 3.12324Z" fill="#FF0000"/>
+          <path d="M11.4253 14.2854L18.8477 10.0004L11.4253 5.71533V14.2854Z" fill="#FFFFFF"/>
+        </svg>
+        <span class="yt-logo-text">YouTube</span>
+        <span class="yt-badge-sub">VN</span>
+      </div>
+
+      <div class="yt-topbar-actions">
+        <button class="yt-icon-btn" id="pinBtn" title="Ghim luôn hiển thị trên các ứng dụng">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M16 12V4h1V2H7v2h1v8l-2 2v2h5.2v6h1.6v-6H18v-2l-2-2z"/></svg>
+        </button>
+        <button class="yt-icon-btn" id="expandBtn" title="Mở trên ứng dụng lớn">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><path d="M19 19H5V5h7V3H5a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7h-2v7zM14 3v2h3.59l-9.83 9.83 1.41 1.41L19 6.41V10h2V3h-7z"/></svg>
+        </button>
+        <button class="yt-icon-btn" id="closeBtn" title="Đóng">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+        </button>
+      </div>
+    </header>
+
+    <!-- 2. Video Player Section -->
+    <div class="yt-player-box" id="playerBox">
+      <video id="miniVideo" playsinline preload="auto"></video>
+
+      <!-- Placeholder when idle -->
+      <div class="yt-placeholder" id="videoPlaceholder">
+        <svg width="40" height="40" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 14.5v-9l6 4.5-6 4.5z"/></svg>
+        <span>Bấm để phát video thịnh hành</span>
+      </div>
+
+      <!-- YouTube HTML5 Controls Overlay -->
+      <div class="yt-controls-overlay" id="playerOverlay">
+        <button class="yt-center-play" id="centerPlayBtn" title="Phát/Dừng">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+        </button>
+
+        <div>
+          <!-- Scrub bar -->
+          <div class="yt-scrub-bar" id="seekContainer">
+            <div class="yt-progress-rail">
+              <div class="yt-progress-buffered" id="seekBuffered"></div>
+              <div class="yt-progress-played" id="seekProgress">
+                <div class="yt-scrub-ball"></div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Bottom controls row -->
+          <div class="yt-bottom-bar">
+            <div class="yt-controls-left">
+              <button class="yt-btn" id="playPauseBtn" title="Phát (k)">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+              </button>
+              <button class="yt-btn" id="rewindBtn" title="Tua lùi 10 giây (j)">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M11 18V6l-8.5 6 8.5 6zm.5-6l8.5 6V6l-8.5 6z"/></svg>
+              </button>
+              <button class="yt-btn" id="forwardBtn" title="Tua tới 10 giây (l)">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M4 18l8.5-6L4 6v12zm9-12v12l8.5-6L13 6z"/></svg>
+              </button>
+              <button class="yt-btn" id="volumeBtn" title="Tắt tiếng (m)">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M3 9v6h4l5 5V4L9 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z"/></svg>
+              </button>
+              <span class="yt-time-stamp" id="timeDisplay">0:00 / 0:00</span>
+            </div>
+
+            <div class="yt-controls-right">
+              <span class="yt-quality-badge">1080p</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 3. Official YouTube Metadata Section -->
+    <div class="yt-metadata-section">
+      <div class="yt-video-title" id="videoTitle">Đang tải video...</div>
+      
+      <div class="yt-channel-row">
+        <div class="yt-channel-left">
+          <div class="yt-avatar" id="channelAvatar">Y</div>
+          <div class="yt-channel-info">
+            <div class="yt-channel-name" id="channelName">Kênh YouTube</div>
+            <div class="yt-channel-subtext" id="videoViews">Đang phát • HD 1080p</div>
+          </div>
+        </div>
+        <button class="yt-sub-btn" id="subscribeBtn">Đăng ký</button>
+      </div>
+    </div>
+
+    <!-- 4. Quick Actions: Like & Share -->
+    <div class="yt-actions-container">
+      <div class="yt-actions-row">
+        <button class="yt-action-chip" id="likeBtn" title="Thích video này">
+          <svg class="yt-chip-icon" id="likeIconSvg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M14 9V5a3 3 0 0 0-3-3l-4 9v11h11.28a2 2 0 0 0 2-1.7l1.38-9a2 2 0 0 0-2-2.3zM7 22H4a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2h3"/>
+          </svg>
+          <span class="yt-chip-label" id="likeText">Thích</span>
+        </button>
+
+        <button class="yt-action-chip" id="shareBtn" title="Sao chép liên kết video">
+          <svg class="yt-chip-icon" id="shareIconSvg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/>
+            <polyline points="16 6 12 2 8 6"/>
+            <line x1="12" y1="2" x2="12" y2="15"/>
+          </svg>
+          <span class="yt-chip-label" id="shareText">Chia sẻ</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- 5. YouTube Search Bar -->
+    <div class="yt-search-container">
+      <div class="yt-search-wrapper">
+        <svg class="yt-search-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+        <input type="text" id="searchInput" class="yt-search-input" placeholder="Tìm kiếm trên YouTube..." autocomplete="off">
+        <button id="searchClearBtn" class="yt-search-clear" title="Xóa tìm kiếm" style="display: none;">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+        </button>
+      </div>
+      <div class="yt-dropdown-results" id="searchResults"></div>
+    </div>
+
+    <!-- 6. Apple-Style Unified Action Card (MacClean & BatFlow Style) -->
+    <div class="yt-menu-card">
+      <!-- Mở ứng dụng chính -->
+      <button class="yt-menu-row" id="expandPillBtn" title="Mở ứng dụng chính (⌘O)">
+        <div class="yt-action-icon-box blue">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/>
+            <polyline points="15 3 21 3 21 9"/>
+            <line x1="10" y1="14" x2="21" y2="3"/>
+          </svg>
+        </div>
+        <span class="yt-menu-label">Mở ứng dụng chính</span>
+        <span class="yt-menu-badge">⌘O</span>
+      </button>
+
+      <div class="yt-menu-divider"></div>
+
+      <!-- Ẩn icon ở Dock -->
+      <div class="yt-menu-row yt-menu-switch-row" id="dockRow">
+        <div class="yt-action-icon-box purple">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="2" y="4" width="20" height="16" rx="3"/>
+            <line x1="2" y1="15" x2="22" y2="15"/>
+          </svg>
+        </div>
+        <div class="yt-menu-text-col">
+          <span class="yt-menu-label">Ẩn icon ở Dock</span>
+          <span class="yt-menu-sublabel">Gọn gàng Menu Bar</span>
+        </div>
+        <label class="yt-switch" title="Bật/Tắt hiển thị icon AuraTube trên thanh Dock">
+          <input type="checkbox" id="dockToggleCheckbox">
+          <span class="yt-slider"></span>
+        </label>
+      </div>
+
+      <div class="yt-menu-divider"></div>
+
+      <!-- Giới thiệu AuraTube -->
+      <button class="yt-menu-row" id="aboutBtn" title="Giới thiệu AuraTube">
+        <div class="yt-action-icon-box cyan">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="10"/>
+            <line x1="12" y1="16" x2="12" y2="12"/>
+            <line x1="12" y1="8" x2="12.01" y2="8"/>
+          </svg>
+        </div>
+        <span class="yt-menu-label">Giới thiệu AuraTube</span>
+        <span class="yt-menu-badge">v1.0.0</span>
+      </button>
+
+      <div class="yt-menu-divider"></div>
+
+      <!-- Thoát AuraTube -->
+      <button class="yt-menu-row destructive" id="quitBtn" title="Thoát AuraTube (⌘Q)">
+        <div class="yt-action-icon-box red">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M18.36 6.64a9 9 0 1 1-12.73 0"/>
+            <line x1="12" y1="2" x2="12" y2="12"/>
+          </svg>
+        </div>
+        <span class="yt-menu-label">Thoát AuraTube</span>
+        <span class="yt-menu-badge">⌘Q</span>
+      </button>
+    </div>
+
+    <!-- 7. Sleek Branding Micro-Footer (MacClean & BatFlow Style) -->
+    <footer class="yt-micro-footer">
+      <span class="yt-status-dot"></span>
+      <span class="yt-brand-title">Tulie Tech</span>
+      <span class="yt-brand-sub">• AuraTube Realtime</span>
+    </footer>
+
+    <!-- About Modal Overlay -->
+    <div class="yt-about-overlay" id="aboutModal" style="display: none;">
+      <div class="yt-about-card">
+        <div class="yt-about-icon">
+          <svg width="40" height="30" viewBox="0 0 28.57 20" fill="none">
+            <path d="M27.9727 3.12324C27.6435 1.89323 26.6768 0.926623 25.4468 0.597366C23.2197 0 14.285 0 14.285 0C14.285 0 5.35042 0 3.12323 0.597366C1.89323 0.926623 0.926623 1.89323 0.597366 3.12324C0 5.35042 0 10 0 10C0 10 0 14.6496 0.597366 16.8768C0.926623 18.1068 1.89323 19.0734 3.12323 19.4026C5.35042 20 14.285 20 14.285 20C14.285 20 23.2197 20 25.4468 19.4026C26.6768 19.0734 27.6435 18.1068 27.9727 16.8768C28.5701 14.6496 28.5701 10 28.5701 10C28.5701 10 28.5677 5.35042 27.9727 3.12324Z" fill="#FF0000"/>
+            <path d="M11.4253 14.2854L18.8477 10.0004L11.4253 5.71533V14.2854Z" fill="#FFFFFF"/>
+          </svg>
+        </div>
+        <div class="yt-about-title">AuraTube</div>
+        <div class="yt-about-version">Phiên bản 1.0.0 (Build 2026.09)</div>
+        <div class="yt-about-author">Phát triển bởi <strong style="color: #065fd4;">Tulie Tech</strong></div>
+        <div class="yt-about-features">
+          <div class="yt-about-feat-row"><span>⚡</span> Phát video 4K/2K/1080p siêu tốc không quảng cáo</div>
+          <div class="yt-about-feat-row"><span>🎧</span> Âm thanh vòm gốc Opus 48kHz không nén</div>
+          <div class="yt-about-feat-row"><span>🪟</span> Menu Bar Mini Player & Chế độ ẩn Dock thông minh</div>
+        </div>
+        <div class="yt-about-copy">© 2026 Tulie Tech. All rights reserved.</div>
+        <button class="yt-about-close-btn" id="closeAboutModalBtn">Đóng</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="/js/mini-player.js"></script>
+</body>
+</html>
