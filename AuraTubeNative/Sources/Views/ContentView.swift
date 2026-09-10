@@ -112,90 +112,6 @@ struct WindowAccessor: NSViewRepresentable {
     }
 }
 
-struct MacTrafficLightsView: View {
-    @StateObject private var hoverVm = LiquidHoverViewModel()
-    @Environment(\.controlActiveState) var controlActiveState
-    
-    var body: some View {
-        HStack(spacing: 8) {
-            // Close Button
-            trafficButton(
-                baseColor: Color(red: 1.0, green: 0.373, blue: 0.337),
-                borderColor: Color(red: 0.878, green: 0.267, blue: 0.243),
-                icon: "xmark",
-                iconSize: 7
-            ) {
-                if let w = NSApp.keyWindow {
-                    w.performClose(nil)
-                } else if let w = NSApp.windows.first {
-                    w.performClose(nil)
-                }
-            }
-            
-            // Minimize Button
-            trafficButton(
-                baseColor: Color(red: 1.0, green: 0.741, blue: 0.180),
-                borderColor: Color(red: 0.871, green: 0.631, blue: 0.137),
-                icon: "minus",
-                iconSize: 7
-            ) {
-                if let w = NSApp.keyWindow {
-                    w.miniaturize(nil)
-                } else if let w = NSApp.windows.first {
-                    w.miniaturize(nil)
-                }
-            }
-            
-            // Zoom / Maximize Button
-            trafficButton(
-                baseColor: Color(red: 0.153, green: 0.788, blue: 0.247),
-                borderColor: Color(red: 0.102, green: 0.671, blue: 0.161),
-                icon: "plus",
-                iconSize: 6.5
-            ) {
-                if let w = NSApp.keyWindow {
-                    w.zoom(nil)
-                } else if let w = NSApp.windows.first {
-                    w.zoom(nil)
-                }
-            }
-        }
-        .onHover { hovering in
-            hoverVm.isHovered = hovering
-        }
-    }
-    
-    private func trafficButton(
-        baseColor: Color,
-        borderColor: Color,
-        icon: String,
-        iconSize: CGFloat,
-        action: @escaping () -> Void
-    ) -> some View {
-        Button(action: action) {
-            ZStack {
-                Circle()
-                    .fill(controlActiveState == .inactive ? Color(white: 0.32) : baseColor)
-                    .frame(width: 12, height: 12)
-                    .overlay(
-                        Circle()
-                            .strokeBorder(
-                                controlActiveState == .inactive ? Color(white: 0.26) : borderColor,
-                                lineWidth: 0.5
-                            )
-                    )
-                
-                if hoverVm.isHovered && controlActiveState != .inactive {
-                    Image(systemName: icon)
-                        .font(.system(size: iconSize, weight: .bold))
-                        .foregroundColor(Color.black.opacity(0.65))
-                }
-            }
-            .frame(width: 13, height: 13)
-        }
-        .buttonStyle(.plain)
-    }
-}
 
 struct SidebarNavButton: View {
     let section: NavigationSection
@@ -310,13 +226,11 @@ public struct ContentView: View {
                     .frame(width: 440, height: 32)
                     .liquidGlassSearchBar()
                     
-                    // Left Controls: Traffic Lights + Brand + Navigation
+                    // Left Controls: Brand + Navigation
                     HStack(spacing: 0) {
                         HStack(spacing: 10) {
-                            MacTrafficLightsView()
-                                .padding(.leading, 14)
-                            
                             YouTubeBrandBadge(width: 20)
+                                .padding(.leading, 16)
                             
                             HStack(alignment: .center, spacing: 3) {
                                 Text("AuraTube")
@@ -336,7 +250,7 @@ public struct ContentView: View {
                             
                             Spacer()
                         }
-                        .frame(width: 220, height: 52, alignment: .leading)
+                        .frame(width: 160, height: 52, alignment: .leading)
                         
                         // Vertical Separator
                         Rectangle()
