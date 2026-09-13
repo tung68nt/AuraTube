@@ -1,9 +1,9 @@
 {
-  "version": "2.0.10",
-  "build": 11,
-  "title": "AuraTube v2.0.10 (Lướt Shorts Cuộn Cả Khung Chuẩn YouTube, Fullscreen Toolbar Tràn Viền)",
-  "releaseNotes": "• Trải nghiệm lướt Shorts cuộn cả khung chuẩn YouTube: Thay thế khung cố định bằng nguồn cấp cuộn dọc liên tục mượt mà. Toàn bộ khung video di chuyển trực quan 1:1 theo cử chỉ vuốt Trackpad & Chuột, loại bỏ hoàn toàn cảm giác giật khựng.\n• Tự động kích hoạt phát video ở tâm màn hình: Video cuộn tới giữa khung hình sẽ tự động phát tức thì, các video lân cận hiển thị thumbnail siêu nhẹ giữ FPS luôn ở mức 60/120.\n• Bổ sung thanh điều hướng & nút tương tác dọc cạnh video: Nút Mũi tên Lên / Xuống, Thích, Không thích, Chia sẻ và Xem đủ đặt cạnh video tương tự YouTube Web.\n• Khắc phục lề thanh điều khiển Fullscreen: Mở rộng thanh tua và điều khiển tràn viền 100% màn hình, loại bỏ khoảng hở thừa hai bên và đáy.",
-  "downloadUrl": "https://github.com/tung68nt/AuraTube/releases/download/v2.0.10/AuraTube-v2.0.10.dmg",
+  "version": "2.0.11",
+  "build": 12,
+  "title": "AuraTube v2.0.11 (Bắt Video Vào Giữa Khung Rồi Mới Bật Phát Shorts)",
+  "releaseNotes": "• Bắt video vào chính giữa khung hình trước khi bật phát: Khi cuộn gần tới video trên Shorts, ứng dụng tự động thực hiện hiệu ứng hút/bắt (snap) video chuẩn xác vào trung tâm tầm nhìn. Chỉ sau khi khung hình đã ổn định ở giữa, video mới chính thức được bật phát.\n• Tạm dừng âm thanh video cũ khi cuộn rời tâm: Khi cuộn video hiện tại trượt xa khỏi tầm nhìn, âm thanh sẽ tự động tạm ngắt để tránh chồng chéo tiếng trước khi video mới bắt vào giữa.\n• Đồng bộ hiệu ứng Bắt tâm cho toàn bộ thao tác: Cử chỉ Trackpad, con lăn chuột, nút bấm Mũi tên Lên/Xuống hoặc chạm trực tiếp vào thẻ video đều tuân thủ chính xác quy tắc Bắt vào giữa khung hình rồi mới phát.",
+  "downloadUrl": "https://github.com/tung68nt/AuraTube/releases/download/v2.0.11/AuraTube-v2.0.11.dmg",
   "publishedAt": "2026-09-13",
   "minOSVersion": "13.0",
   "fileSize": "3.0 MB"

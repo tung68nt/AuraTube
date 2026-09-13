@@ -107,41 +107,101 @@ final class NativeShortsViewModel: ObservableObject {
         self.isLoading = false
     }
     
-    func debounceSwitchTo(index: Int) {
-        guard index >= 0 && index < shorts.count, index != currentIndex else { return }
-        switchTask?.cancel()
-        switchTask = Task {
-            try? await Task.sleep(nanoseconds: 140_000_000) // 140ms debounce to prevent thrashing
-            guard !Task.isCancelled else { return }
-            self.currentIndex = index
-            self.playCurrentShort()
-            
-            if index >= self.shorts.count - 4 {
-                await self.loadMoreShorts()
+    private var snapSettleTask: Task<Void, Never>? = nil
+    private var latestPositions: [Int: CGFloat] = [:]
+    
+    func updatePositions(_ positions: [Int: CGFloat], containerHeight: CGFloat, proxy: ScrollViewProxy) {
+        self.latestPositions = positions
+        
+        let centerY = containerHeight / 2
+        var closestIdx = currentIndex
+        var minDiff: CGFloat = 999999
+        
+        for (idx, midY) in positions {
+            let diff = abs(midY - centerY)
+            if diff < minDiff {
+                minDiff = diff
+                closestIdx = idx
             }
+        }
+        
+        // If current active video has been scrolled away from center (> 380pt), pause sound cleanly
+        if let curMidY = positions[currentIndex], abs(curMidY - centerY) > 380 {
+            PlayerManager.shared.pause()
+        }
+        
+        // Reset snap debounce: when user pauses scrolling for 140ms, snap to center first, then play!
+        snapSettleTask?.cancel()
+        snapSettleTask = Task {
+            try? await Task.sleep(nanoseconds: 140_000_000)
+            guard !Task.isCancelled else { return }
+            await self.executeSnapAndPlay(targetIndex: closestIdx, proxy: proxy)
+        }
+    }
+    
+    func handleScrollDidEnd(proxy: ScrollViewProxy, containerHeight: CGFloat) {
+        let centerY = containerHeight / 2
+        var closestIdx = currentIndex
+        var minDiff: CGFloat = 999999
+        
+        for (idx, midY) in latestPositions {
+            let diff = abs(midY - centerY)
+            if diff < minDiff {
+                minDiff = diff
+                closestIdx = idx
+            }
+        }
+        
+        snapSettleTask?.cancel()
+        snapSettleTask = Task {
+            await self.executeSnapAndPlay(targetIndex: closestIdx, proxy: proxy)
+        }
+    }
+    
+    func snapAndPlay(targetIndex: Int, proxy: ScrollViewProxy) {
+        snapSettleTask?.cancel()
+        snapSettleTask = Task {
+            await self.executeSnapAndPlay(targetIndex: targetIndex, proxy: proxy)
         }
     }
     
     func goToNext(proxy: ScrollViewProxy) {
         guard currentIndex < shorts.count - 1 else { return }
-        let nextIndex = currentIndex + 1
-        currentIndex = nextIndex
-        playCurrentShort()
-        withAnimation(.easeInOut(duration: 0.32)) {
-            proxy.scrollTo(shorts[nextIndex].id, anchor: .center)
-        }
-        if nextIndex >= shorts.count - 4 {
-            Task { await loadMoreShorts() }
-        }
+        snapAndPlay(targetIndex: currentIndex + 1, proxy: proxy)
     }
     
     func goToPrev(proxy: ScrollViewProxy) {
         guard currentIndex > 0 else { return }
-        let prevIndex = currentIndex - 1
-        currentIndex = prevIndex
-        playCurrentShort()
-        withAnimation(.easeInOut(duration: 0.32)) {
-            proxy.scrollTo(shorts[prevIndex].id, anchor: .center)
+        snapAndPlay(targetIndex: currentIndex - 1, proxy: proxy)
+    }
+    
+    func executeSnapAndPlay(targetIndex: Int, proxy: ScrollViewProxy) async {
+        guard targetIndex >= 0 && targetIndex < shorts.count else { return }
+        let targetShort = shorts[targetIndex]
+        
+        // 1. Bước 1: Bắt video chính xác vào giữa khung hình với hiệu ứng snap mượt mà!
+        await MainActor.run {
+            withAnimation(.spring(response: 0.35, dampingFraction: 0.85)) {
+                proxy.scrollTo(targetShort.id, anchor: .center)
+            }
+        }
+        
+        // 2. Bước 2: Chờ khung hình bắt vào tâm hoàn tất (~200ms)
+        try? await Task.sleep(nanoseconds: 200_000_000)
+        guard !Task.isCancelled else { return }
+        
+        // 3. Bước 3: RỒI MỚI BẬT VIDEO!
+        await MainActor.run {
+            if self.currentIndex != targetIndex {
+                self.currentIndex = targetIndex
+                self.playCurrentShort()
+            } else if !PlayerManager.shared.isPlaying {
+                PlayerManager.shared.play()
+            }
+            
+            if targetIndex >= self.shorts.count - 4 {
+                Task { await self.loadMoreShorts() }
+            }
         }
     }
     
@@ -243,11 +303,7 @@ public struct NativeShortsFeedView: View {
                                         onGoNext: { vm.goToNext(proxy: proxy) },
                                         onTapCard: {
                                             if !isActive {
-                                                vm.currentIndex = index
-                                                vm.playCurrentShort()
-                                                withAnimation(.easeInOut(duration: 0.32)) {
-                                                    proxy.scrollTo(short.id, anchor: .center)
-                                                }
+                                                vm.snapAndPlay(targetIndex: index, proxy: proxy)
                                             }
                                         }
                                     )
@@ -266,20 +322,10 @@ public struct NativeShortsFeedView: View {
                         }
                         .coordinateSpace(name: "ShortsScrollSpace")
                         .onPreferenceChange(CardCenterPreference.self) { positions in
-                            let centerY = containerHeight / 2
-                            var closestIdx = vm.currentIndex
-                            var minDiff: CGFloat = 999999
-                            for (idx, midY) in positions {
-                                let diff = abs(midY - centerY)
-                                if diff < minDiff {
-                                    minDiff = diff
-                                    closestIdx = idx
-                                }
-                            }
-                            // When card gets into center focus zone, smoothly activate playback
-                            if minDiff < 320 && closestIdx != vm.currentIndex {
-                                vm.debounceSwitchTo(index: closestIdx)
-                            }
+                            vm.updatePositions(positions, containerHeight: containerHeight, proxy: proxy)
+                        }
+                        .onReceive(NotificationCenter.default.publisher(for: NSScrollView.didEndLiveScrollNotification)) { _ in
+                            vm.handleScrollDidEnd(proxy: proxy, containerHeight: containerHeight)
                         }
                         .overlay(
                             // Hidden keyboard shortcuts for Up / Down arrows
