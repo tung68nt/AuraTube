@@ -49,26 +49,28 @@ public struct PlayerControlOverlay: View {
             VStack(spacing: 8) {
                 // 1. Scrubber Timeline Bar (Thanh tua với các phân đoạn)
                 scrubberBar
-                    .padding(.horizontal, 14)
+                    .padding(.horizontal, 16)
                 
                 // 2. Control Buttons, Chapter title & Time Display
                 controlButtonsRow
-                    .padding(.horizontal, 16)
+                    .padding(.horizontal, 18)
                     .padding(.bottom, 8)
             }
-            .padding(.top, 16)
+            .frame(maxWidth: .infinity)
+            .padding(.top, 24)
             .background(
                 LinearGradient(
                     stops: [
                         .init(color: .clear, location: 0.0),
-                        .init(color: Color.black.opacity(0.55), location: 0.25),
-                        .init(color: Color.black.opacity(0.92), location: 1.0)
+                        .init(color: Color.black.opacity(0.55), location: 0.3),
+                        .init(color: Color.black.opacity(0.95), location: 1.0)
                     ],
                     startPoint: .top,
                     endPoint: .bottom
                 )
             )
         }
+        .frame(maxWidth: .infinity)
     }
     
     // MARK: - Scrubber Bar Component

@@ -97,25 +97,10 @@ public struct FullscreenVideoOverlay: View {
                 
                 Spacer()
                 
-                // Bottom Controls: PlayerControlOverlay
+                // Bottom Controls: PlayerControlOverlay (Full-width edge-to-edge)
                 if vm.isControlsVisible {
                     PlayerControlOverlay()
-                        .padding(.horizontal, 20)
-                        .padding(.bottom, 16)
-                        .background(
-                            LinearGradient(
-                                stops: [
-                                    .init(color: .clear, location: 0.0),
-                                    .init(color: Color.black.opacity(0.55), location: 0.4),
-                                    .init(color: Color.black.opacity(0.92), location: 1.0)
-                                ],
-                                startPoint: .top,
-                                endPoint: .bottom
-                            )
-                            .frame(height: 130)
-                            .allowsHitTesting(false),
-                            alignment: .bottom
-                        )
+                        .frame(maxWidth: .infinity)
                         .transition(.opacity)
                 }
             }

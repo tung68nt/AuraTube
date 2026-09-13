@@ -1,9 +1,9 @@
 {
-  "version": "2.0.9",
-  "build": 10,
-  "title": "AuraTube v2.0.9 (Lưu Kênh Yêu Thích & Xem Video Đang Theo Dõi Không Cần Đăng Nhập)",
-  "releaseNotes": "• Lưu kênh cá nhân hoá không cần tài khoản: Cho phép người dùng bấm 'Đăng ký' ở bất kỳ video hay Shorts nào để lưu kênh vào danh sách theo dõi riêng tư lưu trữ trực tiếp trên máy macOS.\n• Bổ sung kệ Kênh & Tab 'Đang theo dõi' trên Trang chủ: Home hiển thị toàn bộ avatar kênh bạn đã lưu, hỗ trợ lọc video theo từng kênh hoặc xem nguồn cấp video tổng hợp mới nhất từ tất cả kênh đang theo dõi.\n• Gợi ý kênh thịnh hành & 1-click Theo dõi: Hỗ trợ người dùng mới dễ dàng theo dõi ngay các kênh yêu thích chỉ với 1 cú nhấp chuột.\n• Đồng bộ trạng thái Đăng ký tức thì: Trạng thái theo dõi được đồng bộ ngay lập tức giữa Video dài, Shorts, Trang tìm kiếm và Trang chủ.",
-  "downloadUrl": "https://github.com/tung68nt/AuraTube/releases/download/v2.0.9/AuraTube-v2.0.9.dmg",
+  "version": "2.0.10",
+  "build": 11,
+  "title": "AuraTube v2.0.10 (Lướt Shorts Cuộn Cả Khung Chuẩn YouTube, Fullscreen Toolbar Tràn Viền)",
+  "releaseNotes": "• Trải nghiệm lướt Shorts cuộn cả khung chuẩn YouTube: Thay thế khung cố định bằng nguồn cấp cuộn dọc liên tục mượt mà. Toàn bộ khung video di chuyển trực quan 1:1 theo cử chỉ vuốt Trackpad & Chuột, loại bỏ hoàn toàn cảm giác giật khựng.\n• Tự động kích hoạt phát video ở tâm màn hình: Video cuộn tới giữa khung hình sẽ tự động phát tức thì, các video lân cận hiển thị thumbnail siêu nhẹ giữ FPS luôn ở mức 60/120.\n• Bổ sung thanh điều hướng & nút tương tác dọc cạnh video: Nút Mũi tên Lên / Xuống, Thích, Không thích, Chia sẻ và Xem đủ đặt cạnh video tương tự YouTube Web.\n• Khắc phục lề thanh điều khiển Fullscreen: Mở rộng thanh tua và điều khiển tràn viền 100% màn hình, loại bỏ khoảng hở thừa hai bên và đáy.",
+  "downloadUrl": "https://github.com/tung68nt/AuraTube/releases/download/v2.0.10/AuraTube-v2.0.10.dmg",
   "publishedAt": "2026-09-13",
   "minOSVersion": "13.0",
   "fileSize": "3.0 MB"
