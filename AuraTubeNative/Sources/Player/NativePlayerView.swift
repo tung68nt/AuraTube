@@ -18,6 +18,13 @@ public final class MainWebPlayerPool {
     }
 }
 
+public final class ScrollForwardingWKWebView: WKWebView {
+    public override func scrollWheel(with event: NSEvent) {
+        // Forward scrollWheel directly up the responder chain so enclosing scroll views / handlers receive it!
+        self.nextResponder?.scrollWheel(with: event)
+    }
+}
+
 public struct NativePlayerView: NSViewRepresentable {
     @ObservedObject var playerManager: PlayerManager = .shared
     
@@ -70,7 +77,7 @@ public struct NativePlayerView: NSViewRepresentable {
         contentController.addUserScript(userScript)
         config.userContentController = contentController
         
-        let webView = WKWebView(frame: .zero, configuration: config)
+        let webView = ScrollForwardingWKWebView(frame: .zero, configuration: config)
         webView.customUserAgent = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.4 Safari/605.1.15"
         webView.setValue(false, forKey: "drawsBackground")
         webView.navigationDelegate = context.coordinator
