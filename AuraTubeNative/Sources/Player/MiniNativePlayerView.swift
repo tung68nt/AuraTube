@@ -554,6 +554,33 @@ public final class MiniPlayerEngine: NSObject, WKNavigationDelegate, WKScriptMes
         webView.loadHTMLString(html, baseURL: URL(string: "https://auratube.app"))
     }
     
+    public func stop() {
+        currentLoadedVideoId = nil
+        let js = """
+        (function() {
+            try {
+                var ifr = document.getElementById('miniYtPlayer');
+                if (ifr && ifr.contentWindow) {
+                    ifr.contentWindow.postMessage(JSON.stringify({event: "command", func: "mute", args: []}), '*');
+                    ifr.contentWindow.postMessage(JSON.stringify({event: "command", func: "pauseVideo", args: []}), '*');
+                    ifr.contentWindow.postMessage(JSON.stringify({event: "command", func: "stopVideo", args: []}), '*');
+                }
+                var medias = document.querySelectorAll('video, audio');
+                for (var i = 0; i < medias.length; i++) {
+                    medias[i].pause();
+                    medias[i].muted = true;
+                    medias[i].src = '';
+                    medias[i].load();
+                }
+            } catch(e) {}
+        })();
+        """
+        webView.evaluateJavaScript(js, completionHandler: nil)
+        webView.stopLoading()
+        webView.loadHTMLString("<!DOCTYPE html><html><body style='background:#000;'></body></html>", baseURL: nil)
+        detachToOffscreen()
+    }
+    
     public func attach(to container: NSView) {
         isPopoverVisible = true
         if webView.superview != container {
@@ -720,8 +747,8 @@ public final class MiniPlayerEngine: NSObject, WKNavigationDelegate, WKScriptMes
             }
             
             if type == "playbackSync" {
-                // CRITICAL: NEVER accept time updates from mini player if main player is active!
-                guard !PlayerManager.shared.hasActiveMainPlayer else { return }
+                // CRITICAL: NEVER accept time updates from mini player if main player is active or no video is active!
+                guard !PlayerManager.shared.hasActiveMainPlayer, PlayerManager.shared.currentVideo != nil else { return }
                 
                 let cur = body["currentTime"] as? Double
                 let dur = body["duration"] as? Double ?? 0
@@ -741,7 +768,7 @@ public final class MiniPlayerEngine: NSObject, WKNavigationDelegate, WKScriptMes
             }
             
             if type == "stateChange", let state = body["state"] as? Int {
-                guard !PlayerManager.shared.hasActiveMainPlayer else { return }
+                guard !PlayerManager.shared.hasActiveMainPlayer, PlayerManager.shared.currentVideo != nil else { return }
                 let isPlaying = (state == 1)
                 PlayerManager.shared.updatePlaybackSync(
                     currentTime: PlayerManager.shared.currentTime,

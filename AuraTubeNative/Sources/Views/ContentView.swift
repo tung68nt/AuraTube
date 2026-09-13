@@ -428,6 +428,9 @@ public struct ContentView: View {
                         ) {
                             vm.selectedSection = section
                             vm.watchingVideo = nil
+                            if section == .shorts {
+                                playerManager.stop()
+                            }
                         }
                     }
                     
@@ -652,6 +655,7 @@ public struct ContentView: View {
             vm.isSearching = false
             vm.selectedShortVideo = video
             vm.selectedSection = .shorts
+            playerManager.stop()
         } else {
             vm.selectedShortVideo = nil
             vm.watchingVideo = video

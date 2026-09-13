@@ -253,6 +253,7 @@ public final class PlayerManager: ObservableObject {
     }
     
     public func updatePlaybackSync(currentTime: Double, duration: Double, isPlaying: Bool?, isMuted: Bool?, source: String = "main", videoId: String? = nil) {
+        guard currentVideo != nil else { return }
         if let vid = videoId, !vid.isEmpty, let currentId = currentVideo?.id, vid != currentId {
             return
         }
@@ -365,6 +366,33 @@ public final class PlayerManager: ObservableObject {
     public func loadAndPlay(video: Video, quality: String = "1080", startTime: Double = 0) {
         cancelAutoplay()
         commentsLoadingTask?.cancel()
+        
+        // 1. Cut off any existing audio/video to guarantee zero overlap ("chồng tiếng")
+        player.pause()
+        player.replaceCurrentItem(with: nil)
+        ShortsPlaybackCoordinator.shared.silenceAll()
+        
+        // If there was an existing main web view from a previously loaded video, immediately mute & pause previous media
+        if let existingWV = MainWebPlayerPool.shared.webView {
+            let mutePreviousJS = """
+            (function() {
+                try {
+                    var ifr = document.getElementById('ytPlayer');
+                    if (ifr && ifr.contentWindow) {
+                        ifr.contentWindow.postMessage(JSON.stringify({event: "command", func: "mute", args: []}), '*');
+                        ifr.contentWindow.postMessage(JSON.stringify({event: "command", func: "pauseVideo", args: []}), '*');
+                    }
+                    var medias = document.querySelectorAll('video, audio');
+                    for (var i = 0; i < medias.length; i++) {
+                        medias[i].pause();
+                        medias[i].muted = true;
+                    }
+                } catch(e) {}
+            })();
+            """
+            existingWV.evaluateJavaScript(mutePreviousJS, completionHandler: nil)
+        }
+        
         self.currentVideo = video
         self.isCurrentVideoVertical = video.isShort
         self.selectedQuality = "auto"
@@ -678,11 +706,55 @@ public final class PlayerManager: ObservableObject {
         currentTime = 0
         duration = 0
         hasActiveMainPlayer = false
+        isSeekingLock = false
+        
+        // 1. Terminate AVPlayer audio/video stream completely
         player.pause()
+        player.replaceCurrentItem(with: nil)
+        
+        // 2. Shut down and clean Main WebKit Player (Iframe, Videos, Audios, and unload page)
+        if let mainWV = MainWebPlayerPool.shared.webView {
+            let stopJS = """
+            (function() {
+                try {
+                    var ifr = document.getElementById('ytPlayer');
+                    if (ifr && ifr.contentWindow) {
+                        ifr.contentWindow.postMessage(JSON.stringify({event: "command", func: "mute", args: []}), '*');
+                        ifr.contentWindow.postMessage(JSON.stringify({event: "command", func: "pauseVideo", args: []}), '*');
+                        ifr.contentWindow.postMessage(JSON.stringify({event: "command", func: "stopVideo", args: []}), '*');
+                    }
+                    var medias = document.querySelectorAll('video, audio');
+                    for (var i = 0; i < medias.length; i++) {
+                        medias[i].pause();
+                        medias[i].muted = true;
+                        medias[i].src = '';
+                        medias[i].load();
+                    }
+                } catch(e) {}
+            })();
+            """
+            mainWV.evaluateJavaScript(stopJS, completionHandler: nil)
+            mainWV.stopLoading()
+            mainWV.loadHTMLString("<!DOCTYPE html><html><body style='background:#000;'></body></html>", baseURL: nil)
+        }
+        MainWebPlayerPool.shared.reset()
+        
+        // 3. Terminate Mini Player Engine in MenuBar
+        MiniPlayerEngine.shared.stop()
+        
+        // 4. Silence all Shorts WebViews
+        ShortsPlaybackCoordinator.shared.silenceAll()
+        
+        // 5. Notify all play/pause and time sync observers
         onPlayPause?(false)
         for observer in playPauseObservers.values {
             observer(false)
         }
+        for observer in timeSyncObservers.values {
+            observer(0, false)
+        }
+        
+        // 6. Clear system Now Playing info completely
         updateNowPlaying()
     }
     

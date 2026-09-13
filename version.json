@@ -1,9 +1,9 @@
 {
-  "version": "2.0.22",
-  "build": 23,
-  "title": "AuraTube v2.0.22 (Sửa Triệt Để Lỗi Không Tự Phát Video Đầu Tiên Khi Mở Tab Shorts)",
-  "releaseNotes": "• Sửa triệt để lỗi video Shorts đầu tiên không tự phát: Khắc phục tình trạng khi bấm vào tab Shorts, video đầu tiên bị dừng ở ảnh bìa và hiện nút đỏ Play video của YouTube. Bổ sung cơ chế bắt tay hai chiều (handshake ping) và kích hoạt phát ngay khi DOM hoàn tất nạp (didFinish navigation).\n• Đảm bảo 100% tự động phát ngay lần chạm đầu tiên: Cập nhật hàm điều phối phát video đầu tiên ngay khi danh sách Shorts được nạp xong mà không cần người dùng phải bấm chuột.\n• Dọn sạch triệt để các nút bấm đỏ và nhãn video của YouTube: Ẩn hoàn toàn nút lớn của YouTube embed khi vào Shorts.",
-  "downloadUrl": "https://github.com/tung68nt/AuraTube/releases/download/v2.0.22/AuraTube-v2.0.22.dmg",
+  "version": "2.0.23",
+  "build": 24,
+  "title": "AuraTube v2.0.23 (Khắc Phục Triệt Để Lỗi Âm Thanh Chạy Ngầm & Chồng Tiếng Khi Đóng PiP)",
+  "releaseNotes": "• Khắc phục triệt để lỗi âm thanh chạy ngầm khi tắt PiP: Sửa lỗi bấm nút đóng ở khung Picture-in-Picture (thu nhỏ), MenuBar báo 'Chưa phát video nào' nhưng âm thanh vẫn phát. Luồng tắt video nay ngắt toàn bộ audio, hủy nạp và giải phóng 100% tiến trình WebKit.\n• Loại bỏ hoàn toàn hiện tượng chồng tiếng khi mở video mới: Ngắt sạch triệt để mọi luồng âm thanh trước đó trước khi khởi chạy video tiếp theo, đảm bảo không bao giờ bị đè 2 nguồn tiếng cùng lúc.\n• Đồng bộ hóa & dọn sạch luồng dữ liệu media: Chuẩn hóa hàm dừng video (stop) giải phóng sạch sẽ Main Player Pool, Mini Player Engine (MenuBar), Shorts Coordinator, Native AVPlayer và Now Playing Center của macOS.\n• Tự động ngắt video dài khi chuyển sang tab Shorts: Đảm bảo khi lướt Shorts sẽ không bị rò rỉ âm thanh từ video dài trước đó.",
+  "downloadUrl": "https://github.com/tung68nt/AuraTube/releases/download/v2.0.23/AuraTube-v2.0.23.dmg",
   "publishedAt": "2026-09-13",
   "minOSVersion": "13.0",
   "fileSize": "3.0 MB"
