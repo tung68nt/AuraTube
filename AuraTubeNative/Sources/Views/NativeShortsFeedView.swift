@@ -83,8 +83,8 @@ final class NativeShortsViewModel: ObservableObject {
         self.continuationToken = result.continuationToken
         self.isLoading = false
         
-        if self.currentIndex == 0 && preferredInitial == nil, let first = self.shorts.first {
-            playShort(first)
+        if self.currentIndex == 0 && preferredInitial == nil, !self.shorts.isEmpty {
+            playCurrentShort()
         }
     }
     
@@ -767,6 +767,14 @@ struct ShortsCardPlayerView: NSViewRepresentable {
         if isActive {
             setupActiveBindings(context: context)
             ShortsPlaybackCoordinator.shared.activateOnly(videoId: videoId)
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) { [weak coord = context.coordinator] in
+                guard let coord = coord, coord.isActive else { return }
+                coord.startActivePlayback()
+            }
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak coord = context.coordinator] in
+                guard let coord = coord, coord.isActive else { return }
+                coord.startActivePlayback()
+            }
         }
         
         return webView
@@ -782,7 +790,7 @@ struct ShortsCardPlayerView: NSViewRepresentable {
         if isActive {
             setupActiveBindings(context: context)
             ShortsPlaybackCoordinator.shared.activateOnly(videoId: videoId)
-            if !wasActive {
+            if !wasActive || !context.coordinator.hasStartedPlayback {
                 context.coordinator.startActivePlayback()
             }
         } else if wasActive && !isActive {
@@ -824,7 +832,7 @@ struct ShortsCardPlayerView: NSViewRepresentable {
           * { margin: 0; padding: 0; box-sizing: border-box; overflow: hidden; }
           html, body { width: 100%; height: 100%; background: transparent !important; }
           #ytPlayer, iframe { width: 100% !important; height: 100% !important; border: none; display: block; }
-          .ytp-shorts-player-overlay, .ytp-shorts-title, .ytp-shorts-channel-name, .ytp-modern-title, .ytp-suggested-action-badge, .ytp-popup, .ytp-ai-info-dialog, [class*="ai-disclosure"], .ytp-paid-content-overlay, [class*="paid-content"], [class*="paid-promotion"], .ytp-chrome-top, [class*="title-channel"], [class*="shorts"], .ytp-bezel, .ytp-bezel-container, .ytp-bezel-icon, .ytp-bezel-text, [class*="bezel"], .ytp-pause-overlay, .ytp-large-play-button, .ytp-play-button, [class*="pause-overlay"], [class*="play-button"] { display: none !important; opacity: 0 !important; visibility: hidden !important; pointer-events: none !important; }
+          .ytp-shorts-player-overlay, .ytp-shorts-title, .ytp-shorts-channel-name, .ytp-modern-title, .ytp-suggested-action-badge, .ytp-popup, .ytp-ai-info-dialog, [class*="ai-disclosure"], .ytp-paid-content-overlay, [class*="paid-content"], [class*="paid-promotion"], .ytp-chrome-top, [class*="title-channel"], [class*="shorts"], .ytp-bezel, .ytp-bezel-container, .ytp-bezel-icon, .ytp-bezel-text, [class*="bezel"], .ytp-pause-overlay, .ytp-large-play-button, .ytp-large-play-button-red-bg, button.ytp-large-play-button, .ytp-play-button, [class*="pause-overlay"], [class*="play-button"], [aria-label*="Play" i], [aria-label*="Phát" i], [title*="Play" i], .ytp-impression-link, .ytp-title, .ytp-title-text, .ytp-title-channel, .ytp-title-channel-logo, .ytp-cairo-refresh-signature-moments { display: none !important; opacity: 0 !important; visibility: hidden !important; pointer-events: none !important; }
         </style>
         </head>
         <body>
@@ -860,6 +868,32 @@ struct ShortsCardPlayerView: NSViewRepresentable {
             }
           }
 
+          function pingIframe() {
+            var ifr = document.getElementById('ytPlayer');
+            if (ifr && ifr.contentWindow) {
+              try {
+                ifr.contentWindow.postMessage(JSON.stringify({event: "listening"}), '*');
+                if (isActive) {
+                  triggerPlayback();
+                }
+              } catch(e) {}
+            }
+          }
+
+          var ifr = document.getElementById('ytPlayer');
+          if (ifr) {
+            ifr.onload = function() {
+              pingIframe();
+              setTimeout(pingIframe, 150);
+              setTimeout(pingIframe, 400);
+              setTimeout(pingIframe, 900);
+            };
+          }
+
+          var handshakeTimer = setInterval(function() {
+            pingIframe();
+          }, 350);
+
           window.addEventListener('message', function(e) {
             try {
               var data = JSON.parse(e.data);
@@ -869,6 +903,9 @@ struct ShortsCardPlayerView: NSViewRepresentable {
                 }
               }
               if (data.event === 'infoDelivery' && data.info) {
+                if (data.info.playerState === 1) {
+                  clearInterval(handshakeTimer);
+                }
                 if (isPreload && !hasFrozen) {
                   if (data.info.playerState === 1 || (data.info.currentTime && data.info.currentTime > 0.01)) {
                     hasFrozen = true;
@@ -913,11 +950,26 @@ struct ShortsCardPlayerView: NSViewRepresentable {
         var isActive: Bool
         var videoId: String
         var hasPreparedPreload: Bool = false
+        var hasStartedPlayback: Bool = false
         
         init(videoId: String, isActive: Bool, isPreload: Bool) {
             self.videoId = videoId
             self.isActive = isActive
             self.isPreload = isPreload
+        }
+        
+        func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
+            if isActive {
+                startActivePlayback()
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { [weak self] in
+                    guard let self = self, self.isActive else { return }
+                    self.startActivePlayback()
+                }
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) { [weak self] in
+                    guard let self = self, self.isActive else { return }
+                    self.startActivePlayback()
+                }
+            }
         }
         
         func userContentController(_ userContentController: WKUserContentController, didReceive message: WKScriptMessage) {
@@ -955,6 +1007,7 @@ struct ShortsCardPlayerView: NSViewRepresentable {
         }
         
         func startActivePlayback() {
+            hasStartedPlayback = true
             let muteCmd = PlayerManager.shared.isMuted ? "mute" : "unMute"
             let js = """
             isActive = true;

@@ -1,9 +1,9 @@
 {
-  "version": "2.0.21",
-  "build": 22,
-  "title": "AuraTube v2.0.21 (Khắc Phục Hoàn Toàn Trùng Lặp Audio & Tối Ưu Chỉ Báo Phát/Tạm Dừng Shorts)",
-  "releaseNotes": "• Khắc phục hoàn toàn lỗi chồng chéo âm thanh khi lướt Shorts: Bổ sung bộ điều phối âm thanh trung tâm (ShortsPlaybackCoordinator) và cơ chế dọn sạch WebKit khi unmount, đảm bảo chỉ duy nhất video đang xem được phát tiếng, tắt tiếng và tạm dừng ngay lập tức 100% video còn lại.\n• Ẩn triệt để biểu tượng Pause bezel của YouTube khi video đang phát: Xoá bỏ hoàn toàn icon tròn pause ở giữa màn hình khi video đang chạy mượt mà, trả lại không gian xem nguyên bản sắc nét.\n• Chỉ báo Phát/Tạm dừng thông minh: Chỉ hiển thị nút Play khi video đang bị tạm dừng (giúp phân biệt rõ ràng giữa video chủ động pause và video bị lag nạp chậm), tự động biến mất ngay khi video bắt đầu chạy.",
-  "downloadUrl": "https://github.com/tung68nt/AuraTube/releases/download/v2.0.21/AuraTube-v2.0.21.dmg",
+  "version": "2.0.22",
+  "build": 23,
+  "title": "AuraTube v2.0.22 (Sửa Triệt Để Lỗi Không Tự Phát Video Đầu Tiên Khi Mở Tab Shorts)",
+  "releaseNotes": "• Sửa triệt để lỗi video Shorts đầu tiên không tự phát: Khắc phục tình trạng khi bấm vào tab Shorts, video đầu tiên bị dừng ở ảnh bìa và hiện nút đỏ Play video của YouTube. Bổ sung cơ chế bắt tay hai chiều (handshake ping) và kích hoạt phát ngay khi DOM hoàn tất nạp (didFinish navigation).\n• Đảm bảo 100% tự động phát ngay lần chạm đầu tiên: Cập nhật hàm điều phối phát video đầu tiên ngay khi danh sách Shorts được nạp xong mà không cần người dùng phải bấm chuột.\n• Dọn sạch triệt để các nút bấm đỏ và nhãn video của YouTube: Ẩn hoàn toàn nút lớn của YouTube embed khi vào Shorts.",
+  "downloadUrl": "https://github.com/tung68nt/AuraTube/releases/download/v2.0.22/AuraTube-v2.0.22.dmg",
   "publishedAt": "2026-09-13",
   "minOSVersion": "13.0",
   "fileSize": "3.0 MB"
