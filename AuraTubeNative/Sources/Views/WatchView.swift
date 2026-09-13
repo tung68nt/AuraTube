@@ -59,6 +59,46 @@ public struct WatchView: View {
                                 )
                                 .shadow(color: .black.opacity(0.4), radius: 16, y: 6)
                                 
+                                // Switch to Shorts Mode Banner if this video is a Short
+                                if displayVideo.isShort {
+                                    Button(action: {
+                                        onSelectRelated(displayVideo)
+                                    }) {
+                                        HStack(spacing: 10) {
+                                            Image(systemName: "play.square.stack.fill")
+                                                .font(.system(size: 15))
+                                                .foregroundColor(.red)
+                                            
+                                            Text("Đây là video Shorts. Bấm để lướt liên tục trên giao diện dọc chuyên biệt")
+                                                .font(.system(size: 12.5, weight: .medium))
+                                                .foregroundColor(Color(white: 0.92))
+                                            
+                                            Spacer()
+                                            
+                                            HStack(spacing: 4) {
+                                                Text("Mở Shorts")
+                                                    .font(.system(size: 11.5, weight: .semibold))
+                                                Image(systemName: "chevron.right")
+                                                    .font(.system(size: 10, weight: .semibold))
+                                            }
+                                            .foregroundColor(.white)
+                                            .padding(.horizontal, 10)
+                                            .padding(.vertical, 4.5)
+                                            .background(Color.red)
+                                            .clipShape(Capsule())
+                                        }
+                                        .padding(.horizontal, 14)
+                                        .padding(.vertical, 8)
+                                        .background(Color(white: 0.15))
+                                        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                                        .overlay(
+                                            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                                                .stroke(Color.white.opacity(0.12), lineWidth: 1)
+                                        )
+                                    }
+                                    .buttonStyle(.plain)
+                                }
+                                
                                 // Video Title
                                 Text(displayVideo.title)
                                     .font(.system(size: 19, weight: .semibold))

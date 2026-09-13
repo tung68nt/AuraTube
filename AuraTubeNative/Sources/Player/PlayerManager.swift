@@ -565,6 +565,27 @@ public final class PlayerManager: ObservableObject {
         }
     }
     
+    public func play() {
+        if !isPlaying {
+            togglePlayPause()
+        } else {
+            let js = """
+            var ifr = document.getElementById('ytPlayer');
+            if (ifr && ifr.contentWindow) {
+                ifr.contentWindow.postMessage(JSON.stringify({event: "command", func: "playVideo", args: []}), '*');
+            }
+            """
+            MainWebPlayerPool.shared.webView?.evaluateJavaScript(js, completionHandler: nil)
+            player.play()
+        }
+    }
+    
+    public func pause() {
+        if isPlaying {
+            togglePlayPause()
+        }
+    }
+    
     public func togglePlayPause() {
         isPlaying.toggle()
         onPlayPause?(isPlaying)
@@ -669,6 +690,12 @@ public final class PlayerManager: ObservableObject {
     }
     
     public func handlePlaybackEnded() {
+        if let cur = currentVideo, cur.isShort {
+            // Smoothly loop the Short video to match standard Shorts/TikTok behavior
+            self.seek(to: 0)
+            self.play()
+            return
+        }
         guard isAutoplayEnabled else { return }
         guard autoplayCountdown == nil else { return }
         guard let cur = currentVideo else { return }

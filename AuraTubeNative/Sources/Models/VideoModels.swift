@@ -97,7 +97,17 @@ public struct Video: Identifiable, Codable, Hashable {
     public var isShort: Bool {
         if let explicit = isExplicitShort { return explicit }
         let lower = title.lowercased()
-        return lower.contains("#shorts") || lower.contains("#short") || lower.contains("/shorts/") || durationFormatted == "Shorts"
+        if lower.contains("#shorts") || lower.contains("#short") || lower.contains("/shorts/") || durationFormatted == "Shorts" {
+            return true
+        }
+        if let d = duration, d > 0 && d <= 65 {
+            return true
+        }
+        let total = totalDurationSeconds
+        if total > 0 && total <= 65 && durationFormatted != "0:00" {
+            return true
+        }
+        return false
     }
 }
 

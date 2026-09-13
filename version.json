@@ -1,10 +1,10 @@
 {
-  "version": "2.0.6",
-  "build": 7,
-  "title": "AuraTube v2.0.6 (Vá Lỗi Chuyển Video Autoplay, Kẹt Timeline & Chuẩn Hóa Độ Phân Giải 1080p/2K)",
-  "releaseNotes": "• Sửa lỗi chuyển video không Autoplay: Video mới tự động phát ngay lập tức khi chuyển bài, loại bỏ hiện tượng bị đứng ở thumbnail.\n• Khắc phục kẹt timeline: Không còn bị gián đoạn hay nhảy mốc thời gian của video cũ khi chọn video mới. Timeline luôn bắt đầu từ 0:00.\n• Khắc phục lỗi tự động tắt tiếng (Auto Muted): Đảm bảo âm thanh phát rõ ràng ngay khi video bắt đầu mà không cần bấm unmute thủ công.\n• Chuẩn hóa độ phân giải HD/2K: Gỡ bỏ việc ép chất lượng thấp, kích hoạt chuyển đổi tức thì giữa các mức chất lượng 1080p, 1440p (2K), 2160p (4K) và lưu cấu hình vĩnh viễn.",
-  "downloadUrl": "https://github.com/tung68nt/AuraTube/releases/download/v2.0.6/AuraTube-v2.0.6.dmg",
+  "version": "2.0.7",
+  "build": 8,
+  "title": "AuraTube v2.0.7 (Giao Diện Dọc Shorts Chuyên Biệt, Hỗ Trợ Lướt Liên Tục Bằng Trackpad & Chuột)",
+  "releaseNotes": "• Chuyên biệt hóa trải nghiệm Shorts: Khi bấm chọn bất kỳ video Short nào từ Trang chủ hoặc Tìm kiếm, app sẽ mở ngay giao diện Feed 9:16 portrait thay vì mở giao diện video dài 16:9.\n• Lướt Shorts liên tục cực mượt: Hỗ trợ cử chỉ cuộn 2 ngón trên Trackpad Mac hoặc con lăn chuột (Scroll Wheel), phím mũi tên Lên/Xuống hoặc nút điều hướng nổi trên màn hình để chuyển Short tiếp theo tức thì.\n• Tự động lặp lại video Short (Auto Loop): Khi Short phát hết thời lượng, video sẽ tự động phát lại mượt mà, không bị kẹt hay tự động chuyển sang video dài gây mất mạch lướt.\n• Banner chuyển đổi nhanh trong WatchView: Nếu mở link Short trong chế độ xem thường, app cung cấp nút một chạm 'Mở Shorts' để chuyển ngay sang giao diện lướt dọc.",
+  "downloadUrl": "https://github.com/tung68nt/AuraTube/releases/download/v2.0.7/AuraTube-v2.0.7.dmg",
   "publishedAt": "2026-09-13",
   "minOSVersion": "13.0",
-  "fileSize": "2.9 MB"
+  "fileSize": "3.0 MB"
 }

@@ -24,6 +24,7 @@ public enum NavigationSection: String, CaseIterable, Identifiable {
 final class ContentViewModel: ObservableObject {
     @Published var selectedSection: NavigationSection = .home
     @Published var watchingVideo: Video?
+    @Published var selectedShortVideo: Video? = nil
     @Published var searchQuery: String = ""
     @Published var searchResults: [Video] = []
     @Published var isSearching: Bool = false
@@ -535,7 +536,10 @@ public struct ContentView: View {
                     case .home:
                         HomeView(onSelectVideo: { playVideo($0) })
                     case .shorts:
-                        NativeShortsFeedView(onSelectVideo: { playVideo($0) })
+                        NativeShortsFeedView(
+                            selectedShort: $vm.selectedShortVideo,
+                            onSelectVideo: { forcePlayLongVideo($0) }
+                        )
                     case .bookmarks:
                         BookmarkListView(onSelectVideo: { playVideo($0) })
                     case .history:
@@ -546,7 +550,7 @@ public struct ContentView: View {
                 }
                 
                 // Picture-in-Picture (PiP) Floating Mini-Player at bottom right corner
-                if !playerManager.isVideoFullscreen, vm.watchingVideo == nil, let activeVideo = playerManager.currentVideo {
+                if !playerManager.isVideoFullscreen, vm.watchingVideo == nil, vm.selectedSection != .shorts, let activeVideo = playerManager.currentVideo {
                     MiniPlayerPiPOverlay(
                         video: activeVideo,
                         onExpand: {
@@ -620,12 +624,20 @@ public struct ContentView: View {
     )
     .onChange(of: playerManager.isVideoFullscreen) { isFS in
         if isFS, vm.watchingVideo == nil, let active = playerManager.currentVideo {
-            vm.watchingVideo = active
+            if !active.isShort {
+                vm.watchingVideo = active
+            }
         }
     }
     .onChange(of: playerManager.currentVideo?.id) { _ in
-        if let active = playerManager.currentVideo, vm.watchingVideo?.id != active.id {
-            vm.watchingVideo = active
+        if let active = playerManager.currentVideo, vm.watchingVideo != nil, vm.watchingVideo?.id != active.id {
+            if active.isShort {
+                vm.watchingVideo = nil
+                vm.selectedShortVideo = active
+                vm.selectedSection = .shorts
+            } else {
+                vm.watchingVideo = active
+            }
         }
     }
     .sheet(isPresented: $updateService.showUpdateSheet) {
@@ -635,6 +647,21 @@ public struct ContentView: View {
     
     private func playVideo(_ video: Video) {
         vm.dismissSuggestions()
+        if video.isShort {
+            vm.watchingVideo = nil
+            vm.isSearching = false
+            vm.selectedShortVideo = video
+            vm.selectedSection = .shorts
+        } else {
+            vm.selectedShortVideo = nil
+            vm.watchingVideo = video
+            playerManager.loadAndPlay(video: video)
+        }
+    }
+    
+    private func forcePlayLongVideo(_ video: Video) {
+        vm.dismissSuggestions()
+        vm.selectedShortVideo = nil
         vm.watchingVideo = video
         playerManager.loadAndPlay(video: video)
     }

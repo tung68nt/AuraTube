@@ -21,8 +21,34 @@ final class NativeShortsViewModel: ObservableObject {
     ]
     private var poolIndex = 0
     
-    func loadInitialShorts() async {
-        guard shorts.isEmpty else { return }
+    func openShort(_ video: Video) {
+        if let idx = shorts.firstIndex(where: { $0.id == video.id }) {
+            currentIndex = idx
+            playCurrentShort()
+        } else {
+            shorts.insert(video, at: 0)
+            currentIndex = 0
+            playCurrentShort()
+            if shorts.count <= 2 {
+                Task {
+                    let related = await YTDLPService.shared.searchVideos(query: "#shorts " + video.uploader, limit: 12)
+                    let newShorts = related.filter { s in !self.shorts.contains(where: { $0.id == s.id }) }
+                    self.shorts.append(contentsOf: newShorts)
+                    if self.shorts.count < 5 {
+                        await self.loadMoreShorts()
+                    }
+                }
+            }
+        }
+    }
+    
+    func loadInitialShorts(preferredInitial: Video? = nil) async {
+        if let initial = preferredInitial, shorts.isEmpty {
+            shorts = [initial]
+            currentIndex = 0
+            playCurrentShort()
+        }
+        guard shorts.count <= 1 else { return }
         isLoading = true
         
         let result = await YTDLPService.shared.searchVideosWithContinuation(query: "#shorts việt nam")
@@ -34,11 +60,13 @@ final class NativeShortsViewModel: ObservableObject {
             loaded = await YTDLPService.shared.searchVideos(query: "#shorts trending", limit: 20)
         }
         
-        self.shorts = loaded
+        let existingIds = Set(self.shorts.map { $0.id })
+        let filtered = loaded.filter { !existingIds.contains($0.id) }
+        self.shorts.append(contentsOf: filtered)
         self.continuationToken = result.continuationToken
         self.isLoading = false
         
-        if let first = self.shorts.first {
+        if self.currentIndex == 0 && preferredInitial == nil, let first = self.shorts.first {
             playShort(first)
         }
     }
@@ -91,6 +119,38 @@ final class NativeShortsViewModel: ObservableObject {
         PlayerManager.shared.loadAndPlay(video: video)
     }
     
+    private var lastScrollDate: Date = Date()
+    private var eventMonitor: Any? = nil
+    
+    func startScrollMonitor() {
+        guard eventMonitor == nil else { return }
+        eventMonitor = NSEvent.addLocalMonitorForEvents(matching: .scrollWheel) { [weak self] event in
+            guard let self = self else { return event }
+            let delta = event.scrollingDeltaY
+            let now = Date()
+            if abs(delta) > 12 && now.timeIntervalSince(self.lastScrollDate) > 0.35 {
+                self.lastScrollDate = now
+                if delta < 0 {
+                    withAnimation(.spring(response: 0.35, dampingFraction: 0.82)) {
+                        self.goToNext()
+                    }
+                } else {
+                    withAnimation(.spring(response: 0.35, dampingFraction: 0.82)) {
+                        self.goToPrev()
+                    }
+                }
+            }
+            return event
+        }
+    }
+    
+    func stopScrollMonitor() {
+        if let monitor = eventMonitor {
+            NSEvent.removeMonitor(monitor)
+            eventMonitor = nil
+        }
+    }
+    
     func showToast(_ message: String) {
         toastMessage = message
         Task {
@@ -103,11 +163,13 @@ final class NativeShortsViewModel: ObservableObject {
 }
 
 public struct NativeShortsFeedView: View {
+    @Binding var selectedShort: Video?
     var onSelectVideo: (Video) -> Void
     @StateObject private var vm = NativeShortsViewModel()
     @ObservedObject private var playerManager = PlayerManager.shared
     
-    public init(onSelectVideo: @escaping (Video) -> Void) {
+    public init(selectedShort: Binding<Video?> = .constant(nil), onSelectVideo: @escaping (Video) -> Void) {
+        self._selectedShort = selectedShort
         self.onSelectVideo = onSelectVideo
     }
     
@@ -175,10 +237,26 @@ public struct NativeShortsFeedView: View {
                             )
                             .shadow(color: Color.black.opacity(0.6), radius: 24, x: 0, y: 10)
                             
-                            // Top Bar inside Video: Sound Mute Button
+                            // Top Bar inside Video: Short Counter Badge + Sound Mute Button
                             VStack {
                                 HStack {
+                                    HStack(spacing: 5) {
+                                        Image(systemName: "flame.fill")
+                                            .foregroundColor(.red)
+                                            .font(.system(size: 11))
+                                        Text("Short \(vm.currentIndex + 1)/\(max(1, vm.shorts.count))")
+                                            .font(.system(size: 11.5, weight: .semibold))
+                                            .foregroundColor(.white)
+                                    }
+                                    .padding(.horizontal, 10)
+                                    .padding(.vertical, 5)
+                                    .background(Color.black.opacity(0.6))
+                                    .clipShape(Capsule())
+                                    .overlay(Capsule().stroke(Color.white.opacity(0.15), lineWidth: 0.75))
+                                    .padding([.top, .leading], 14)
+                                    
                                     Spacer()
+                                    
                                     Button(action: { playerManager.isMuted.toggle() }) {
                                         Image(systemName: playerManager.isMuted ? "speaker.slash.fill" : "speaker.wave.2.fill")
                                             .font(.system(size: 13, weight: .semibold))
@@ -425,8 +503,22 @@ public struct NativeShortsFeedView: View {
             }
             .frame(width: 0, height: 0)
         }
+        .onAppear {
+            if let initial = selectedShort {
+                vm.openShort(initial)
+            }
+            vm.startScrollMonitor()
+        }
+        .onDisappear {
+            vm.stopScrollMonitor()
+        }
+        .onChange(of: selectedShort) { newShort in
+            if let s = newShort {
+                vm.openShort(s)
+            }
+        }
         .task {
-            await vm.loadInitialShorts()
+            await vm.loadInitialShorts(preferredInitial: selectedShort)
         }
     }
 }
