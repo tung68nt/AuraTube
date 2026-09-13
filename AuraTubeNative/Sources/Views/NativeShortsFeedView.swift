@@ -110,37 +110,55 @@ final class NativeShortsViewModel: ObservableObject {
         self.isLoading = false
     }
     
-    // MARK: - Ultra-responsive Mouse Wheel & Trackpad Navigation (0% CPU, 120 FPS)
+    // MARK: - Ultra-responsive Mouse Wheel & Trackpad Magnetic Snap (YouTube Shorts Engine)
     
     func startScrollMonitor(proxy: ScrollViewProxy) {
         guard eventMonitor == nil else { return }
         
         eventMonitor = NSEvent.addLocalMonitorForEvents(matching: .scrollWheel) { [weak self] event in
             guard let self = self else { return event }
+            guard let window = event.window, window.isKeyWindow else { return event }
             
-            // Ignore momentum after fingers lift off trackpad
-            if event.momentumPhase != [] {
+            // Allow normal scrolling when mouse is over sidebar (left 220pt)
+            if event.locationInWindow.x <= 220 {
                 return event
             }
             
-            let rawDelta = event.scrollingDeltaY
-            guard abs(rawDelta) > 0.05 else { return event }
+            // Allow normal scrolling when mouse is over comments drawer
+            if self.isCommentsOpen {
+                let drawerWidth: CGFloat = min(390, max(300, window.frame.width * 0.35))
+                if event.locationInWindow.x >= (window.frame.width - drawerWidth) {
+                    return event
+                }
+            }
             
-            // Normalize mouse vs trackpad deltas
-            // Physical mouse wheel has hasPreciseScrollingDeltas == false, delta is in lines (±1)
-            // Trackpad has hasPreciseScrollingDeltas == true, delta is in pixels
-            let scaledDelta: CGFloat = event.hasPreciseScrollingDeltas ? rawDelta : (rawDelta * 18.0)
+            // Absorb momentum after fingers lift off trackpad (prevents coasting and stopping midway)
+            if event.momentumPhase != [] {
+                return nil
+            }
+            
+            // Reset accumulator when trackpad gesture ends
+            if event.phase == .ended || event.phase == .cancelled {
+                self.accumulatedDeltaY = 0
+                return nil
+            }
+            
+            let rawDelta = event.scrollingDeltaY
+            guard abs(rawDelta) > 0.05 else { return nil }
+            
+            // Normalize mouse wheel vs trackpad deltas
+            let scaledDelta: CGFloat = event.hasPreciseScrollingDeltas ? rawDelta : (rawDelta * 22.0)
             
             let now = Date()
-            if now.timeIntervalSince(self.lastScrollDate) < 0.38 {
-                // Cooldown between card transitions
-                return event
+            if now.timeIntervalSince(self.lastScrollDate) < 0.35 {
+                // Cooldown between transitions - absorb event
+                return nil
             }
             
             self.accumulatedDeltaY += scaledDelta
             
-            // Trigger transition with threshold 12 (single mouse wheel click or trackpad flick)
-            if abs(self.accumulatedDeltaY) >= 12 {
+            // Magnetic Snap Trigger: single wheel click or short trackpad flick
+            if abs(self.accumulatedDeltaY) >= 15 {
                 let isDown = self.accumulatedDeltaY < 0
                 self.accumulatedDeltaY = 0
                 self.lastScrollDate = now
@@ -152,7 +170,8 @@ final class NativeShortsViewModel: ObservableObject {
                 }
             }
             
-            return event
+            // Consume scroll wheel event completely so NSScrollView never free-scrolls or stops midway
+            return nil
         }
     }
     
@@ -167,15 +186,18 @@ final class NativeShortsViewModel: ObservableObject {
         guard currentIndex < shorts.count - 1 else { return }
         let nextIndex = currentIndex + 1
         
-        // 1. Physically animate the card to smoothly slide into the exact center
+        // 1. Immediately pause the old video audio/video during slide
+        PlayerManager.shared.pause()
+        
+        // 2. Physically animate the card to smoothly slide into the exact center
         withAnimation(.spring(response: 0.38, dampingFraction: 0.82)) {
             proxy.scrollTo(shorts[nextIndex].id, anchor: .center)
         }
         
-        // 2. Settle into center, then play
+        // 3. Settle cleanly into center (220ms), then switch active card and play
         snapSettleTask?.cancel()
         snapSettleTask = Task {
-            try? await Task.sleep(nanoseconds: 200_000_000)
+            try? await Task.sleep(nanoseconds: 220_000_000)
             guard !Task.isCancelled else { return }
             await MainActor.run {
                 self.currentIndex = nextIndex
@@ -192,13 +214,16 @@ final class NativeShortsViewModel: ObservableObject {
         guard currentIndex > 0 else { return }
         let prevIndex = currentIndex - 1
         
+        // 1. Immediately pause the old video audio/video during slide
+        PlayerManager.shared.pause()
+        
         withAnimation(.spring(response: 0.38, dampingFraction: 0.82)) {
             proxy.scrollTo(shorts[prevIndex].id, anchor: .center)
         }
         
         snapSettleTask?.cancel()
         snapSettleTask = Task {
-            try? await Task.sleep(nanoseconds: 200_000_000)
+            try? await Task.sleep(nanoseconds: 220_000_000)
             guard !Task.isCancelled else { return }
             await MainActor.run {
                 self.currentIndex = prevIndex
@@ -208,7 +233,9 @@ final class NativeShortsViewModel: ObservableObject {
     }
     
     func snapToCard(index: Int, proxy: ScrollViewProxy) {
-        guard index >= 0 && index < shorts.count else { return }
+        guard index >= 0 && index < shorts.count, index != currentIndex else { return }
+        
+        PlayerManager.shared.pause()
         
         withAnimation(.spring(response: 0.38, dampingFraction: 0.82)) {
             proxy.scrollTo(shorts[index].id, anchor: .center)
@@ -216,7 +243,7 @@ final class NativeShortsViewModel: ObservableObject {
         
         snapSettleTask?.cancel()
         snapSettleTask = Task {
-            try? await Task.sleep(nanoseconds: 200_000_000)
+            try? await Task.sleep(nanoseconds: 220_000_000)
             guard !Task.isCancelled else { return }
             await MainActor.run {
                 self.currentIndex = index
@@ -386,9 +413,26 @@ public struct NativeShortsFeedView: View {
                             }
                             .onAppear {
                                 vm.startScrollMonitor(proxy: proxy)
+                                if !vm.shorts.isEmpty && vm.currentIndex < vm.shorts.count {
+                                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
+                                        proxy.scrollTo(vm.shorts[vm.currentIndex].id, anchor: .center)
+                                    }
+                                }
                             }
                             .onDisappear {
                                 vm.stopScrollMonitor()
+                            }
+                            .onChange(of: containerHeight) { _ in
+                                if !vm.shorts.isEmpty && vm.currentIndex < vm.shorts.count {
+                                    proxy.scrollTo(vm.shorts[vm.currentIndex].id, anchor: .center)
+                                }
+                            }
+                            .onChange(of: vm.shorts.count) { count in
+                                if count > 0 && vm.currentIndex < vm.shorts.count {
+                                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
+                                        proxy.scrollTo(vm.shorts[vm.currentIndex].id, anchor: .center)
+                                    }
+                                }
                             }
                             .onChange(of: playerManager.currentTime) { curTime in
                                 vm.checkAutoScroll(
@@ -589,7 +633,7 @@ struct ShortFeedRowView: View {
                         }
                         Spacer()
                     }
-                    .frame(width: 380, height: 675)
+                    .frame(width: cardWidth, height: cardHeight)
                 }
                 
                 // Bottom Overlay Metadata
@@ -671,7 +715,7 @@ struct ShortFeedRowView: View {
                     .foregroundColor(Color.white.opacity(0.8))
                 }
                 .padding(16)
-                .frame(width: 380)
+                .frame(width: cardWidth)
                 .background(
                     LinearGradient(
                         colors: [Color.clear, Color.black.opacity(0.85)],
@@ -681,11 +725,7 @@ struct ShortFeedRowView: View {
                 )
                 .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
             }
-            .frame(width: 380, height: 675)
-            .overlay(
-                RoundedRectangle(cornerRadius: 16, style: .continuous)
-                    .stroke(Color.white.opacity(isActive ? 0.18 : 0.08), lineWidth: isActive ? 1.5 : 1)
-            )
+            .frame(width: cardWidth, height: cardHeight)
             .shadow(color: Color.black.opacity(isActive ? 0.6 : 0.3), radius: isActive ? 24 : 12, x: 0, y: isActive ? 10 : 4)
             .scaleEffect(isActive ? 1.0 : 0.985)
             .animation(.spring(response: 0.28, dampingFraction: 0.8), value: isActive)
