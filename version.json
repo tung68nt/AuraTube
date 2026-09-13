@@ -1,9 +1,9 @@
 {
-  "version": "2.0.19",
-  "build": 20,
-  "title": "AuraTube v2.0.19 (Hoàn Thiện Tự Động Phát Hai Chiều Shorts: Lướt Tiến / Lùi Đều Chạy Ngay)",
-  "releaseNotes": "• Sửa triệt để lỗi khi lướt ngược lại video Shorts cũ: Khắc phục lỗi video trước đó không tự phát, màn hình đen hoặc hiện nút play. Giờ đây khi lướt ngược lại, video cũ phát ngay lập tức không độ trễ.\n• Tối ưu chính sách Autoplay WebKit: Đảm bảo luồng phát lại và gỡ tắt tiếng (unmute) theo đúng thứ tự, loại bỏ hoàn toàn tình trạng WebKit chặn tự động phát trên các khung hình Shorts đã tải.\n• Bộ nhớ đệm giữ trạng thái 2 chiều (Bidirectional Buffer): Giữ sẵn các video liền kề cả phía trước và phía sau trong bộ nhớ để lướt lên hay lướt xuống đều mượt mà 0 giây trễ.\n• Cải thiện độ nhạy cuộn chuột / trackpad: Nhận diện cử chỉ lướt dứt khoát và tự động chuyển thẻ mượt mà không lo dừng lửng lơ.",
-  "downloadUrl": "https://github.com/tung68nt/AuraTube/releases/download/v2.0.19/AuraTube-v2.0.19.dmg",
+  "version": "2.0.20",
+  "build": 21,
+  "title": "AuraTube v2.0.20 (Khắc Phục Hoàn Toàn Trùng Lặp Text & Nâng Tối Đa Độ Mượt Autoplay Shorts)",
+  "releaseNotes": "• Loại bỏ hoàn toàn lớp text trùng lặp / chồng chéo trên Shorts: Ẩn và xoá triệt để các thành phần thông tin, avatar, tag của trình phát YouTube embed phía sau, chỉ hiển thị duy nhất lớp giao diện Native AuraTube sắc nét, hiện đại.\n• Tối ưu tuyệt đối trải nghiệm cuộn và tự động phát 2 chiều: Loại bỏ tình trạng giật khựng, khôi phục bộ đệm phát video tức thì (0ms) khi lướt lên/xuống giữa các Shorts liền kề.\n• Tinh chỉnh giới hạn bộ giải mã phần cứng: Duy trì tối đa 3 player nền liền kề giúp CPU/GPU hoạt động mát mẻ, ngăn ngừa rớt khung hình (drop frames).\n• Cử chỉ cuộn mượt mà: Điều chỉnh gia tốc cuộn trackpad / chuột nhạy bén, tự động hít thẻ video vào giữa màn hình chuẩn xác như YouTube gốc.",
+  "downloadUrl": "https://github.com/tung68nt/AuraTube/releases/download/v2.0.20/AuraTube-v2.0.20.dmg",
   "publishedAt": "2026-09-13",
   "minOSVersion": "13.0",
   "fileSize": "3.0 MB"

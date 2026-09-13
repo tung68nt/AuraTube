@@ -13,7 +13,6 @@ final class NativeShortsViewModel: ObservableObject {
     @Published var toastMessage: String? = nil
     @Published var isAutoScrollEnabled: Bool = false
     @Published var isCommentsOpen: Bool = false
-    @Published var activeVideoStarted: Bool = false
     
     private let queryPool = [
         "#shorts việt nam",
@@ -141,7 +140,7 @@ final class NativeShortsViewModel: ObservableObject {
             
             // Reset accumulator when trackpad gesture ends or trigger if accumulated enough
             if event.phase == .ended || event.phase == .cancelled {
-                if abs(self.accumulatedDeltaY) >= 8 {
+                if abs(self.accumulatedDeltaY) >= 5 {
                     let isDown = self.accumulatedDeltaY < 0
                     self.accumulatedDeltaY = 0
                     self.lastScrollDate = Date()
@@ -163,7 +162,7 @@ final class NativeShortsViewModel: ObservableObject {
             let scaledDelta: CGFloat = event.hasPreciseScrollingDeltas ? rawDelta : (rawDelta * 22.0)
             
             let now = Date()
-            if now.timeIntervalSince(self.lastScrollDate) < 0.35 {
+            if now.timeIntervalSince(self.lastScrollDate) < 0.24 {
                 // Cooldown between transitions - absorb event
                 return nil
             }
@@ -171,7 +170,7 @@ final class NativeShortsViewModel: ObservableObject {
             self.accumulatedDeltaY += scaledDelta
             
             // Magnetic Snap Trigger: single wheel click or short trackpad flick
-            if abs(self.accumulatedDeltaY) >= 15 {
+            if abs(self.accumulatedDeltaY) >= 10 {
                 let isDown = self.accumulatedDeltaY < 0
                 self.accumulatedDeltaY = 0
                 self.lastScrollDate = now
@@ -199,8 +198,8 @@ final class NativeShortsViewModel: ObservableObject {
         guard currentIndex < shorts.count - 1 else { return }
         let nextIndex = currentIndex + 1
         
-        // Smoothly animate the card to the exact center
-        withAnimation(.spring(response: 0.38, dampingFraction: 0.82)) {
+        // Snappy, crisp interactive spring animation
+        withAnimation(.interactiveSpring(response: 0.28, dampingFraction: 0.88)) {
             proxy.scrollTo(shorts[nextIndex].id, anchor: .center)
         }
         
@@ -216,7 +215,7 @@ final class NativeShortsViewModel: ObservableObject {
         guard currentIndex > 0 else { return }
         let prevIndex = currentIndex - 1
         
-        withAnimation(.spring(response: 0.38, dampingFraction: 0.82)) {
+        withAnimation(.interactiveSpring(response: 0.28, dampingFraction: 0.88)) {
             proxy.scrollTo(shorts[prevIndex].id, anchor: .center)
         }
         
@@ -227,7 +226,7 @@ final class NativeShortsViewModel: ObservableObject {
     func snapToCard(index: Int, proxy: ScrollViewProxy) {
         guard index >= 0 && index < shorts.count, index != currentIndex else { return }
         
-        withAnimation(.spring(response: 0.38, dampingFraction: 0.82)) {
+        withAnimation(.interactiveSpring(response: 0.28, dampingFraction: 0.88)) {
             proxy.scrollTo(shorts[index].id, anchor: .center)
         }
         
@@ -278,7 +277,6 @@ final class NativeShortsViewModel: ObservableObject {
     func playCurrentShort() {
         guard currentIndex >= 0 && currentIndex < shorts.count else { return }
         let current = shorts[currentIndex]
-        activeVideoStarted = false
         playShort(current)
         
         let targetId = current.id
@@ -425,11 +423,6 @@ public struct NativeShortsFeedView: View {
                                 }
                             }
                             .onChange(of: playerManager.currentTime) { curTime in
-                                if !vm.activeVideoStarted && curTime > 0.05 && playerManager.currentVideo?.id == vm.currentShort?.id {
-                                    withAnimation(.easeInOut(duration: 0.20)) {
-                                        vm.activeVideoStarted = true
-                                    }
-                                }
                                 vm.checkAutoScroll(
                                     currentTime: curTime,
                                     duration: playerManager.duration,
@@ -555,6 +548,91 @@ struct ShortsCardPlayerView: NSViewRepresentable {
     let isPreload: Bool
     @ObservedObject var playerManager: PlayerManager = .shared
     
+    static let cleanShortsScriptSource: String = """
+    (function() {
+        var css = `
+            .ytp-shorts-player-overlay,
+            .ytp-shorts-title,
+            .ytp-shorts-channel-name,
+            .ytp-shorts-channel-avatar,
+            .ytp-shorts-subscribe-button,
+            .ytp-shorts-like-button,
+            .ytp-shorts-dislike-button,
+            .ytp-shorts-share-button,
+            .ytp-modern-title,
+            .ytp-modern-title-channel,
+            .ytp-chrome-top,
+            .ytp-chrome-bottom,
+            .ytp-gradient-top,
+            .ytp-gradient-bottom,
+            .ytp-title,
+            .ytp-title-channel,
+            .ytp-title-channel-logo,
+            .ytp-title-text,
+            .ytp-title-subtext,
+            .ytp-title-link,
+            .ytp-show-cards-title,
+            .ytp-watermark,
+            .ytp-pause-overlay,
+            .ytp-large-play-button,
+            .ytp-cairo-refresh-signature-moments,
+            .ytp-unmute,
+            .ytp-volume-control,
+            .annotation,
+            .iv-branding,
+            [class*="shorts-player"],
+            [class*="shorts-overlay"],
+            [class*="shorts-title"],
+            [class*="shorts-channel"],
+            [class*="shorts-metadata"],
+            [class*="channel-name"],
+            [class*="channel-avatar"],
+            [class*="channel-logo"],
+            [class*="title-channel"],
+            [class*="paid-content"],
+            [class*="paid-promotion"] {
+                display: none !important;
+                opacity: 0 !important;
+                visibility: hidden !important;
+                pointer-events: none !important;
+                width: 0 !important;
+                height: 0 !important;
+                max-width: 0 !important;
+                max-height: 0 !important;
+                position: absolute !important;
+                left: -9999px !important;
+                top: -9999px !important;
+            }
+        `;
+
+        function applyShortsStyles() {
+            try {
+                if (!document.getElementById('__auratube_shorts_styles')) {
+                    var s = document.createElement('style');
+                    s.id = '__auratube_shorts_styles';
+                    s.textContent = css;
+                    (document.head || document.documentElement).appendChild(s);
+                }
+                var targets = document.querySelectorAll(
+                    '.ytp-shorts-player-overlay, .ytp-shorts-title, .ytp-shorts-channel-name, ' +
+                    '.ytp-shorts-channel-avatar, .ytp-modern-title, .ytp-chrome-top, .ytp-gradient-top, ' +
+                    '.ytp-gradient-bottom, .ytp-title, .ytp-title-channel, .ytp-watermark, ' +
+                    '[class*="shorts-player"], [class*="shorts-overlay"], [class*="title-channel"], ' +
+                    '[class*="channel-avatar"], [class*="channel-name"]'
+                );
+                for (var i = 0; i < targets.length; i++) {
+                    targets[i].remove();
+                }
+            } catch(e) {}
+        }
+
+        applyShortsStyles();
+        document.addEventListener('DOMContentLoaded', applyShortsStyles);
+        window.addEventListener('load', applyShortsStyles);
+        setInterval(applyShortsStyles, 200);
+    })();
+    """
+    
     init(videoId: String, isActive: Bool, isPreload: Bool) {
         self.videoId = videoId
         self.isActive = isActive
@@ -588,8 +666,15 @@ struct ShortsCardPlayerView: NSViewRepresentable {
         contentController.add(context.coordinator, contentWorld: .page, name: "playerBridge")
         contentController.add(context.coordinator, contentWorld: .defaultClient, name: "playerBridge")
         
+        // Inject shorts cleanup scripts directly at document start into both worlds
+        let shortsScript = WKUserScript(source: ShortsCardPlayerView.cleanShortsScriptSource, injectionTime: .atDocumentStart, forMainFrameOnly: false, in: .page)
+        contentController.addUserScript(shortsScript)
+        
+        let clientShortsScript = WKUserScript(source: ShortsCardPlayerView.cleanShortsScriptSource, injectionTime: .atDocumentStart, forMainFrameOnly: false, in: .defaultClient)
+        contentController.addUserScript(clientShortsScript)
+        
         let cleanScript = NativePlayerView.cleanScriptSource
-        let userScript = WKUserScript(source: cleanScript, injectionTime: .atDocumentEnd, forMainFrameOnly: false, in: .defaultClient)
+        let userScript = WKUserScript(source: cleanScript, injectionTime: .atDocumentStart, forMainFrameOnly: false, in: .page)
         contentController.addUserScript(userScript)
         config.userContentController = contentController
         
@@ -650,13 +735,13 @@ struct ShortsCardPlayerView: NSViewRepresentable {
           * { margin: 0; padding: 0; box-sizing: border-box; overflow: hidden; }
           html, body { width: 100%; height: 100%; background: transparent !important; }
           #ytPlayer, iframe { width: 100% !important; height: 100% !important; border: none; display: block; }
-          .ytp-suggested-action-badge, .ytp-popup, .ytp-ai-info-dialog, [class*="ai-disclosure"], .ytp-paid-content-overlay, [class*="paid-content"], [class*="paid-promotion"], .ytp-chrome-top, [class*="title-channel"] { display: none !important; opacity: 0 !important; visibility: hidden !important; }
+          .ytp-shorts-player-overlay, .ytp-shorts-title, .ytp-shorts-channel-name, .ytp-modern-title, .ytp-suggested-action-badge, .ytp-popup, .ytp-ai-info-dialog, [class*="ai-disclosure"], .ytp-paid-content-overlay, [class*="paid-content"], [class*="paid-promotion"], .ytp-chrome-top, [class*="title-channel"], [class*="shorts"] { display: none !important; opacity: 0 !important; visibility: hidden !important; pointer-events: none !important; }
         </style>
         </head>
         <body>
         <iframe 
             id="ytPlayer"
-            src="https://www.youtube.com/embed/\(videoId)?autoplay=1&mute=1&playsinline=1&controls=0&enablejsapi=1&rel=0&modestbranding=1&fs=1&origin=https://auratube.app&widget_referrer=https://auratube.app" 
+            src="https://www.youtube.com/embed/\(videoId)?autoplay=1&mute=1&playsinline=1&controls=0&enablejsapi=1&rel=0&modestbranding=1&fs=0&iv_load_policy=3&showinfo=0&origin=https://auratube.app&widget_referrer=https://auratube.app" 
             allow="autoplay; encrypted-media; picture-in-picture; fullscreen" 
             allowfullscreen="true">
         </iframe>
@@ -701,7 +786,6 @@ struct ShortsCardPlayerView: NSViewRepresentable {
                     var ifr = document.getElementById('ytPlayer');
                     if (ifr && ifr.contentWindow) {
                       ifr.contentWindow.postMessage(JSON.stringify({event: "command", func: "pauseVideo", args: []}), '*');
-                      ifr.contentWindow.postMessage(JSON.stringify({event: "command", func: "seekTo", args: [0, true]}), '*');
                       ifr.contentWindow.postMessage(JSON.stringify({event: "command", func: "mute", args: []}), '*');
                     }
                     sendBridge({ type: 'preloadReady', videoId: currentVideoId });
@@ -799,8 +883,8 @@ struct ShortsCardPlayerView: NSViewRepresentable {
             """
             targetWebView?.evaluateJavaScript(js, completionHandler: nil)
             
-            // Retry once at 160ms to guarantee it catches if iframe was transitioning
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.16) { [weak self] in
+            // Fast follow-up at 120ms to ensure playback command applies
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.12) { [weak self] in
                 guard let self = self, self.isActive else { return }
                 let retryJs = """
                 var ifr = document.getElementById('ytPlayer');
@@ -857,9 +941,9 @@ struct ShortFeedRowView: View {
     let onTapCard: () -> Void
     
     var body: some View {
-        let isPreloadNext = (index > vm.currentIndex && index <= vm.currentIndex + 2)
-        let isPreloadPrev = (index < vm.currentIndex && index >= vm.currentIndex - 2)
-        let isPlayerNeeded = isActive || abs(index - vm.currentIndex) <= 2
+        let isPreloadNext = (index == vm.currentIndex + 1)
+        let isPreloadPrev = (index == vm.currentIndex - 1)
+        let isPlayerNeeded = isActive || isPreloadNext || isPreloadPrev
         
         return HStack(alignment: .bottom, spacing: 18) {
             // Main 9:16 Video Card
@@ -891,7 +975,6 @@ struct ShortFeedRowView: View {
                     .clipped()
                     .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
                     .opacity(isActive ? 1.0 : 0.0)
-                    .animation(.easeInOut(duration: 0.15), value: isActive)
                 }
                 
                 // Play indicator for distant inactive cards
@@ -941,16 +1024,34 @@ struct ShortFeedRowView: View {
                 }()
                 
                 VStack(alignment: .leading, spacing: 10) {
-                    // Channel Info Row
+                    // Channel Info Row with real creator avatar
                     HStack(spacing: 10) {
-                        Circle()
-                            .fill(LinearGradient(colors: [Color.red.opacity(0.8), Color.purple.opacity(0.8)], startPoint: .topLeading, endPoint: .bottomTrailing))
-                            .frame(width: 34, height: 34)
-                            .overlay(
-                                Text(String(uploaderDisplay.prefix(1)).uppercased())
-                                    .font(.system(size: 13, weight: .bold))
-                                    .foregroundColor(.white)
-                            )
+                        if let avatar = short.channelAvatarUrl, let url = URL(string: avatar), !avatar.isEmpty {
+                            AsyncImage(url: url) { phase in
+                                if let img = phase.image {
+                                    img.resizable().scaledToFill()
+                                } else {
+                                    Circle()
+                                        .fill(LinearGradient(colors: [Color.red.opacity(0.8), Color.purple.opacity(0.8)], startPoint: .topLeading, endPoint: .bottomTrailing))
+                                        .overlay(
+                                            Text(String(uploaderDisplay.prefix(1)).uppercased())
+                                                .font(.system(size: 13, weight: .bold))
+                                                .foregroundColor(.white)
+                                        )
+                                }
+                            }
+                            .frame(width: 36, height: 36)
+                            .clipShape(Circle())
+                        } else {
+                            Circle()
+                                .fill(LinearGradient(colors: [Color.red.opacity(0.8), Color.purple.opacity(0.8)], startPoint: .topLeading, endPoint: .bottomTrailing))
+                                .frame(width: 36, height: 36)
+                                .overlay(
+                                    Text(String(uploaderDisplay.prefix(1)).uppercased())
+                                        .font(.system(size: 13, weight: .bold))
+                                        .foregroundColor(.white)
+                                )
+                        }
                         
                         Text(uploaderDisplay)
                             .font(.system(size: 14, weight: .semibold))
