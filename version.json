@@ -1,10 +1,10 @@
 {
-  "version": "2.0.23",
-  "build": 24,
-  "title": "AuraTube v2.0.23 (Khắc Phục Triệt Để Lỗi Âm Thanh Chạy Ngầm & Chồng Tiếng Khi Đóng PiP)",
-  "releaseNotes": "• Khắc phục triệt để lỗi âm thanh chạy ngầm khi tắt PiP: Sửa lỗi bấm nút đóng ở khung Picture-in-Picture (thu nhỏ), MenuBar báo 'Chưa phát video nào' nhưng âm thanh vẫn phát. Luồng tắt video nay ngắt toàn bộ audio, hủy nạp và giải phóng 100% tiến trình WebKit.\n• Loại bỏ hoàn toàn hiện tượng chồng tiếng khi mở video mới: Ngắt sạch triệt để mọi luồng âm thanh trước đó trước khi khởi chạy video tiếp theo, đảm bảo không bao giờ bị đè 2 nguồn tiếng cùng lúc.\n• Đồng bộ hóa & dọn sạch luồng dữ liệu media: Chuẩn hóa hàm dừng video (stop) giải phóng sạch sẽ Main Player Pool, Mini Player Engine (MenuBar), Shorts Coordinator, Native AVPlayer và Now Playing Center của macOS.\n• Tự động ngắt video dài khi chuyển sang tab Shorts: Đảm bảo khi lướt Shorts sẽ không bị rò rỉ âm thanh từ video dài trước đó.",
-  "downloadUrl": "https://github.com/tung68nt/AuraTube/releases/download/v2.0.23/AuraTube-v2.0.23.dmg",
-  "publishedAt": "2026-09-13",
+  "version": "2.0.24",
+  "build": 25,
+  "title": "AuraTube v2.0.24 (Khắc Phục Triệt Để Hiện Tượng Trùng Lặp & Vị Trí Icon Play Trên Shorts)",
+  "releaseNotes": "• Khắc phục triệt để lỗi hiển thị cùng lúc 2 icon Play: Tiêu diệt triệt để nút Play embed mặc định của YouTube iframe và đồng bộ hóa với hệ thống nút native, không bao giờ hiển thị trùng lặp 2 icon.\n• Định vị icon Play chuẩn xác ở chính giữa khung hình: Đặt icon Play native vào đúng tâm trung tâm video, chấm dứt hiện tượng icon Play bị lệch xuống đáy đè lên tiêu đề và tên âm thanh.\n• Tối ưu trải nghiệm phát trực quan: Khi video đang chạy, toàn bộ icon được ẩn 100% để hiển thị video trọn vẹn; duy nhất một icon Play hiện lên ở giữa khi người dùng bấm tạm dừng (Pause).",
+  "downloadUrl": "https://github.com/tung68nt/AuraTube/releases/download/v2.0.24/AuraTube-v2.0.24.dmg",
+  "publishedAt": "2026-09-14",
   "minOSVersion": "13.0",
   "fileSize": "3.0 MB"
 }

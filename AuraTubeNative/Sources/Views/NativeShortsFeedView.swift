@@ -638,8 +638,14 @@ struct ShortsCardPlayerView: NSViewRepresentable {
             .ytp-show-cards-title,
             .ytp-watermark,
             .ytp-pause-overlay,
+            .ytp-pause-overlay-container,
             .ytp-large-play-button,
+            .ytp-large-play-button-bg,
+            .ytp-large-play-button-red-bg,
+            button.ytp-large-play-button,
             .ytp-play-button,
+            button.ytp-play-button,
+            .ytp-mobile-play-button,
             .ytp-bezel,
             .ytp-bezel-container,
             .ytp-bezel-icon,
@@ -647,9 +653,14 @@ struct ShortsCardPlayerView: NSViewRepresentable {
             [class*="bezel"],
             [class*="pause-overlay"],
             [class*="play-button"],
-            [aria-label="Pause"],
-            [aria-label="Tạm dừng"],
+            [aria-label*="Play" i],
+            [aria-label*="Phát" i],
+            [title*="Play" i],
+            [title*="Phát" i],
+            svg.ytp-large-play-button-svg,
+            .ytp-button.ytp-large-play-button-bg,
             .ytp-cairo-refresh-signature-moments,
+            .ytp-cairo-refresh-signature-moments-title,
             .ytp-unmute,
             .ytp-volume-control,
             .annotation,
@@ -688,12 +699,13 @@ struct ShortsCardPlayerView: NSViewRepresentable {
                     (document.head || document.documentElement).appendChild(s);
                 }
                 var targets = document.querySelectorAll(
-                    '.ytp-shorts-player-overlay, .ytp-shorts-title, .ytp-shorts-channel-name, ' +
-                    '.ytp-shorts-channel-avatar, .ytp-modern-title, .ytp-chrome-top, .ytp-gradient-top, ' +
-                    '.ytp-gradient-bottom, .ytp-title, .ytp-title-channel, .ytp-watermark, ' +
-                    '.ytp-bezel, .ytp-bezel-container, .ytp-bezel-icon, .ytp-bezel-text, [class*="bezel"], ' +
-                    '[class*="shorts-player"], [class*="shorts-overlay"], [class*="title-channel"], ' +
-                    '[class*="channel-avatar"], [class*="channel-name"]'
+                    '.ytp-large-play-button, .ytp-large-play-button-bg, .ytp-large-play-button-red-bg, button.ytp-large-play-button, ' +
+                    '.ytp-play-button, button.ytp-play-button, .ytp-mobile-play-button, .ytp-bezel, .ytp-bezel-container, ' +
+                    '.ytp-bezel-icon, .ytp-bezel-text, .ytp-pause-overlay, [class*="bezel"], [class*="play-button"], ' +
+                    '[class*="pause-overlay"], [aria-label*="Play" i], [aria-label*="Phát" i], [title*="Play" i], ' +
+                    '.ytp-cairo-refresh-signature-moments, .ytp-shorts-player-overlay, .ytp-shorts-title, ' +
+                    '.ytp-shorts-channel-name, .ytp-shorts-channel-avatar, .ytp-modern-title, .ytp-chrome-top, ' +
+                    '.ytp-gradient-top, .ytp-gradient-bottom, .ytp-title, .ytp-title-channel, .ytp-watermark'
                 );
                 for (var i = 0; i < targets.length; i++) {
                     targets[i].remove();
@@ -704,7 +716,14 @@ struct ShortsCardPlayerView: NSViewRepresentable {
         applyShortsStyles();
         document.addEventListener('DOMContentLoaded', applyShortsStyles);
         window.addEventListener('load', applyShortsStyles);
-        setInterval(applyShortsStyles, 200);
+        setInterval(applyShortsStyles, 100);
+        
+        if (window.MutationObserver) {
+            var observer = new MutationObserver(function() {
+                applyShortsStyles();
+            });
+            observer.observe(document.documentElement || document.body, { childList: true, subtree: true });
+        }
     })();
     """
     
@@ -832,7 +851,7 @@ struct ShortsCardPlayerView: NSViewRepresentable {
           * { margin: 0; padding: 0; box-sizing: border-box; overflow: hidden; }
           html, body { width: 100%; height: 100%; background: transparent !important; }
           #ytPlayer, iframe { width: 100% !important; height: 100% !important; border: none; display: block; }
-          .ytp-shorts-player-overlay, .ytp-shorts-title, .ytp-shorts-channel-name, .ytp-modern-title, .ytp-suggested-action-badge, .ytp-popup, .ytp-ai-info-dialog, [class*="ai-disclosure"], .ytp-paid-content-overlay, [class*="paid-content"], [class*="paid-promotion"], .ytp-chrome-top, [class*="title-channel"], [class*="shorts"], .ytp-bezel, .ytp-bezel-container, .ytp-bezel-icon, .ytp-bezel-text, [class*="bezel"], .ytp-pause-overlay, .ytp-large-play-button, .ytp-large-play-button-red-bg, button.ytp-large-play-button, .ytp-play-button, [class*="pause-overlay"], [class*="play-button"], [aria-label*="Play" i], [aria-label*="Phát" i], [title*="Play" i], .ytp-impression-link, .ytp-title, .ytp-title-text, .ytp-title-channel, .ytp-title-channel-logo, .ytp-cairo-refresh-signature-moments { display: none !important; opacity: 0 !important; visibility: hidden !important; pointer-events: none !important; }
+          .ytp-shorts-player-overlay, .ytp-shorts-title, .ytp-shorts-channel-name, .ytp-modern-title, .ytp-suggested-action-badge, .ytp-popup, .ytp-ai-info-dialog, [class*="ai-disclosure"], .ytp-paid-content-overlay, [class*="paid-content"], [class*="paid-promotion"], .ytp-chrome-top, [class*="title-channel"], [class*="shorts"], .ytp-bezel, .ytp-bezel-container, .ytp-bezel-icon, .ytp-bezel-text, [class*="bezel"], .ytp-pause-overlay, .ytp-pause-overlay-container, .ytp-large-play-button, .ytp-large-play-button-bg, .ytp-large-play-button-red-bg, button.ytp-large-play-button, .ytp-play-button, button.ytp-play-button, .ytp-mobile-play-button, [class*="pause-overlay"], [class*="play-button"], [aria-label*="Play" i], [aria-label*="Phát" i], [title*="Play" i], [title*="Phát" i], svg.ytp-large-play-button-svg, .ytp-button.ytp-large-play-button-bg, .ytp-impression-link, .ytp-title, .ytp-title-text, .ytp-title-channel, .ytp-title-channel-logo, .ytp-cairo-refresh-signature-moments, .ytp-cairo-refresh-signature-moments-title { display: none !important; opacity: 0 !important; visibility: hidden !important; pointer-events: none !important; width: 0 !important; height: 0 !important; position: absolute !important; left: -9999px !important; top: -9999px !important; }
         </style>
         </head>
         <body>
@@ -1119,30 +1138,24 @@ struct ShortFeedRowView: View {
                     .opacity(isActive ? 1.0 : 0.0)
                 }
                 
-                // Play indicator: ONLY shown when video is paused (to differentiate from lagging), never while playing
-                let showPlayIndicator: Bool = {
-                    if isActive {
-                        // When video is active: show play icon ONLY when user has paused the video
-                        return !playerManager.isPlaying
-                    } else {
-                        // When distant card: show play icon to indicate click to play
-                        return !isPreloadNext && !isPreloadPrev
+                // Play indicator: ONLY shown for the currently active card when paused by user, centered cleanly in the video
+                if isActive && !playerManager.isPlaying {
+                    ZStack {
+                        Circle()
+                            .fill(Color.black.opacity(0.55))
+                            .frame(width: 68, height: 68)
+                            .overlay(
+                                Image(systemName: "play.fill")
+                                    .font(.system(size: 28))
+                                    .foregroundColor(.white)
+                                    .offset(x: 2.5)
+                            )
+                            .shadow(color: Color.black.opacity(0.4), radius: 12, x: 0, y: 4)
                     }
-                }()
-                
-                if showPlayIndicator {
-                    Circle()
-                        .fill(Color.black.opacity(0.55))
-                        .frame(width: 62, height: 62)
-                        .overlay(
-                            Image(systemName: "play.fill")
-                                .font(.system(size: 26))
-                                .foregroundColor(.white)
-                                .offset(x: 2)
-                        )
-                        .transition(.scale(scale: 0.85).combined(with: .opacity))
-                        .allowsHitTesting(false)
-                        .animation(.easeInOut(duration: 0.18), value: playerManager.isPlaying)
+                    .frame(width: cardWidth, height: cardHeight, alignment: .center)
+                    .transition(.scale(scale: 0.85).combined(with: .opacity))
+                    .allowsHitTesting(false)
+                    .animation(.easeInOut(duration: 0.18), value: playerManager.isPlaying)
                 }
                 
                 // Top Bar inside Video: Sound Mute Button
