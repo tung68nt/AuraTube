@@ -571,11 +571,6 @@ final class ShortsPlaybackCoordinator {
                 silenceWebView(webView)
             }
         }
-        
-        // Also ensure regular player in PlayerManager doesn't clash with Shorts audio
-        if let cur = PlayerManager.shared.currentVideo, cur.id != videoId, PlayerManager.shared.isPlaying {
-            PlayerManager.shared.pause()
-        }
     }
     
     func silenceWebView(_ webView: WKWebView) {
@@ -803,13 +798,14 @@ struct ShortsCardPlayerView: NSViewRepresentable {
         let wasActive = context.coordinator.isActive
         context.coordinator.isActive = isActive
         context.coordinator.isPreload = isPreload
+        context.coordinator.targetWebView = nsView
         
         ShortsPlaybackCoordinator.shared.register(videoId: videoId, webView: nsView)
         
         if isActive {
             setupActiveBindings(context: context)
             ShortsPlaybackCoordinator.shared.activateOnly(videoId: videoId)
-            if !wasActive || !context.coordinator.hasStartedPlayback {
+            if !wasActive || !context.coordinator.isActuallyPlaying {
                 context.coordinator.startActivePlayback()
             }
         } else if wasActive && !isActive {
@@ -867,6 +863,7 @@ struct ShortsCardPlayerView: NSViewRepresentable {
           var currentVideoId = '\(videoId)';
           var hasFrozen = false;
           var isUserMuted = \(isMuted ? "true" : "false");
+          var hasPlaybackStarted = false;
 
           function sendBridge(msg) {
             try {
@@ -880,7 +877,14 @@ struct ShortsCardPlayerView: NSViewRepresentable {
             var ifr = document.getElementById('ytPlayer');
             if (ifr && ifr.contentWindow) {
               ifr.contentWindow.postMessage(JSON.stringify({event: "command", func: "playVideo", args: []}), '*');
-              if (!isUserMuted) {
+              ifr.contentWindow.postMessage(JSON.stringify({event: "listening"}), '*');
+            }
+          }
+
+          function unmuteIfPlaying() {
+            if (!isUserMuted && isActive && hasPlaybackStarted) {
+              var ifr = document.getElementById('ytPlayer');
+              if (ifr && ifr.contentWindow) {
                 ifr.contentWindow.postMessage(JSON.stringify({event: "command", func: "unMute", args: []}), '*');
                 ifr.contentWindow.postMessage(JSON.stringify({event: "command", func: "setVolume", args: [100]}), '*');
               }
@@ -903,15 +907,18 @@ struct ShortsCardPlayerView: NSViewRepresentable {
           if (ifr) {
             ifr.onload = function() {
               pingIframe();
-              setTimeout(pingIframe, 150);
-              setTimeout(pingIframe, 400);
-              setTimeout(pingIframe, 900);
+              setTimeout(pingIframe, 100);
+              setTimeout(pingIframe, 300);
             };
           }
 
           var handshakeTimer = setInterval(function() {
-            pingIframe();
-          }, 350);
+            if (isActive && !hasPlaybackStarted) {
+              triggerPlayback();
+            } else if (!isActive) {
+              pingIframe();
+            }
+          }, 300);
 
           window.addEventListener('message', function(e) {
             try {
@@ -922,8 +929,13 @@ struct ShortsCardPlayerView: NSViewRepresentable {
                 }
               }
               if (data.event === 'infoDelivery' && data.info) {
-                if (data.info.playerState === 1) {
-                  clearInterval(handshakeTimer);
+                if (data.info.playerState === 1 || (data.info.currentTime && data.info.currentTime > 0.03)) {
+                  if (isActive) {
+                    hasPlaybackStarted = true;
+                    clearInterval(handshakeTimer);
+                    unmuteIfPlaying();
+                    sendBridge({ type: 'actuallyPlaying', videoId: currentVideoId, isPlaying: true });
+                  }
                 }
                 if (isPreload && !hasFrozen) {
                   if (data.info.playerState === 1 || (data.info.currentTime && data.info.currentTime > 0.01)) {
@@ -970,6 +982,9 @@ struct ShortsCardPlayerView: NSViewRepresentable {
         var videoId: String
         var hasPreparedPreload: Bool = false
         var hasStartedPlayback: Bool = false
+        var isActuallyPlaying: Bool = false
+        var isUserPaused: Bool = false
+        var autoPlayAttempts: Int = 0
         
         init(videoId: String, isActive: Bool, isPreload: Bool) {
             self.videoId = videoId
@@ -978,16 +993,9 @@ struct ShortsCardPlayerView: NSViewRepresentable {
         }
         
         func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
+            targetWebView = webView
             if isActive {
                 startActivePlayback()
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { [weak self] in
-                    guard let self = self, self.isActive else { return }
-                    self.startActivePlayback()
-                }
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) { [weak self] in
-                    guard let self = self, self.isActive else { return }
-                    self.startActivePlayback()
-                }
             }
         }
         
@@ -1004,14 +1012,29 @@ struct ShortsCardPlayerView: NSViewRepresentable {
             guard isActive else { return }
             
             if let type = body["type"] as? String {
-                if type == "stateChange" {
+                if type == "actuallyPlaying" {
+                    isActuallyPlaying = true
+                    PlayerManager.shared.isPlaying = true
+                } else if type == "stateChange" {
                     if let playing = body["isPlaying"] as? Bool {
-                        PlayerManager.shared.isPlaying = playing
+                        if playing {
+                            isActuallyPlaying = true
+                            PlayerManager.shared.isPlaying = true
+                        } else if !isUserPaused {
+                            if let wv = targetWebView {
+                                ensureShortAutoPlay(on: wv)
+                            }
+                        } else {
+                            PlayerManager.shared.isPlaying = false
+                        }
                     }
                 } else if type == "timeUpdate" {
                     if let cur = body["currentTime"] as? Double, !cur.isNaN {
+                        if cur > 0.03 {
+                            isActuallyPlaying = true
+                        }
                         let dur = body["duration"] as? Double ?? PlayerManager.shared.duration
-                        let playing = body["isPlaying"] as? Bool ?? PlayerManager.shared.isPlaying
+                        let playing = body["isPlaying"] as? Bool ?? (cur > 0.03)
                         PlayerManager.shared.updatePlaybackSync(
                             currentTime: cur,
                             duration: dur,
@@ -1026,39 +1049,79 @@ struct ShortsCardPlayerView: NSViewRepresentable {
         }
         
         func startActivePlayback() {
+            isUserPaused = false
+            isActuallyPlaying = false
+            autoPlayAttempts = 0
             hasStartedPlayback = true
-            let muteCmd = PlayerManager.shared.isMuted ? "mute" : "unMute"
+            
+            if let wv = targetWebView {
+                ensureShortAutoPlay(on: wv)
+            }
+        }
+        
+        func ensureShortAutoPlay(on view: WKWebView) {
+            guard isActive && !isUserPaused else { return }
+            guard !isActuallyPlaying else { return }
+            guard autoPlayAttempts < 25 else { return }
+            autoPlayAttempts += 1
+            
+            let isUserMuted = PlayerManager.shared.isMuted
             let js = """
-            isActive = true;
-            isPreload = false;
-            isUserMuted = \(PlayerManager.shared.isMuted ? "true" : "false");
-            function doPlay() {
+            (function() {
+                isActive = true;
+                isPreload = false;
+                isUserMuted = \(isUserMuted ? "true" : "false");
                 var ifr = document.getElementById('ytPlayer');
                 if (ifr && ifr.contentWindow) {
                     ifr.contentWindow.postMessage(JSON.stringify({event: "command", func: "playVideo", args: []}), '*');
-                    ifr.contentWindow.postMessage(JSON.stringify({event: "command", func: "\(muteCmd)", args: []}), '*');
-                    ifr.contentWindow.postMessage(JSON.stringify({event: "command", func: "setVolume", args: [100]}), '*');
+                    ifr.contentWindow.postMessage(JSON.stringify({event: "listening"}), '*');
+                }
+            })();
+            """
+            view.evaluateJavaScript(js, completionHandler: nil)
+            
+            // On attempt 2+, if still not playing, synthesize AppKit native click to grant user activation
+            if autoPlayAttempts >= 2 && !isActuallyPlaying, view.bounds.width > 50 && view.bounds.height > 50, let win = view.window {
+                let centerPoint = NSPoint(x: view.bounds.midX, y: view.bounds.midY)
+                let winPoint = view.convert(centerPoint, to: nil)
+                if let mouseDown = NSEvent.mouseEvent(
+                    with: .leftMouseDown,
+                    location: winPoint,
+                    modifierFlags: [],
+                    timestamp: ProcessInfo.processInfo.systemUptime,
+                    windowNumber: win.windowNumber,
+                    context: nil,
+                    eventNumber: 0,
+                    clickCount: 1,
+                    pressure: 1.0
+                ),
+                let mouseUp = NSEvent.mouseEvent(
+                    with: .leftMouseUp,
+                    location: winPoint,
+                    modifierFlags: [],
+                    timestamp: ProcessInfo.processInfo.systemUptime,
+                    windowNumber: win.windowNumber,
+                    context: nil,
+                    eventNumber: 0,
+                    clickCount: 1,
+                    pressure: 0.0
+                ) {
+                    view.mouseDown(with: mouseDown)
+                    view.mouseUp(with: mouseUp)
                 }
             }
-            doPlay();
-            """
-            targetWebView?.evaluateJavaScript(js, completionHandler: nil)
             
-            // Fast follow-up at 120ms to ensure playback command applies
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.12) { [weak self] in
-                guard let self = self, self.isActive else { return }
-                let retryJs = """
-                var ifr = document.getElementById('ytPlayer');
-                if (ifr && ifr.contentWindow) {
-                    ifr.contentWindow.postMessage(JSON.stringify({event: "command", func: "playVideo", args: []}), '*');
-                    ifr.contentWindow.postMessage(JSON.stringify({event: "command", func: "\(muteCmd)", args: []}), '*');
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.22) { [weak self, weak view] in
+                guard let self = self, let v = view else { return }
+                if self.isActive && !self.isUserPaused && !self.isActuallyPlaying && self.autoPlayAttempts < 25 {
+                    self.ensureShortAutoPlay(on: v)
                 }
-                """
-                self.targetWebView?.evaluateJavaScript(retryJs, completionHandler: nil)
             }
         }
         
         func pausePlayback() {
+            isUserPaused = true
+            isActuallyPlaying = false
             let js = """
             isActive = false;
             isPreload = true;

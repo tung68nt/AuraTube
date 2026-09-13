@@ -1,9 +1,9 @@
 {
-  "version": "2.0.24",
-  "build": 25,
-  "title": "AuraTube v2.0.24 (Khắc Phục Triệt Để Hiện Tượng Trùng Lặp & Vị Trí Icon Play Trên Shorts)",
-  "releaseNotes": "• Khắc phục triệt để lỗi hiển thị cùng lúc 2 icon Play: Tiêu diệt triệt để nút Play embed mặc định của YouTube iframe và đồng bộ hóa với hệ thống nút native, không bao giờ hiển thị trùng lặp 2 icon.\n• Định vị icon Play chuẩn xác ở chính giữa khung hình: Đặt icon Play native vào đúng tâm trung tâm video, chấm dứt hiện tượng icon Play bị lệch xuống đáy đè lên tiêu đề và tên âm thanh.\n• Tối ưu trải nghiệm phát trực quan: Khi video đang chạy, toàn bộ icon được ẩn 100% để hiển thị video trọn vẹn; duy nhất một icon Play hiện lên ở giữa khi người dùng bấm tạm dừng (Pause).",
-  "downloadUrl": "https://github.com/tung68nt/AuraTube/releases/download/v2.0.24/AuraTube-v2.0.24.dmg",
+  "version": "2.0.25",
+  "build": 26,
+  "title": "AuraTube v2.0.25 (Khắc Phục Triệt Để Lỗi Auto-Play Shorts & Màn Hình Đen)",
+  "releaseNotes": "• Khắc phục triệt để lỗi không tự động phát Shorts: Loại bỏ lệnh tạm dừng ngầm khi chuyển đổi video Shorts trong điều phối viên phát (ShortsPlaybackCoordinator), ngăn chặn việc video mới bị pause ngay khi vừa tải.\n• Cơ chế Autoplay Watchdog tự phục hồi: Tích hợp vòng lặp kiểm tra và tự động tái kích hoạt phát video cùng native mouse event click, đảm bảo 100% video Shorts tự động phát ngay khi cuộn tới.\n• Tuần tự hóa bật âm thanh thông minh: Chuyển sang kích hoạt unmute sau khi khung hình đầu tiên đã chuyển động, loại bỏ hoàn toàn việc YouTube embed chặn phát âm thanh và văng ra màn hình đen kèm biểu tượng tạm dừng (||).\n• Ẩn vĩnh viễn overlay pause (||) mặc định của YouTube embed, mang lại trải nghiệm xem Shorts mượt mà và liền mạch như ứng dụng gốc.",
+  "downloadUrl": "https://github.com/tung68nt/AuraTube/releases/download/v2.0.25/AuraTube-v2.0.25.dmg",
   "publishedAt": "2026-09-14",
   "minOSVersion": "13.0",
   "fileSize": "3.0 MB"
