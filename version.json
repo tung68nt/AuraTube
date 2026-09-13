@@ -1,9 +1,9 @@
 {
-  "version": "2.0.20",
-  "build": 21,
-  "title": "AuraTube v2.0.20 (Khắc Phục Hoàn Toàn Trùng Lặp Text & Nâng Tối Đa Độ Mượt Autoplay Shorts)",
-  "releaseNotes": "• Loại bỏ hoàn toàn lớp text trùng lặp / chồng chéo trên Shorts: Ẩn và xoá triệt để các thành phần thông tin, avatar, tag của trình phát YouTube embed phía sau, chỉ hiển thị duy nhất lớp giao diện Native AuraTube sắc nét, hiện đại.\n• Tối ưu tuyệt đối trải nghiệm cuộn và tự động phát 2 chiều: Loại bỏ tình trạng giật khựng, khôi phục bộ đệm phát video tức thì (0ms) khi lướt lên/xuống giữa các Shorts liền kề.\n• Tinh chỉnh giới hạn bộ giải mã phần cứng: Duy trì tối đa 3 player nền liền kề giúp CPU/GPU hoạt động mát mẻ, ngăn ngừa rớt khung hình (drop frames).\n• Cử chỉ cuộn mượt mà: Điều chỉnh gia tốc cuộn trackpad / chuột nhạy bén, tự động hít thẻ video vào giữa màn hình chuẩn xác như YouTube gốc.",
-  "downloadUrl": "https://github.com/tung68nt/AuraTube/releases/download/v2.0.20/AuraTube-v2.0.20.dmg",
+  "version": "2.0.21",
+  "build": 22,
+  "title": "AuraTube v2.0.21 (Khắc Phục Hoàn Toàn Trùng Lặp Audio & Tối Ưu Chỉ Báo Phát/Tạm Dừng Shorts)",
+  "releaseNotes": "• Khắc phục hoàn toàn lỗi chồng chéo âm thanh khi lướt Shorts: Bổ sung bộ điều phối âm thanh trung tâm (ShortsPlaybackCoordinator) và cơ chế dọn sạch WebKit khi unmount, đảm bảo chỉ duy nhất video đang xem được phát tiếng, tắt tiếng và tạm dừng ngay lập tức 100% video còn lại.\n• Ẩn triệt để biểu tượng Pause bezel của YouTube khi video đang phát: Xoá bỏ hoàn toàn icon tròn pause ở giữa màn hình khi video đang chạy mượt mà, trả lại không gian xem nguyên bản sắc nét.\n• Chỉ báo Phát/Tạm dừng thông minh: Chỉ hiển thị nút Play khi video đang bị tạm dừng (giúp phân biệt rõ ràng giữa video chủ động pause và video bị lag nạp chậm), tự động biến mất ngay khi video bắt đầu chạy.",
+  "downloadUrl": "https://github.com/tung68nt/AuraTube/releases/download/v2.0.21/AuraTube-v2.0.21.dmg",
   "publishedAt": "2026-09-13",
   "minOSVersion": "13.0",
   "fileSize": "3.0 MB"

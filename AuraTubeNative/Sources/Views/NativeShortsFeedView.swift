@@ -277,6 +277,7 @@ final class NativeShortsViewModel: ObservableObject {
     func playCurrentShort() {
         guard currentIndex >= 0 && currentIndex < shorts.count else { return }
         let current = shorts[currentIndex]
+        ShortsPlaybackCoordinator.shared.activateOnly(videoId: current.id)
         playShort(current)
         
         let targetId = current.id
@@ -523,12 +524,16 @@ public struct NativeShortsFeedView: View {
             }
         }
         .onAppear {
+            if PlayerManager.shared.currentVideo != nil && PlayerManager.shared.isPlaying {
+                PlayerManager.shared.pause()
+            }
             if let initial = selectedShort {
                 vm.openShort(initial)
             }
         }
         .onDisappear {
             vm.stopScrollMonitor()
+            ShortsPlaybackCoordinator.shared.silenceAll()
         }
         .onChange(of: selectedShort) { newShort in
             if let s = newShort {
@@ -537,6 +542,65 @@ public struct NativeShortsFeedView: View {
         }
         .task {
             await vm.loadInitialShorts(preferredInitial: selectedShort)
+        }
+    }
+}
+
+// MARK: - Centralized Shorts Playback & Audio Coordinator (Eliminates Audio Overlap)
+@MainActor
+final class ShortsPlaybackCoordinator {
+    static let shared = ShortsPlaybackCoordinator()
+    
+    private var registeredWebViews: [String: ScrollForwardingWKWebView] = [:]
+    
+    private init() {}
+    
+    func register(videoId: String, webView: ScrollForwardingWKWebView) {
+        registeredWebViews[videoId] = webView
+    }
+    
+    func unregister(videoId: String) {
+        if let webView = registeredWebViews.removeValue(forKey: videoId) {
+            silenceWebView(webView)
+        }
+    }
+    
+    func activateOnly(videoId: String) {
+        for (id, webView) in registeredWebViews {
+            if id != videoId {
+                silenceWebView(webView)
+            }
+        }
+        
+        // Also ensure regular player in PlayerManager doesn't clash with Shorts audio
+        if let cur = PlayerManager.shared.currentVideo, cur.id != videoId, PlayerManager.shared.isPlaying {
+            PlayerManager.shared.pause()
+        }
+    }
+    
+    func silenceWebView(_ webView: WKWebView) {
+        let js = """
+        try {
+            isActive = false;
+            isPreload = true;
+            var ifr = document.getElementById('ytPlayer');
+            if (ifr && ifr.contentWindow) {
+                ifr.contentWindow.postMessage(JSON.stringify({event: "command", func: "pauseVideo", args: []}), '*');
+                ifr.contentWindow.postMessage(JSON.stringify({event: "command", func: "mute", args: []}), '*');
+            }
+            var vids = document.querySelectorAll('video');
+            for (var i = 0; i < vids.length; i++) {
+                vids[i].pause();
+                vids[i].muted = true;
+            }
+        } catch(e) {}
+        """
+        webView.evaluateJavaScript(js, completionHandler: nil)
+    }
+    
+    func silenceAll() {
+        for (_, webView) in registeredWebViews {
+            silenceWebView(webView)
         }
     }
 }
@@ -575,6 +639,16 @@ struct ShortsCardPlayerView: NSViewRepresentable {
             .ytp-watermark,
             .ytp-pause-overlay,
             .ytp-large-play-button,
+            .ytp-play-button,
+            .ytp-bezel,
+            .ytp-bezel-container,
+            .ytp-bezel-icon,
+            .ytp-bezel-text,
+            [class*="bezel"],
+            [class*="pause-overlay"],
+            [class*="play-button"],
+            [aria-label="Pause"],
+            [aria-label="Tạm dừng"],
             .ytp-cairo-refresh-signature-moments,
             .ytp-unmute,
             .ytp-volume-control,
@@ -617,6 +691,7 @@ struct ShortsCardPlayerView: NSViewRepresentable {
                     '.ytp-shorts-player-overlay, .ytp-shorts-title, .ytp-shorts-channel-name, ' +
                     '.ytp-shorts-channel-avatar, .ytp-modern-title, .ytp-chrome-top, .ytp-gradient-top, ' +
                     '.ytp-gradient-bottom, .ytp-title, .ytp-title-channel, .ytp-watermark, ' +
+                    '.ytp-bezel, .ytp-bezel-container, .ytp-bezel-icon, .ytp-bezel-text, [class*="bezel"], ' +
                     '[class*="shorts-player"], [class*="shorts-overlay"], [class*="title-channel"], ' +
                     '[class*="channel-avatar"], [class*="channel-name"]'
                 );
@@ -688,8 +763,10 @@ struct ShortsCardPlayerView: NSViewRepresentable {
         let html = ShortsCardPlayerView.generateHTML(videoId: videoId, isPreload: isPreload, isMuted: mute)
         webView.loadHTMLString(html, baseURL: URL(string: "https://auratube.app"))
         
+        ShortsPlaybackCoordinator.shared.register(videoId: videoId, webView: webView)
         if isActive {
             setupActiveBindings(context: context)
+            ShortsPlaybackCoordinator.shared.activateOnly(videoId: videoId)
         }
         
         return webView
@@ -700,14 +777,26 @@ struct ShortsCardPlayerView: NSViewRepresentable {
         context.coordinator.isActive = isActive
         context.coordinator.isPreload = isPreload
         
+        ShortsPlaybackCoordinator.shared.register(videoId: videoId, webView: nsView)
+        
         if isActive {
             setupActiveBindings(context: context)
+            ShortsPlaybackCoordinator.shared.activateOnly(videoId: videoId)
             if !wasActive {
                 context.coordinator.startActivePlayback()
             }
         } else if wasActive && !isActive {
             context.coordinator.pausePlayback()
         }
+    }
+    
+    @MainActor
+    static func dismantleNSView(_ nsView: ScrollForwardingWKWebView, coordinator: Coordinator) {
+        ShortsPlaybackCoordinator.shared.unregister(videoId: coordinator.videoId)
+        coordinator.pausePlayback()
+        ShortsPlaybackCoordinator.shared.silenceWebView(nsView)
+        nsView.stopLoading()
+        nsView.loadHTMLString("<!DOCTYPE html><html><body></body></html>", baseURL: nil)
     }
     
     private func setupActiveBindings(context: Context) {
@@ -735,7 +824,7 @@ struct ShortsCardPlayerView: NSViewRepresentable {
           * { margin: 0; padding: 0; box-sizing: border-box; overflow: hidden; }
           html, body { width: 100%; height: 100%; background: transparent !important; }
           #ytPlayer, iframe { width: 100% !important; height: 100% !important; border: none; display: block; }
-          .ytp-shorts-player-overlay, .ytp-shorts-title, .ytp-shorts-channel-name, .ytp-modern-title, .ytp-suggested-action-badge, .ytp-popup, .ytp-ai-info-dialog, [class*="ai-disclosure"], .ytp-paid-content-overlay, [class*="paid-content"], [class*="paid-promotion"], .ytp-chrome-top, [class*="title-channel"], [class*="shorts"] { display: none !important; opacity: 0 !important; visibility: hidden !important; pointer-events: none !important; }
+          .ytp-shorts-player-overlay, .ytp-shorts-title, .ytp-shorts-channel-name, .ytp-modern-title, .ytp-suggested-action-badge, .ytp-popup, .ytp-ai-info-dialog, [class*="ai-disclosure"], .ytp-paid-content-overlay, [class*="paid-content"], [class*="paid-promotion"], .ytp-chrome-top, [class*="title-channel"], [class*="shorts"], .ytp-bezel, .ytp-bezel-container, .ytp-bezel-icon, .ytp-bezel-text, [class*="bezel"], .ytp-pause-overlay, .ytp-large-play-button, .ytp-play-button, [class*="pause-overlay"], [class*="play-button"] { display: none !important; opacity: 0 !important; visibility: hidden !important; pointer-events: none !important; }
         </style>
         </head>
         <body>
@@ -977,18 +1066,30 @@ struct ShortFeedRowView: View {
                     .opacity(isActive ? 1.0 : 0.0)
                 }
                 
-                // Play indicator for distant inactive cards
-                if !isActive && !isPreloadNext && !isPreloadPrev {
+                // Play indicator: ONLY shown when video is paused (to differentiate from lagging), never while playing
+                let showPlayIndicator: Bool = {
+                    if isActive {
+                        // When video is active: show play icon ONLY when user has paused the video
+                        return !playerManager.isPlaying
+                    } else {
+                        // When distant card: show play icon to indicate click to play
+                        return !isPreloadNext && !isPreloadPrev
+                    }
+                }()
+                
+                if showPlayIndicator {
                     Circle()
-                        .fill(Color.black.opacity(0.45))
-                        .frame(width: 58, height: 58)
+                        .fill(Color.black.opacity(0.55))
+                        .frame(width: 62, height: 62)
                         .overlay(
                             Image(systemName: "play.fill")
-                                .font(.system(size: 24))
+                                .font(.system(size: 26))
                                 .foregroundColor(.white)
                                 .offset(x: 2)
                         )
-                        .transition(.opacity)
+                        .transition(.scale(scale: 0.85).combined(with: .opacity))
+                        .allowsHitTesting(false)
+                        .animation(.easeInOut(duration: 0.18), value: playerManager.isPlaying)
                 }
                 
                 // Top Bar inside Video: Sound Mute Button
