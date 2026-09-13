@@ -233,8 +233,8 @@ public struct NativePlayerView: NSViewRepresentable {
         <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
         <meta name="referrer" content="origin">
         <style>
-          * { margin: 0; padding: 0; box-sizing: border-box; background: #000; overflow: hidden; }
-          html, body { width: 100%; height: 100%; background: #000; }
+          * { margin: 0; padding: 0; box-sizing: border-box; overflow: hidden; }
+          html, body { width: 100%; height: 100%; background: transparent !important; }
           #ytPlayer, iframe { width: 100% !important; height: 100% !important; border: none; display: block; }
           .ytp-suggested-action-badge, .ytp-popup, .ytp-ai-info-dialog, [class*="ai-disclosure"], .ytp-paid-content-overlay, [class*="paid-content"], [class*="paid-promotion"], .ytp-chrome-top, [class*="title-channel"] { display: none !important; opacity: 0 !important; visibility: hidden !important; }
         </style>
@@ -258,7 +258,7 @@ public struct NativePlayerView: NSViewRepresentable {
             var q = targetQuality ? ('hd' + targetQuality) : 'hd1080';
             var ifr = document.getElementById('ytPlayer');
             
-            // 1. Direct loadVideoById to active player
+            // 1. Direct loadVideoById to active player (instant switch without destroying iframe)
             if (ifr && ifr.contentWindow) {
               try {
                 ifr.contentWindow.postMessage(JSON.stringify({
@@ -270,17 +270,25 @@ public struct NativePlayerView: NSViewRepresentable {
                     suggestedQuality: q
                   }]
                 }), '*');
+                ifr.contentWindow.postMessage(JSON.stringify({
+                  event: "command",
+                  func: "loadVideoById",
+                  args: [newId, start, q]
+                }), '*');
                 ifr.contentWindow.postMessage(JSON.stringify({event: "command", func: "unMute", args: []}), '*');
                 ifr.contentWindow.postMessage(JSON.stringify({event: "command", func: "setVolume", args: [100]}), '*');
                 ifr.contentWindow.postMessage(JSON.stringify({event: "command", func: "playVideo", args: []}), '*');
               } catch(e) {}
             }
             
-            // 2. Fallback update if iframe needs URL redirection
-            var targetSrc = 'https://www.youtube.com/embed/' + newId + '?autoplay=1&mute=0&playsinline=1&controls=0&enablejsapi=1&rel=0&modestbranding=1&fs=1&origin=https://auratube.app&widget_referrer=https://auratube.app&start=' + start + '&vq=' + q;
-            if (!ifr.src || ifr.src.indexOf(newId) === -1) {
-              ifr.src = targetSrc;
-            }
+            // 2. Fallback update only if iframe didn't switch after 1.2 seconds
+            clearTimeout(window._loadFallbackTimer);
+            window._loadFallbackTimer = setTimeout(function() {
+              if (currentVideoId === newId && (!ifr.src || ifr.src.indexOf(newId) === -1)) {
+                var targetSrc = 'https://www.youtube.com/embed/' + newId + '?autoplay=1&mute=0&playsinline=1&controls=0&enablejsapi=1&rel=0&modestbranding=1&fs=1&origin=https://auratube.app&widget_referrer=https://auratube.app&start=' + start + '&vq=' + q;
+                ifr.src = targetSrc;
+              }
+            }, 1200);
             postStateSync();
           };
 

@@ -1,9 +1,9 @@
 {
-  "version": "2.0.16",
-  "build": 17,
-  "title": "AuraTube v2.0.16 (Cơ Chế Nam Châm Hít Shorts Chuẩn YouTube & Xóa Viền Thừa)",
-  "releaseNotes": "• Cơ chế cuộn nam châm hít (Magnetic Snap): Tự động trượt và hít video Shorts vào chính giữa khung hình chuẩn như YouTube Shorts gốc. Loại bỏ hoàn toàn hiện tượng cuộn tự do trôi lơ lửng dừng giữa 2 video.\n• Cơ chế trượt vào vị trí trước khi phát: Khi chuyển video, âm thanh/hình ảnh cũ dừng ngay, hiệu ứng trượt đưa video mới vào đúng tâm màn hình rồi mới kích hoạt phát mượt mà 120 FPS.\n• Xóa bỏ viền border thừa: Loại bỏ hoàn toàn đường viền màu trắng quanh khung video, trả lại giao diện tràn viền sang trọng, hiện đại.\n• Đồng bộ khung hiển thị co dãn: Căn chỉnh tỷ lệ 9:16 đồng nhất trên toàn bộ các lớp phủ và nút chức năng.",
-  "downloadUrl": "https://github.com/tung68nt/AuraTube/releases/download/v2.0.16/AuraTube-v2.0.16.dmg",
+  "version": "2.0.17",
+  "build": 18,
+  "title": "AuraTube v2.0.17 (Triệt Tiêu Hoàn Toàn Chớp Nháy Màn Hình Đen Khi Lướt Shorts)",
+  "releaseNotes": "• Triệt tiêu hoàn toàn hiện tượng chớp nháy đen (Zero Black Flash): Tấm ảnh thumbnail chất lượng cao luôn được giữ cố định ở lớp nền phía dưới của thẻ video. Khi lướt sang video mới, người dùng luôn thấy ngay hình ảnh sắc nét của video đó, không bao giờ bị chớp đen.\n• Chuyển video tức thời (Instant loadVideoById): Kích hoạt lệnh chuyển video trực tiếp trong player mà không cần khởi tạo lại iframe từ đầu, loại bỏ việc WebKit reload trang.\n• Hiệu ứng chuyển cảnh mượt mà (Smooth Crossfade): Video mới được tải trước ngay khi bắt đầu hiệu ứng trượt. Ngay khi luồng hình ảnh đầu tiên phát sóng, video sẽ tự động mờ dần hiện lên (crossfade) mượt mà 120 FPS đè lên thumbnail.",
+  "downloadUrl": "https://github.com/tung68nt/AuraTube/releases/download/v2.0.17/AuraTube-v2.0.17.dmg",
   "publishedAt": "2026-09-13",
   "minOSVersion": "13.0",
   "fileSize": "3.0 MB"

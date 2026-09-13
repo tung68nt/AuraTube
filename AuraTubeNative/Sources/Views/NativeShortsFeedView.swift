@@ -12,6 +12,7 @@ final class NativeShortsViewModel: ObservableObject {
     @Published var toastMessage: String? = nil
     @Published var isAutoScrollEnabled: Bool = false
     @Published var isCommentsOpen: Bool = false
+    @Published var activeVideoStarted: Bool = false
     
     private let queryPool = [
         "#shorts việt nam",
@@ -186,27 +187,21 @@ final class NativeShortsViewModel: ObservableObject {
         guard currentIndex < shorts.count - 1 else { return }
         let nextIndex = currentIndex + 1
         
-        // 1. Immediately pause the old video audio/video during slide
+        // 1. Immediately pause the old video audio/video
         PlayerManager.shared.pause()
         
-        // 2. Physically animate the card to smoothly slide into the exact center
+        // 2. Smoothly animate the card to the exact center
         withAnimation(.spring(response: 0.38, dampingFraction: 0.82)) {
             proxy.scrollTo(shorts[nextIndex].id, anchor: .center)
         }
         
-        // 3. Settle cleanly into center (220ms), then switch active card and play
-        snapSettleTask?.cancel()
-        snapSettleTask = Task {
-            try? await Task.sleep(nanoseconds: 220_000_000)
-            guard !Task.isCancelled else { return }
-            await MainActor.run {
-                self.currentIndex = nextIndex
-                self.playCurrentShort()
-            }
-            
-            if nextIndex >= self.shorts.count - 4 {
-                await self.loadMoreShorts()
-            }
+        // 3. Immediately switch active index and start preloading in background
+        // The new card shows its high-res thumbnail during the slide (ZERO black screen!)
+        self.currentIndex = nextIndex
+        self.playCurrentShort()
+        
+        if nextIndex >= self.shorts.count - 4 {
+            Task { await self.loadMoreShorts() }
         }
     }
     
@@ -214,22 +209,14 @@ final class NativeShortsViewModel: ObservableObject {
         guard currentIndex > 0 else { return }
         let prevIndex = currentIndex - 1
         
-        // 1. Immediately pause the old video audio/video during slide
         PlayerManager.shared.pause()
         
         withAnimation(.spring(response: 0.38, dampingFraction: 0.82)) {
             proxy.scrollTo(shorts[prevIndex].id, anchor: .center)
         }
         
-        snapSettleTask?.cancel()
-        snapSettleTask = Task {
-            try? await Task.sleep(nanoseconds: 220_000_000)
-            guard !Task.isCancelled else { return }
-            await MainActor.run {
-                self.currentIndex = prevIndex
-                self.playCurrentShort()
-            }
-        }
+        self.currentIndex = prevIndex
+        self.playCurrentShort()
     }
     
     func snapToCard(index: Int, proxy: ScrollViewProxy) {
@@ -241,15 +228,8 @@ final class NativeShortsViewModel: ObservableObject {
             proxy.scrollTo(shorts[index].id, anchor: .center)
         }
         
-        snapSettleTask?.cancel()
-        snapSettleTask = Task {
-            try? await Task.sleep(nanoseconds: 220_000_000)
-            guard !Task.isCancelled else { return }
-            await MainActor.run {
-                self.currentIndex = index
-                self.playCurrentShort()
-            }
-        }
+        self.currentIndex = index
+        self.playCurrentShort()
     }
     
     // MARK: - Auto Scroll Engine
@@ -295,6 +275,7 @@ final class NativeShortsViewModel: ObservableObject {
     func playCurrentShort() {
         guard currentIndex >= 0 && currentIndex < shorts.count else { return }
         let current = shorts[currentIndex]
+        activeVideoStarted = false
         playShort(current)
         
         let targetId = current.id
@@ -435,6 +416,11 @@ public struct NativeShortsFeedView: View {
                                 }
                             }
                             .onChange(of: playerManager.currentTime) { curTime in
+                                if !vm.activeVideoStarted && curTime > 0.05 && playerManager.currentVideo?.id == vm.currentShort?.id {
+                                    withAnimation(.easeInOut(duration: 0.20)) {
+                                        vm.activeVideoStarted = true
+                                    }
+                                }
                                 vm.checkAutoScroll(
                                     currentTime: curTime,
                                     duration: playerManager.duration,
@@ -571,48 +557,55 @@ struct ShortFeedRowView: View {
     let onTapCard: () -> Void
     
     var body: some View {
-        HStack(alignment: .bottom, spacing: 18) {
+        let isVideoReady = isActive && vm.activeVideoStarted && (playerManager.currentVideo?.id == short.id)
+        
+        return HStack(alignment: .bottom, spacing: 18) {
             // Main 9:16 Video Card
             ZStack(alignment: .bottom) {
+                // Layer 1: Permanent High-Res Thumbnail (Always present underneath, guarantees 0% black screen)
+                ZStack {
+                    Color(white: 0.10)
+                    AsyncImage(url: URL(string: short.thumbnail)) { phase in
+                        if let img = phase.image {
+                            img.resizable().scaledToFill()
+                        } else {
+                            Color(white: 0.12)
+                        }
+                    }
+                    .frame(width: cardWidth, height: cardHeight)
+                    .clipped()
+                }
+                .frame(width: cardWidth, height: cardHeight)
+                .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+                
+                // Layer 2: Active Video Player
                 if isActive {
-                    // Active Video Player mounted inside the active card
                     NativePlayerView()
                         .frame(width: cardWidth, height: cardHeight)
                         .clipped()
-                        .background(Color.black)
                         .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+                        .opacity(isVideoReady ? 1.0 : 0.0)
+                        .animation(.easeInOut(duration: 0.20), value: isVideoReady)
+                    
+                    // Subtle Loading Spinner over thumbnail while buffering first frames
+                    if !isVideoReady {
+                        ProgressView()
+                            .controlSize(.regular)
+                            .colorScheme(.dark)
+                            .transition(.opacity)
+                    }
                 } else {
-                    // Preview Thumbnail for inactive cards (ultra-fast 60 FPS scrolling)
-                    ZStack {
-                        Color.black
-                        
-                        AsyncImage(url: URL(string: short.thumbnail)) { phase in
-                            if let img = phase.image {
-                                img.resizable().scaledToFill()
-                            } else {
-                                Color(white: 0.12)
-                            }
-                        }
-                        .frame(width: cardWidth, height: cardHeight)
-                        .clipped()
-                        
-                        // Subtle Play Indicator
-                        Circle()
-                            .fill(Color.black.opacity(0.45))
-                            .frame(width: 58, height: 58)
-                            .overlay(
-                                Image(systemName: "play.fill")
-                                    .font(.system(size: 24))
-                                    .foregroundColor(.white)
-                                    .offset(x: 2)
-                            )
-                    }
-                    .frame(width: cardWidth, height: cardHeight)
-                    .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
-                    .contentShape(Rectangle())
-                    .onTapGesture {
-                        onTapCard()
-                    }
+                    // Play indicator for inactive cards
+                    Circle()
+                        .fill(Color.black.opacity(0.45))
+                        .frame(width: 58, height: 58)
+                        .overlay(
+                            Image(systemName: "play.fill")
+                                .font(.system(size: 24))
+                                .foregroundColor(.white)
+                                .offset(x: 2)
+                        )
+                        .transition(.opacity)
                 }
                 
                 // Top Bar inside Video: Sound Mute Button
@@ -726,6 +719,14 @@ struct ShortFeedRowView: View {
                 .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
             }
             .frame(width: cardWidth, height: cardHeight)
+            .contentShape(Rectangle())
+            .onTapGesture {
+                if !isActive {
+                    onTapCard()
+                } else {
+                    playerManager.togglePlayPause()
+                }
+            }
             .shadow(color: Color.black.opacity(isActive ? 0.6 : 0.3), radius: isActive ? 24 : 12, x: 0, y: isActive ? 10 : 4)
             .scaleEffect(isActive ? 1.0 : 0.985)
             .animation(.spring(response: 0.28, dampingFraction: 0.8), value: isActive)
