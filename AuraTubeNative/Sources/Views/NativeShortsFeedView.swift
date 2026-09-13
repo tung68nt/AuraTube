@@ -1,5 +1,6 @@
 import SwiftUI
 import AppKit
+import WebKit
 
 @MainActor
 final class NativeShortsViewModel: ObservableObject {
@@ -295,7 +296,12 @@ final class NativeShortsViewModel: ObservableObject {
     }
     
     private func playShort(_ video: Video) {
-        PlayerManager.shared.loadAndPlay(video: video)
+        PlayerManager.shared.currentVideo = video
+        PlayerManager.shared.duration = video.totalDurationSeconds
+        PlayerManager.shared.currentTime = 0
+        PlayerManager.shared.isPlaying = true
+        PlayerManager.shared.addToHistory(video)
+        PlayerManager.shared.startLoadingComments(for: video.id)
     }
     
     func showToast(_ message: String) {
@@ -539,6 +545,257 @@ public struct NativeShortsFeedView: View {
     }
 }
 
+// MARK: - Dedicated Preloading Shorts Card Player (0s latency instant playback)
+struct ShortsCardPlayerView: NSViewRepresentable {
+    let videoId: String
+    let isActive: Bool
+    let isPreload: Bool
+    @ObservedObject var playerManager: PlayerManager = .shared
+    
+    init(videoId: String, isActive: Bool, isPreload: Bool) {
+        self.videoId = videoId
+        self.isActive = isActive
+        self.isPreload = isPreload
+    }
+    
+    func makeCoordinator() -> Coordinator {
+        Coordinator(videoId: videoId, isActive: isActive, isPreload: isPreload)
+    }
+    
+    func makeNSView(context: Context) -> ScrollForwardingWKWebView {
+        let config = WKWebViewConfiguration()
+        config.mediaTypesRequiringUserActionForPlayback = []
+        config.allowsAirPlayForMediaPlayback = true
+        config.preferences.isElementFullscreenEnabled = true
+        config.preferences.setValue(true, forKey: "allowFileAccessFromFileURLs")
+        config.preferences.setValue(true, forKey: "fullScreenEnabled")
+        
+        config.setValue(false, forKey: "requiresUserActionForAudioPlayback")
+        config.setValue(false, forKey: "requiresUserActionForVideoPlayback")
+        config.setValue(true, forKey: "mainContentUserGestureOverrideEnabled")
+        config.setValue(false, forKey: "invisibleAutoplayNotPermitted")
+        
+        let pref = config.preferences
+        pref.setValue(false, forKey: "requiresUserGestureForAudioPlayback")
+        pref.setValue(false, forKey: "requiresUserGestureForVideoPlayback")
+        pref.setValue(true, forKey: "mainContentUserGestureOverrideEnabled")
+        pref.setValue(false, forKey: "invisibleMediaAutoplayNotPermitted")
+        
+        let contentController = WKUserContentController()
+        contentController.add(context.coordinator, contentWorld: .page, name: "playerBridge")
+        contentController.add(context.coordinator, contentWorld: .defaultClient, name: "playerBridge")
+        
+        let cleanScript = NativePlayerView.cleanScriptSource
+        let userScript = WKUserScript(source: cleanScript, injectionTime: .atDocumentEnd, forMainFrameOnly: false, in: .defaultClient)
+        contentController.addUserScript(userScript)
+        config.userContentController = contentController
+        
+        let webView = ScrollForwardingWKWebView(frame: .zero, configuration: config)
+        webView.customUserAgent = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.4 Safari/605.1.15"
+        webView.setValue(false, forKey: "drawsBackground")
+        webView.navigationDelegate = context.coordinator
+        context.coordinator.targetWebView = webView
+        
+        let mute = isPreload || playerManager.isMuted
+        let html = ShortsCardPlayerView.generateHTML(videoId: videoId, isPreload: isPreload, isMuted: mute)
+        webView.loadHTMLString(html, baseURL: URL(string: "https://auratube.app"))
+        
+        if isActive {
+            setupActiveBindings(context: context)
+        }
+        
+        return webView
+    }
+    
+    func updateNSView(_ nsView: ScrollForwardingWKWebView, context: Context) {
+        let wasActive = context.coordinator.isActive
+        context.coordinator.isActive = isActive
+        context.coordinator.isPreload = isPreload
+        
+        if !wasActive && isActive {
+            setupActiveBindings(context: context)
+            context.coordinator.startActivePlayback()
+        } else if wasActive && !isActive {
+            context.coordinator.pausePlayback()
+        }
+    }
+    
+    private func setupActiveBindings(context: Context) {
+        playerManager.onPlayPause = { [weak coord = context.coordinator] shouldPlay in
+            if shouldPlay {
+                coord?.startActivePlayback()
+            } else {
+                coord?.pausePlayback()
+            }
+        }
+        playerManager.onVolumeChange = { [weak coord = context.coordinator] vol in
+            coord?.setVolume(vol)
+        }
+    }
+    
+    static func generateHTML(videoId: String, isPreload: Bool, isMuted: Bool) -> String {
+        let muteParam = isMuted ? "1" : "0"
+        return """
+        <!DOCTYPE html>
+        <html>
+        <head>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+        <meta name="referrer" content="origin">
+        <style>
+          * { margin: 0; padding: 0; box-sizing: border-box; overflow: hidden; }
+          html, body { width: 100%; height: 100%; background: transparent !important; }
+          #ytPlayer, iframe { width: 100% !important; height: 100% !important; border: none; display: block; }
+          .ytp-suggested-action-badge, .ytp-popup, .ytp-ai-info-dialog, [class*="ai-disclosure"], .ytp-paid-content-overlay, [class*="paid-content"], [class*="paid-promotion"], .ytp-chrome-top, [class*="title-channel"] { display: none !important; opacity: 0 !important; visibility: hidden !important; }
+        </style>
+        </head>
+        <body>
+        <iframe 
+            id="ytPlayer"
+            src="https://www.youtube.com/embed/\(videoId)?autoplay=1&mute=\(muteParam)&playsinline=1&controls=0&enablejsapi=1&rel=0&modestbranding=1&fs=1&origin=https://auratube.app&widget_referrer=https://auratube.app" 
+            allow="autoplay; encrypted-media; picture-in-picture; fullscreen" 
+            allowfullscreen="true">
+        </iframe>
+        <script>
+          var isPreload = \(isPreload ? "true" : "false");
+          var currentVideoId = '\(videoId)';
+          var hasFrozen = false;
+
+          function sendBridge(msg) {
+            try {
+              if (window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.playerBridge) {
+                window.webkit.messageHandlers.playerBridge.postMessage(msg);
+              }
+            } catch(e) {}
+          }
+
+          window.addEventListener('message', function(e) {
+            try {
+              var data = JSON.parse(e.data);
+              if (data.event === 'infoDelivery' && data.info) {
+                if (isPreload && !hasFrozen) {
+                  if (data.info.playerState === 1 || (data.info.currentTime && data.info.currentTime > 0.01)) {
+                    hasFrozen = true;
+                    var ifr = document.getElementById('ytPlayer');
+                    if (ifr && ifr.contentWindow) {
+                      ifr.contentWindow.postMessage(JSON.stringify({event: "command", func: "pauseVideo", args: []}), '*');
+                      ifr.contentWindow.postMessage(JSON.stringify({event: "command", func: "seekTo", args: [0, true]}), '*');
+                      ifr.contentWindow.postMessage(JSON.stringify({event: "command", func: "mute", args: []}), '*');
+                    }
+                    sendBridge({ type: 'preloadReady', videoId: currentVideoId });
+                    return;
+                  }
+                }
+                
+                if (data.info.currentTime !== undefined) {
+                  sendBridge({
+                    type: 'timeUpdate',
+                    videoId: currentVideoId,
+                    currentTime: data.info.currentTime,
+                    duration: data.info.duration || 0,
+                    isPlaying: data.info.playerState === 1
+                  });
+                }
+                if (data.info.playerState !== undefined) {
+                  sendBridge({
+                    type: 'stateChange',
+                    videoId: currentVideoId,
+                    isPlaying: data.info.playerState === 1
+                  });
+                }
+              }
+            } catch(err) {}
+          });
+        </script>
+        </body>
+        </html>
+        """
+    }
+    
+    final class Coordinator: NSObject, WKNavigationDelegate, WKScriptMessageHandler {
+        weak var targetWebView: WKWebView?
+        var isPreload: Bool
+        var isActive: Bool
+        var videoId: String
+        var hasPreparedPreload: Bool = false
+        
+        init(videoId: String, isActive: Bool, isPreload: Bool) {
+            self.videoId = videoId
+            self.isActive = isActive
+            self.isPreload = isPreload
+        }
+        
+        func userContentController(_ userContentController: WKUserContentController, didReceive message: WKScriptMessage) {
+            guard let body = message.body as? [String: Any] else { return }
+            
+            if isPreload {
+                if let type = body["type"] as? String, type == "preloadReady" {
+                    hasPreparedPreload = true
+                }
+                return
+            }
+            
+            guard isActive else { return }
+            
+            if let type = body["type"] as? String {
+                if type == "stateChange" {
+                    if let playing = body["isPlaying"] as? Bool {
+                        PlayerManager.shared.isPlaying = playing
+                    }
+                } else if type == "timeUpdate" {
+                    if let cur = body["currentTime"] as? Double, !cur.isNaN {
+                        let dur = body["duration"] as? Double ?? PlayerManager.shared.duration
+                        let playing = body["isPlaying"] as? Bool ?? PlayerManager.shared.isPlaying
+                        PlayerManager.shared.updatePlaybackSync(
+                            currentTime: cur,
+                            duration: dur,
+                            isPlaying: playing,
+                            isMuted: nil,
+                            source: "shorts",
+                            videoId: videoId
+                        )
+                    }
+                }
+            }
+        }
+        
+        func startActivePlayback() {
+            let muteCmd = PlayerManager.shared.isMuted ? "mute" : "unMute"
+            let js = """
+            isPreload = false;
+            var ifr = document.getElementById('ytPlayer');
+            if (ifr && ifr.contentWindow) {
+                ifr.contentWindow.postMessage(JSON.stringify({event: "command", func: "\(muteCmd)", args: []}), '*');
+                ifr.contentWindow.postMessage(JSON.stringify({event: "command", func: "setVolume", args: [100]}), '*');
+                ifr.contentWindow.postMessage(JSON.stringify({event: "command", func: "playVideo", args: []}), '*');
+            }
+            """
+            targetWebView?.evaluateJavaScript(js, completionHandler: nil)
+        }
+        
+        func pausePlayback() {
+            let js = """
+            var ifr = document.getElementById('ytPlayer');
+            if (ifr && ifr.contentWindow) {
+                ifr.contentWindow.postMessage(JSON.stringify({event: "command", func: "pauseVideo", args: []}), '*');
+            }
+            """
+            targetWebView?.evaluateJavaScript(js, completionHandler: nil)
+        }
+        
+        func setVolume(_ volume: Double) {
+            let pct = Int(volume * 100)
+            let js = """
+            var ifr = document.getElementById('ytPlayer');
+            if (ifr && ifr.contentWindow) {
+                ifr.contentWindow.postMessage(JSON.stringify({event: "command", func: "setVolume", args: [\(pct)]}), '*');
+            }
+            """
+            targetWebView?.evaluateJavaScript(js, completionHandler: nil)
+        }
+    }
+}
+
 // MARK: - Individual Short Feed Row (Card + Floating Action Dock)
 struct ShortFeedRowView: View {
     let short: Video
@@ -557,7 +814,9 @@ struct ShortFeedRowView: View {
     let onTapCard: () -> Void
     
     var body: some View {
-        let isVideoReady = isActive && vm.activeVideoStarted && (playerManager.currentVideo?.id == short.id)
+        let isPreloadNext = (index == vm.currentIndex + 1)
+        let isPreloadPrev = (index == vm.currentIndex - 1)
+        let isPlayerNeeded = isActive || isPreloadNext || isPreloadPrev
         
         return HStack(alignment: .bottom, spacing: 18) {
             // Main 9:16 Video Card
@@ -578,24 +837,22 @@ struct ShortFeedRowView: View {
                 .frame(width: cardWidth, height: cardHeight)
                 .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
                 
-                // Layer 2: Active Video Player
-                if isActive {
-                    NativePlayerView()
-                        .frame(width: cardWidth, height: cardHeight)
-                        .clipped()
-                        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
-                        .opacity(isVideoReady ? 1.0 : 0.0)
-                        .animation(.easeInOut(duration: 0.20), value: isVideoReady)
-                    
-                    // Subtle Loading Spinner over thumbnail while buffering first frames
-                    if !isVideoReady {
-                        ProgressView()
-                            .controlSize(.regular)
-                            .colorScheme(.dark)
-                            .transition(.opacity)
-                    }
-                } else {
-                    // Play indicator for inactive cards
+                // Layer 2: Preloaded & Active Video Player (0s latency instant playback)
+                if isPlayerNeeded {
+                    ShortsCardPlayerView(
+                        videoId: short.id,
+                        isActive: isActive,
+                        isPreload: !isActive
+                    )
+                    .frame(width: cardWidth, height: cardHeight)
+                    .clipped()
+                    .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+                    .opacity(isActive ? 1.0 : 0.0)
+                    .animation(.easeInOut(duration: 0.15), value: isActive)
+                }
+                
+                // Play indicator for distant inactive cards
+                if !isActive && !isPreloadNext && !isPreloadPrev {
                     Circle()
                         .fill(Color.black.opacity(0.45))
                         .frame(width: 58, height: 58)

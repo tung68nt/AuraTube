@@ -1,9 +1,9 @@
 {
-  "version": "2.0.17",
-  "build": 18,
-  "title": "AuraTube v2.0.17 (Triệt Tiêu Hoàn Toàn Chớp Nháy Màn Hình Đen Khi Lướt Shorts)",
-  "releaseNotes": "• Triệt tiêu hoàn toàn hiện tượng chớp nháy đen (Zero Black Flash): Tấm ảnh thumbnail chất lượng cao luôn được giữ cố định ở lớp nền phía dưới của thẻ video. Khi lướt sang video mới, người dùng luôn thấy ngay hình ảnh sắc nét của video đó, không bao giờ bị chớp đen.\n• Chuyển video tức thời (Instant loadVideoById): Kích hoạt lệnh chuyển video trực tiếp trong player mà không cần khởi tạo lại iframe từ đầu, loại bỏ việc WebKit reload trang.\n• Hiệu ứng chuyển cảnh mượt mà (Smooth Crossfade): Video mới được tải trước ngay khi bắt đầu hiệu ứng trượt. Ngay khi luồng hình ảnh đầu tiên phát sóng, video sẽ tự động mờ dần hiện lên (crossfade) mượt mà 120 FPS đè lên thumbnail.",
-  "downloadUrl": "https://github.com/tung68nt/AuraTube/releases/download/v2.0.17/AuraTube-v2.0.17.dmg",
+  "version": "2.0.18",
+  "build": 19,
+  "title": "AuraTube v2.0.18 (Tải Trước Ngầm Đa Luồng: Lướt Là Chạy Ngay 0 Giây Trễ)",
+  "releaseNotes": "• Kiến trúc tải trước đa luồng (Multi-Stream Preloading Engine): Trong khi bạn đang xem video hiện tại, video kế tiếp (và video trước đó) ĐÃ ĐƯỢC TẢI XONG NGẦM trong bộ đệm và sẵn sàng ngay ở giây thứ 0.\n• Phát video tức thì 0 giây trễ (Instant Zero-Latency Playback): Ngay khi bạn lướt sang video mới, player đã tải sẵn chỉ việc unpause và phát ngay lập tức. Hoàn toàn không còn độ trễ, không phải chờ video load, không bị khựng lại hay nhấp nháy.\n• Trình phát độc lập cho Shorts (ShortsCardPlayerView): Tách riêng player chuyên biệt cho Shorts độc lập với WatchView, cho phép chạy song song bộ đệm trước (pre-buffer) cực kỳ nhẹ nhàng và mượt mà.",
+  "downloadUrl": "https://github.com/tung68nt/AuraTube/releases/download/v2.0.18/AuraTube-v2.0.18.dmg",
   "publishedAt": "2026-09-13",
   "minOSVersion": "13.0",
   "fileSize": "3.0 MB"

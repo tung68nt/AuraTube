@@ -2,8 +2,8 @@
 set -e
 
 APP_NAME="AuraTube"
-VERSION="2.0.17"
-BUILD="18"
+VERSION="2.0.18"
+BUILD="19"
 SOURCE_DIR="/Users/tungnguyen/Code/Youtube/AuraTubeNative"
 ASSETS_DIR="/Users/tungnguyen/Code/Youtube/assets"
 OUTPUT_DIR="/Users/tungnguyen/Code/Youtube"

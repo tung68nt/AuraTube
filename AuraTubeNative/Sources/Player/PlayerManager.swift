@@ -790,7 +790,7 @@ public final class PlayerManager: ObservableObject {
         }
     }
     
-    private func addToHistory(_ video: Video) {
+    public func addToHistory(_ video: Video) {
         historyVideos.removeAll(where: { $0.id == video.id })
         historyVideos.insert(video, at: 0)
         if historyVideos.count > 50 { historyVideos.removeLast() }
