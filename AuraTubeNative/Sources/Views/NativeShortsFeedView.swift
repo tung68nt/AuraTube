@@ -318,9 +318,11 @@ public struct NativeShortsFeedView: View {
         GeometryReader { containerGeo in
             let containerWidth = containerGeo.size.width
             let containerHeight = containerGeo.size.height
-            let drawerWidth: CGFloat = min(420, max(340, containerWidth * 0.36))
-            let maxShiftLeft: CGFloat = max(0, (containerWidth - 454) / 2 - 24)
-            let horizontalOffset: CGFloat = vm.isCommentsOpen ? -min(drawerWidth / 2 + 10, maxShiftLeft) : 0
+            
+            // Dynamic responsive video sizing to fit cleanly within available window height
+            let cardHeight: CGFloat = max(420, min(675, containerHeight - 56))
+            let cardWidth: CGFloat = cardHeight * (9.0 / 16.0)
+            let commentsDrawerWidth: CGFloat = min(390, max(300, containerWidth * 0.35))
             
             ZStack {
                 Color(white: 0.07).ignoresSafeArea()
@@ -347,126 +349,126 @@ public struct NativeShortsFeedView: View {
                         .buttonStyle(.borderedProminent)
                     }
                 } else {
-                    // Continuous Vertical Feed with Snap-Paging
-                    ScrollViewReader { proxy in
-                        ScrollView(.vertical, showsIndicators: false) {
-                            LazyVStack(spacing: 36) {
-                                ForEach(Array(vm.shorts.enumerated()), id: \.element.id) { index, short in
-                                    let isActive = (index == vm.currentIndex)
-                                    
-                                    ShortFeedRowView(
-                                        short: short,
-                                        index: index,
-                                        totalCount: vm.shorts.count,
-                                        isActive: isActive,
-                                        isAutoScrollEnabled: vm.isAutoScrollEnabled,
-                                        subManager: subManager,
-                                        playerManager: playerManager,
-                                        vm: vm,
-                                        onSelectVideo: onSelectVideo,
-                                        onGoPrev: { vm.goToPrev(proxy: proxy) },
-                                        onGoNext: { vm.goToNext(proxy: proxy) },
-                                        onToggleAutoScroll: { vm.toggleAutoScroll() },
-                                        onTapCard: {
-                                            if !isActive {
-                                                vm.snapToCard(index: index, proxy: proxy)
+                    // Two-Column Layout: Video Feed Column + Comments Drawer Column
+                    HStack(spacing: 0) {
+                        // Column 1: Video Feed (Always perfectly centered within available width)
+                        ScrollViewReader { proxy in
+                            ScrollView(.vertical, showsIndicators: false) {
+                                LazyVStack(spacing: 32) {
+                                    ForEach(Array(vm.shorts.enumerated()), id: \.element.id) { index, short in
+                                        let isActive = (index == vm.currentIndex)
+                                        
+                                        ShortFeedRowView(
+                                            short: short,
+                                            index: index,
+                                            totalCount: vm.shorts.count,
+                                            isActive: isActive,
+                                            cardWidth: cardWidth,
+                                            cardHeight: cardHeight,
+                                            isAutoScrollEnabled: vm.isAutoScrollEnabled,
+                                            subManager: subManager,
+                                            playerManager: playerManager,
+                                            vm: vm,
+                                            onSelectVideo: onSelectVideo,
+                                            onGoPrev: { vm.goToPrev(proxy: proxy) },
+                                            onGoNext: { vm.goToNext(proxy: proxy) },
+                                            onTapCard: {
+                                                if !isActive {
+                                                    vm.snapToCard(index: index, proxy: proxy)
+                                                }
                                             }
-                                        }
-                                    )
-                                    .id(short.id)
+                                        )
+                                        .id(short.id)
+                                    }
                                 }
+                                .padding(.vertical, max(20, (containerHeight - cardHeight) / 2))
+                                .frame(maxWidth: .infinity)
                             }
-                            .padding(.vertical, max(24, (containerHeight - 675) / 2))
-                        }
-                        .offset(x: horizontalOffset)
-                        .animation(.spring(response: 0.36, dampingFraction: 0.85), value: vm.isCommentsOpen)
-                        .onAppear {
-                            vm.startScrollMonitor(proxy: proxy)
-                        }
-                        .onDisappear {
-                            vm.stopScrollMonitor()
-                        }
-                        .onChange(of: playerManager.currentTime) { curTime in
-                            vm.checkAutoScroll(
-                                currentTime: curTime,
-                                duration: playerManager.duration,
-                                proxy: proxy
+                            .onAppear {
+                                vm.startScrollMonitor(proxy: proxy)
+                            }
+                            .onDisappear {
+                                vm.stopScrollMonitor()
+                            }
+                            .onChange(of: playerManager.currentTime) { curTime in
+                                vm.checkAutoScroll(
+                                    currentTime: curTime,
+                                    duration: playerManager.duration,
+                                    proxy: proxy
+                                )
+                            }
+                            .overlay(
+                                // Hidden keyboard shortcuts for Up / Down arrows, Auto-Scroll & Comments
+                                Group {
+                                    Button("") { vm.goToNext(proxy: proxy) }
+                                        .keyboardShortcut(.downArrow, modifiers: [])
+                                        .opacity(0)
+                                    Button("") { vm.goToPrev(proxy: proxy) }
+                                        .keyboardShortcut(.upArrow, modifiers: [])
+                                        .opacity(0)
+                                    Button("") { vm.toggleAutoScroll() }
+                                        .keyboardShortcut("a", modifiers: [])
+                                        .opacity(0)
+                                    Button("") { vm.toggleComments() }
+                                        .keyboardShortcut("c", modifiers: [])
+                                        .opacity(0)
+                                    if vm.isCommentsOpen {
+                                        Button("") { vm.toggleComments() }
+                                            .keyboardShortcut(.escape, modifiers: [])
+                                            .opacity(0)
+                                    }
+                                }
+                                .frame(width: 0, height: 0)
                             )
                         }
-                        .overlay(
-                            // Hidden keyboard shortcuts for Up / Down arrows, Auto-Scroll & Comments
-                            Group {
-                                Button("") { vm.goToNext(proxy: proxy) }
-                                    .keyboardShortcut(.downArrow, modifiers: [])
-                                    .opacity(0)
-                                Button("") { vm.goToPrev(proxy: proxy) }
-                                    .keyboardShortcut(.upArrow, modifiers: [])
-                                    .opacity(0)
-                                Button("") { vm.toggleAutoScroll() }
-                                    .keyboardShortcut("a", modifiers: [])
-                                    .opacity(0)
-                                Button("") { vm.toggleComments() }
-                                    .keyboardShortcut("c", modifiers: [])
-                                    .opacity(0)
-                                if vm.isCommentsOpen {
-                                    Button("") { vm.toggleComments() }
-                                        .keyboardShortcut(.escape, modifiers: [])
-                                        .opacity(0)
-                                }
-                            }
-                            .frame(width: 0, height: 0)
-                        )
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
                         
-                        // Top Header Quick Action Dock: Auto Scroll Switch
-                        VStack {
-                            HStack {
-                                Spacer()
-                                
-                                Button(action: { vm.toggleAutoScroll() }) {
-                                    HStack(spacing: 6) {
-                                        Image(systemName: vm.isAutoScrollEnabled ? "arrow.triangle.2.circlepath.circle.fill" : "arrow.triangle.2.circlepath")
-                                            .font(.system(size: 13, weight: .bold))
-                                            .foregroundColor(vm.isAutoScrollEnabled ? .green : Color.white.opacity(0.8))
-                                        Text(vm.isAutoScrollEnabled ? "Tự động cuộn: BẬT" : "Tự động cuộn")
-                                            .font(.system(size: 12, weight: vm.isAutoScrollEnabled ? .bold : .medium))
-                                            .foregroundColor(vm.isAutoScrollEnabled ? .white : Color.white.opacity(0.85))
-                                    }
-                                    .padding(.horizontal, 14)
-                                    .padding(.vertical, 7)
-                                    .background(
-                                        Capsule()
-                                            .fill(vm.isAutoScrollEnabled ? Color.green.opacity(0.28) : Color.black.opacity(0.65))
-                                    )
-                                    .overlay(
-                                        Capsule()
-                                            .strokeBorder(vm.isAutoScrollEnabled ? Color.green.opacity(0.7) : Color.white.opacity(0.18), lineWidth: 1)
-                                    )
-                                    .shadow(color: Color.black.opacity(0.35), radius: 6, y: 2)
-                                }
-                                .buttonStyle(.plain)
-                                .help("Bật/Tắt tự động chuyển sang video tiếp theo khi xem xong (Phím tắt: A)")
-                                .padding(.trailing, vm.isCommentsOpen ? (drawerWidth + 20) : 28)
-                                .padding(.top, 16)
-                                .animation(.spring(response: 0.36, dampingFraction: 0.85), value: vm.isCommentsOpen)
-                            }
-                            Spacer()
+                        // Column 2: Comments Drawer (Positioned alongside video - Zero overlap)
+                        if vm.isCommentsOpen {
+                            ShortsCommentsDrawer(
+                                playerManager: playerManager,
+                                onClose: { vm.toggleComments() }
+                            )
+                            .frame(width: commentsDrawerWidth)
+                            .transition(.move(edge: .trailing).combined(with: .opacity))
                         }
                     }
-                }
-                
-                // Comments Side Drawer (Positioned alongside shifted video - Zero overlap)
-                if vm.isCommentsOpen {
-                    HStack(spacing: 0) {
+                    .animation(.spring(response: 0.38, dampingFraction: 0.85), value: vm.isCommentsOpen)
+                    
+                    // Top Header Quick Action Dock: Auto Scroll Switch (Pinned cleanly to top right)
+                    VStack {
+                        HStack {
+                            Spacer()
+                            
+                            Button(action: { vm.toggleAutoScroll() }) {
+                                HStack(spacing: 6) {
+                                    Image(systemName: vm.isAutoScrollEnabled ? "arrow.triangle.2.circlepath.circle.fill" : "arrow.triangle.2.circlepath")
+                                        .font(.system(size: 13, weight: .bold))
+                                        .foregroundColor(vm.isAutoScrollEnabled ? .green : Color.white.opacity(0.8))
+                                    Text(vm.isAutoScrollEnabled ? "Tự động cuộn: BẬT" : "Tự động cuộn")
+                                        .font(.system(size: 12, weight: vm.isAutoScrollEnabled ? .bold : .medium))
+                                        .foregroundColor(vm.isAutoScrollEnabled ? .white : Color.white.opacity(0.85))
+                                }
+                                .padding(.horizontal, 14)
+                                .padding(.vertical, 7)
+                                .background(
+                                    Capsule()
+                                        .fill(vm.isAutoScrollEnabled ? Color.green.opacity(0.28) : Color.black.opacity(0.65))
+                                )
+                                .overlay(
+                                    Capsule()
+                                        .strokeBorder(vm.isAutoScrollEnabled ? Color.green.opacity(0.7) : Color.white.opacity(0.18), lineWidth: 1)
+                                )
+                                .shadow(color: Color.black.opacity(0.35), radius: 6, y: 2)
+                            }
+                            .buttonStyle(.plain)
+                            .help("Bật/Tắt tự động chuyển sang video tiếp theo khi xem xong (Phím tắt: A)")
+                            .padding(.trailing, vm.isCommentsOpen ? (commentsDrawerWidth + 20) : 24)
+                            .padding(.top, 16)
+                            .animation(.spring(response: 0.38, dampingFraction: 0.85), value: vm.isCommentsOpen)
+                        }
                         Spacer()
-                        
-                        ShortsCommentsDrawer(
-                            playerManager: playerManager,
-                            onClose: { vm.toggleComments() }
-                        )
-                        .frame(width: drawerWidth)
-                        .transition(.move(edge: .trailing).combined(with: .opacity))
                     }
-                    .zIndex(45)
                 }
                 
                 // Toast Notification Overlay
@@ -513,6 +515,8 @@ struct ShortFeedRowView: View {
     let index: Int
     let totalCount: Int
     let isActive: Bool
+    let cardWidth: CGFloat
+    let cardHeight: CGFloat
     let isAutoScrollEnabled: Bool
     @ObservedObject var subManager: ChannelSubscriptionManager
     @ObservedObject var playerManager: PlayerManager
@@ -520,7 +524,6 @@ struct ShortFeedRowView: View {
     let onSelectVideo: (Video) -> Void
     let onGoPrev: () -> Void
     let onGoNext: () -> Void
-    let onToggleAutoScroll: () -> Void
     let onTapCard: () -> Void
     
     var body: some View {
@@ -530,7 +533,7 @@ struct ShortFeedRowView: View {
                 if isActive {
                     // Active Video Player mounted inside the active card
                     NativePlayerView()
-                        .frame(width: 380, height: 675)
+                        .frame(width: cardWidth, height: cardHeight)
                         .clipped()
                         .background(Color.black)
                         .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
@@ -546,7 +549,7 @@ struct ShortFeedRowView: View {
                                 Color(white: 0.12)
                             }
                         }
-                        .frame(width: 380, height: 675)
+                        .frame(width: cardWidth, height: cardHeight)
                         .clipped()
                         
                         // Subtle Play Indicator
@@ -560,7 +563,7 @@ struct ShortFeedRowView: View {
                                     .offset(x: 2)
                             )
                     }
-                    .frame(width: 380, height: 675)
+                    .frame(width: cardWidth, height: cardHeight)
                     .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
                     .contentShape(Rectangle())
                     .onTapGesture {
@@ -718,16 +721,6 @@ struct ShortFeedRowView: View {
                 .help("Short tiếp theo (Mũi tên xuống)")
                 
                 Spacer()
-                
-                // Auto Scroll Toggle Button on side dock
-                ActionButton(
-                    icon: isAutoScrollEnabled ? "arrow.triangle.2.circlepath.circle.fill" : "arrow.triangle.2.circlepath",
-                    label: isAutoScrollEnabled ? "Auto BẬT" : "Auto Cuộn",
-                    isActive: isAutoScrollEnabled,
-                    activeColor: .green
-                ) {
-                    onToggleAutoScroll()
-                }
                 
                 // Like Button
                 let isLiked = vm.likedShorts.contains(short.id)

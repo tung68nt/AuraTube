@@ -1,9 +1,9 @@
 {
-  "version": "2.0.14",
-  "build": 15,
-  "title": "AuraTube v2.0.14 (Tối Ưu Giao Diện Bình Luận Shorts - Tự Động Lệch Tâm Song Song)",
-  "releaseNotes": "• Bố cục song song chuẩn YouTube cho Shorts: Khi mở khung bình luận, toàn bộ video và thanh công cụ bên cạnh sẽ tự động thực hiện hoạt ảnh trượt mượt mà sang bên trái, giữ khoảng cách độc lập hoàn hảo với khung bình luận bên phải mà không che khuất hay đè lên video.\n• Xem video và đọc bình luận cùng lúc: Loại bỏ lớp phủ tối (scrim) che video; người dùng có thể vừa xem video mượt mà vừa theo dõi và tương tác với bình luận.\n• Tự động căn chỉnh nút Tự động cuộn: Nút Tự động cuộn ở góc trên bên phải được căn lề thích ứng mượt mà để luôn hiển thị trọn vẹn khi mở khung bình luận.",
-  "downloadUrl": "https://github.com/tung68nt/AuraTube/releases/download/v2.0.14/AuraTube-v2.0.14.dmg",
+  "version": "2.0.15",
+  "build": 16,
+  "title": "AuraTube v2.0.15 (Tái Cấu Trúc Giao Diện Shorts: Bố Cục Song Song Hai Cột & Co Dãn Tự Động)",
+  "releaseNotes": "• Bố cục song song hai cột độc lập (Two-Column Layout): Tách biệt hoàn toàn luồng phát video Shorts và khung bình luận thành 2 cột riêng biệt trong HStack. Khi mở bình luận, cột video tự động nhường chỗ cho cột bình luận, đảm bảo không bao giờ đè hay che khuất video.\n• Co dãn kích thước video theo chiều cao cửa sổ: Kích thước video 9:16 được tính toán động theo chiều cao cửa sổ khả dụng, đảm bảo toàn bộ video, thông tin kênh và thanh dock tương tác luôn hiển thị đầy đủ 100%, không bị cắt cụt hay tràn mép dưới trên mọi kích thước màn hình.\n• Cố định nút Tự động cuộn ở góc trên bên phải: Đưa nút Tự động cuộn về đúng vị trí thanh tiêu đề, không còn bị trôi xuống giữa màn hình.",
+  "downloadUrl": "https://github.com/tung68nt/AuraTube/releases/download/v2.0.15/AuraTube-v2.0.15.dmg",
   "publishedAt": "2026-09-13",
   "minOSVersion": "13.0",
   "fileSize": "3.0 MB"
