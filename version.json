@@ -1,9 +1,9 @@
 {
-  "version": "2.0.18",
-  "build": 19,
-  "title": "AuraTube v2.0.18 (Tải Trước Ngầm Đa Luồng: Lướt Là Chạy Ngay 0 Giây Trễ)",
-  "releaseNotes": "• Kiến trúc tải trước đa luồng (Multi-Stream Preloading Engine): Trong khi bạn đang xem video hiện tại, video kế tiếp (và video trước đó) ĐÃ ĐƯỢC TẢI XONG NGẦM trong bộ đệm và sẵn sàng ngay ở giây thứ 0.\n• Phát video tức thì 0 giây trễ (Instant Zero-Latency Playback): Ngay khi bạn lướt sang video mới, player đã tải sẵn chỉ việc unpause và phát ngay lập tức. Hoàn toàn không còn độ trễ, không phải chờ video load, không bị khựng lại hay nhấp nháy.\n• Trình phát độc lập cho Shorts (ShortsCardPlayerView): Tách riêng player chuyên biệt cho Shorts độc lập với WatchView, cho phép chạy song song bộ đệm trước (pre-buffer) cực kỳ nhẹ nhàng và mượt mà.",
-  "downloadUrl": "https://github.com/tung68nt/AuraTube/releases/download/v2.0.18/AuraTube-v2.0.18.dmg",
+  "version": "2.0.19",
+  "build": 20,
+  "title": "AuraTube v2.0.19 (Hoàn Thiện Tự Động Phát Hai Chiều Shorts: Lướt Tiến / Lùi Đều Chạy Ngay)",
+  "releaseNotes": "• Sửa triệt để lỗi khi lướt ngược lại video Shorts cũ: Khắc phục lỗi video trước đó không tự phát, màn hình đen hoặc hiện nút play. Giờ đây khi lướt ngược lại, video cũ phát ngay lập tức không độ trễ.\n• Tối ưu chính sách Autoplay WebKit: Đảm bảo luồng phát lại và gỡ tắt tiếng (unmute) theo đúng thứ tự, loại bỏ hoàn toàn tình trạng WebKit chặn tự động phát trên các khung hình Shorts đã tải.\n• Bộ nhớ đệm giữ trạng thái 2 chiều (Bidirectional Buffer): Giữ sẵn các video liền kề cả phía trước và phía sau trong bộ nhớ để lướt lên hay lướt xuống đều mượt mà 0 giây trễ.\n• Cải thiện độ nhạy cuộn chuột / trackpad: Nhận diện cử chỉ lướt dứt khoát và tự động chuyển thẻ mượt mà không lo dừng lửng lơ.",
+  "downloadUrl": "https://github.com/tung68nt/AuraTube/releases/download/v2.0.19/AuraTube-v2.0.19.dmg",
   "publishedAt": "2026-09-13",
   "minOSVersion": "13.0",
   "fileSize": "3.0 MB"

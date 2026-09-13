@@ -139,9 +139,20 @@ final class NativeShortsViewModel: ObservableObject {
                 return nil
             }
             
-            // Reset accumulator when trackpad gesture ends
+            // Reset accumulator when trackpad gesture ends or trigger if accumulated enough
             if event.phase == .ended || event.phase == .cancelled {
-                self.accumulatedDeltaY = 0
+                if abs(self.accumulatedDeltaY) >= 8 {
+                    let isDown = self.accumulatedDeltaY < 0
+                    self.accumulatedDeltaY = 0
+                    self.lastScrollDate = Date()
+                    if isDown {
+                        self.goToNext(proxy: proxy)
+                    } else {
+                        self.goToPrev(proxy: proxy)
+                    }
+                } else {
+                    self.accumulatedDeltaY = 0
+                }
                 return nil
             }
             
@@ -188,16 +199,11 @@ final class NativeShortsViewModel: ObservableObject {
         guard currentIndex < shorts.count - 1 else { return }
         let nextIndex = currentIndex + 1
         
-        // 1. Immediately pause the old video audio/video
-        PlayerManager.shared.pause()
-        
-        // 2. Smoothly animate the card to the exact center
+        // Smoothly animate the card to the exact center
         withAnimation(.spring(response: 0.38, dampingFraction: 0.82)) {
             proxy.scrollTo(shorts[nextIndex].id, anchor: .center)
         }
         
-        // 3. Immediately switch active index and start preloading in background
-        // The new card shows its high-res thumbnail during the slide (ZERO black screen!)
         self.currentIndex = nextIndex
         self.playCurrentShort()
         
@@ -210,8 +216,6 @@ final class NativeShortsViewModel: ObservableObject {
         guard currentIndex > 0 else { return }
         let prevIndex = currentIndex - 1
         
-        PlayerManager.shared.pause()
-        
         withAnimation(.spring(response: 0.38, dampingFraction: 0.82)) {
             proxy.scrollTo(shorts[prevIndex].id, anchor: .center)
         }
@@ -222,8 +226,6 @@ final class NativeShortsViewModel: ObservableObject {
     
     func snapToCard(index: Int, proxy: ScrollViewProxy) {
         guard index >= 0 && index < shorts.count, index != currentIndex else { return }
-        
-        PlayerManager.shared.pause()
         
         withAnimation(.spring(response: 0.38, dampingFraction: 0.82)) {
             proxy.scrollTo(shorts[index].id, anchor: .center)
@@ -300,6 +302,7 @@ final class NativeShortsViewModel: ObservableObject {
         PlayerManager.shared.duration = video.totalDurationSeconds
         PlayerManager.shared.currentTime = 0
         PlayerManager.shared.isPlaying = true
+        PlayerManager.shared.onPlayPause?(true)
         PlayerManager.shared.addToHistory(video)
         PlayerManager.shared.startLoadingComments(for: video.id)
     }
@@ -612,9 +615,11 @@ struct ShortsCardPlayerView: NSViewRepresentable {
         context.coordinator.isActive = isActive
         context.coordinator.isPreload = isPreload
         
-        if !wasActive && isActive {
+        if isActive {
             setupActiveBindings(context: context)
-            context.coordinator.startActivePlayback()
+            if !wasActive {
+                context.coordinator.startActivePlayback()
+            }
         } else if wasActive && !isActive {
             context.coordinator.pausePlayback()
         }
@@ -634,7 +639,6 @@ struct ShortsCardPlayerView: NSViewRepresentable {
     }
     
     static func generateHTML(videoId: String, isPreload: Bool, isMuted: Bool) -> String {
-        let muteParam = isMuted ? "1" : "0"
         return """
         <!DOCTYPE html>
         <html>
@@ -652,14 +656,16 @@ struct ShortsCardPlayerView: NSViewRepresentable {
         <body>
         <iframe 
             id="ytPlayer"
-            src="https://www.youtube.com/embed/\(videoId)?autoplay=1&mute=\(muteParam)&playsinline=1&controls=0&enablejsapi=1&rel=0&modestbranding=1&fs=1&origin=https://auratube.app&widget_referrer=https://auratube.app" 
+            src="https://www.youtube.com/embed/\(videoId)?autoplay=1&mute=1&playsinline=1&controls=0&enablejsapi=1&rel=0&modestbranding=1&fs=1&origin=https://auratube.app&widget_referrer=https://auratube.app" 
             allow="autoplay; encrypted-media; picture-in-picture; fullscreen" 
             allowfullscreen="true">
         </iframe>
         <script>
           var isPreload = \(isPreload ? "true" : "false");
+          var isActive = \(isPreload ? "false" : "true");
           var currentVideoId = '\(videoId)';
           var hasFrozen = false;
+          var isUserMuted = \(isMuted ? "true" : "false");
 
           function sendBridge(msg) {
             try {
@@ -669,9 +675,25 @@ struct ShortsCardPlayerView: NSViewRepresentable {
             } catch(e) {}
           }
 
+          function triggerPlayback() {
+            var ifr = document.getElementById('ytPlayer');
+            if (ifr && ifr.contentWindow) {
+              ifr.contentWindow.postMessage(JSON.stringify({event: "command", func: "playVideo", args: []}), '*');
+              if (!isUserMuted) {
+                ifr.contentWindow.postMessage(JSON.stringify({event: "command", func: "unMute", args: []}), '*');
+                ifr.contentWindow.postMessage(JSON.stringify({event: "command", func: "setVolume", args: [100]}), '*');
+              }
+            }
+          }
+
           window.addEventListener('message', function(e) {
             try {
               var data = JSON.parse(e.data);
+              if (data.event === 'onReady') {
+                if (isActive) {
+                  triggerPlayback();
+                }
+              }
               if (data.event === 'infoDelivery' && data.info) {
                 if (isPreload && !hasFrozen) {
                   if (data.info.playerState === 1 || (data.info.currentTime && data.info.currentTime > 0.01)) {
@@ -762,22 +784,43 @@ struct ShortsCardPlayerView: NSViewRepresentable {
         func startActivePlayback() {
             let muteCmd = PlayerManager.shared.isMuted ? "mute" : "unMute"
             let js = """
+            isActive = true;
             isPreload = false;
-            var ifr = document.getElementById('ytPlayer');
-            if (ifr && ifr.contentWindow) {
-                ifr.contentWindow.postMessage(JSON.stringify({event: "command", func: "\(muteCmd)", args: []}), '*');
-                ifr.contentWindow.postMessage(JSON.stringify({event: "command", func: "setVolume", args: [100]}), '*');
-                ifr.contentWindow.postMessage(JSON.stringify({event: "command", func: "playVideo", args: []}), '*');
+            isUserMuted = \(PlayerManager.shared.isMuted ? "true" : "false");
+            function doPlay() {
+                var ifr = document.getElementById('ytPlayer');
+                if (ifr && ifr.contentWindow) {
+                    ifr.contentWindow.postMessage(JSON.stringify({event: "command", func: "playVideo", args: []}), '*');
+                    ifr.contentWindow.postMessage(JSON.stringify({event: "command", func: "\(muteCmd)", args: []}), '*');
+                    ifr.contentWindow.postMessage(JSON.stringify({event: "command", func: "setVolume", args: [100]}), '*');
+                }
             }
+            doPlay();
             """
             targetWebView?.evaluateJavaScript(js, completionHandler: nil)
+            
+            // Retry once at 160ms to guarantee it catches if iframe was transitioning
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.16) { [weak self] in
+                guard let self = self, self.isActive else { return }
+                let retryJs = """
+                var ifr = document.getElementById('ytPlayer');
+                if (ifr && ifr.contentWindow) {
+                    ifr.contentWindow.postMessage(JSON.stringify({event: "command", func: "playVideo", args: []}), '*');
+                    ifr.contentWindow.postMessage(JSON.stringify({event: "command", func: "\(muteCmd)", args: []}), '*');
+                }
+                """
+                self.targetWebView?.evaluateJavaScript(retryJs, completionHandler: nil)
+            }
         }
         
         func pausePlayback() {
             let js = """
+            isActive = false;
+            isPreload = true;
             var ifr = document.getElementById('ytPlayer');
             if (ifr && ifr.contentWindow) {
                 ifr.contentWindow.postMessage(JSON.stringify({event: "command", func: "pauseVideo", args: []}), '*');
+                ifr.contentWindow.postMessage(JSON.stringify({event: "command", func: "mute", args: []}), '*');
             }
             """
             targetWebView?.evaluateJavaScript(js, completionHandler: nil)
@@ -814,9 +857,9 @@ struct ShortFeedRowView: View {
     let onTapCard: () -> Void
     
     var body: some View {
-        let isPreloadNext = (index == vm.currentIndex + 1)
-        let isPreloadPrev = (index == vm.currentIndex - 1)
-        let isPlayerNeeded = isActive || isPreloadNext || isPreloadPrev
+        let isPreloadNext = (index > vm.currentIndex && index <= vm.currentIndex + 2)
+        let isPreloadPrev = (index < vm.currentIndex && index >= vm.currentIndex - 2)
+        let isPlayerNeeded = isActive || abs(index - vm.currentIndex) <= 2
         
         return HStack(alignment: .bottom, spacing: 18) {
             // Main 9:16 Video Card
