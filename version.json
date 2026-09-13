@@ -1,9 +1,9 @@
 {
-  "version": "2.0.7",
-  "build": 8,
-  "title": "AuraTube v2.0.7 (Giao Diện Dọc Shorts Chuyên Biệt, Hỗ Trợ Lướt Liên Tục Bằng Trackpad & Chuột)",
-  "releaseNotes": "• Chuyên biệt hóa trải nghiệm Shorts: Khi bấm chọn bất kỳ video Short nào từ Trang chủ hoặc Tìm kiếm, app sẽ mở ngay giao diện Feed 9:16 portrait thay vì mở giao diện video dài 16:9.\n• Lướt Shorts liên tục cực mượt: Hỗ trợ cử chỉ cuộn 2 ngón trên Trackpad Mac hoặc con lăn chuột (Scroll Wheel), phím mũi tên Lên/Xuống hoặc nút điều hướng nổi trên màn hình để chuyển Short tiếp theo tức thì.\n• Tự động lặp lại video Short (Auto Loop): Khi Short phát hết thời lượng, video sẽ tự động phát lại mượt mà, không bị kẹt hay tự động chuyển sang video dài gây mất mạch lướt.\n• Banner chuyển đổi nhanh trong WatchView: Nếu mở link Short trong chế độ xem thường, app cung cấp nút một chạm 'Mở Shorts' để chuyển ngay sang giao diện lướt dọc.",
-  "downloadUrl": "https://github.com/tung68nt/AuraTube/releases/download/v2.0.7/AuraTube-v2.0.7.dmg",
+  "version": "2.0.8",
+  "build": 9,
+  "title": "AuraTube v2.0.8 (Tối Ưu Hoá Tốc Độ Cuộn Shorts Siêu Mượt, Xoá Huy Hiệu Đếm /40)",
+  "releaseNotes": "• Loại bỏ huy hiệu đếm video: Đã xóa bỏ hoàn toàn huy hiệu /40 hiển thị trên góc video, trả lại giao diện xem Shorts tối giản, sạch sẽ và đúng chuẩn TikTok / YouTube Shorts.\n• Khắc phục triệt để giật lag khi cuộn: Duy trì WebKit player liên tục trong bộ nhớ, loại bỏ cơ chế hủy/tạo lại WebView khi chuyển bài, giúp chuyển Short mới tức thì (< 30ms) không bị tụt FPS.\n• Tối ưu cử chỉ Trackpad & Chuột: Lọc bỏ lực quán tính (momentum fling), chống nhảy cóc nhiều video khi nhấc tay, mỗi lần vuốt chuyển chính xác 1 Short cực kỳ mượt mà.",
+  "downloadUrl": "https://github.com/tung68nt/AuraTube/releases/download/v2.0.8/AuraTube-v2.0.8.dmg",
   "publishedAt": "2026-09-13",
   "minOSVersion": "13.0",
   "fileSize": "3.0 MB"

@@ -121,23 +121,50 @@ final class NativeShortsViewModel: ObservableObject {
     
     private var lastScrollDate: Date = Date()
     private var eventMonitor: Any? = nil
+    private var isScrollLocked: Bool = false
+    private var accumulatedDeltaY: CGFloat = 0
     
     func startScrollMonitor() {
         guard eventMonitor == nil else { return }
         eventMonitor = NSEvent.addLocalMonitorForEvents(matching: .scrollWheel) { [weak self] event in
             guard let self = self else { return event }
+            
+            // Ignore inertial momentum events from trackpad after fingers lift off
+            if event.momentumPhase != [] {
+                return event
+            }
+            
             let delta = event.scrollingDeltaY
             let now = Date()
-            if abs(delta) > 12 && now.timeIntervalSince(self.lastScrollDate) > 0.35 {
-                self.lastScrollDate = now
-                if delta < 0 {
-                    withAnimation(.spring(response: 0.35, dampingFraction: 0.82)) {
-                        self.goToNext()
-                    }
+            
+            // Cooldown check
+            if self.isScrollLocked {
+                if now.timeIntervalSince(self.lastScrollDate) > 0.38 {
+                    self.isScrollLocked = false
+                    self.accumulatedDeltaY = 0
                 } else {
-                    withAnimation(.spring(response: 0.35, dampingFraction: 0.82)) {
-                        self.goToPrev()
-                    }
+                    return event
+                }
+            }
+            
+            self.accumulatedDeltaY += delta
+            
+            // Trigger cleanly when user deliberately scrolls (threshold 20)
+            if abs(self.accumulatedDeltaY) >= 20 {
+                let shouldGoNext = self.accumulatedDeltaY < 0
+                self.accumulatedDeltaY = 0
+                self.isScrollLocked = true
+                self.lastScrollDate = now
+                
+                if shouldGoNext {
+                    self.goToNext()
+                } else {
+                    self.goToPrev()
+                }
+                
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.38) { [weak self] in
+                    self?.isScrollLocked = false
+                    self?.accumulatedDeltaY = 0
                 }
             }
             return event
@@ -207,54 +234,21 @@ public struct NativeShortsFeedView: View {
                         let currentShort = vm.shorts[vm.currentIndex]
                         
                         ZStack(alignment: .bottom) {
-                            // Video Player / Thumbnail View
-                            ZStack {
-                                if playerManager.currentVideo?.id == currentShort.id {
-                                    NativePlayerView()
-                                        .frame(width: 380, height: 675)
-                                        .clipped()
-                                } else {
-                                    AsyncImage(url: URL(string: currentShort.thumbnail)) { phase in
-                                        if let img = phase.image {
-                                            img.resizable().scaledToFill()
-                                        } else {
-                                            Color.black
-                                        }
-                                    }
-                                    .frame(width: 380, height: 675)
-                                    .clipped()
-                                    
-                                    ProgressView()
-                                        .controlSize(.regular)
-                                }
-                            }
-                            .frame(width: 380, height: 675)
-                            .background(Color.black)
-                            .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
-                            .overlay(
-                                RoundedRectangle(cornerRadius: 16, style: .continuous)
-                                    .stroke(Color.white.opacity(0.12), lineWidth: 1)
-                            )
-                            .shadow(color: Color.black.opacity(0.6), radius: 24, x: 0, y: 10)
+                            // Video Player (permanently mounted to avoid laggy WebKit recreation)
+                            NativePlayerView()
+                                .frame(width: 380, height: 675)
+                                .clipped()
+                                .background(Color.black)
+                                .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 16, style: .continuous)
+                                        .stroke(Color.white.opacity(0.12), lineWidth: 1)
+                                )
+                                .shadow(color: Color.black.opacity(0.6), radius: 24, x: 0, y: 10)
                             
-                            // Top Bar inside Video: Short Counter Badge + Sound Mute Button
+                            // Top Bar inside Video: Sound Mute Button
                             VStack {
                                 HStack {
-                                    HStack(spacing: 5) {
-                                        Image(systemName: "flame.fill")
-                                            .foregroundColor(.red)
-                                            .font(.system(size: 11))
-                                        Text("Short \(vm.currentIndex + 1)/\(max(1, vm.shorts.count))")
-                                            .font(.system(size: 11.5, weight: .semibold))
-                                            .foregroundColor(.white)
-                                    }
-                                    .padding(.horizontal, 10)
-                                    .padding(.vertical, 5)
-                                    .background(Color.black.opacity(0.6))
-                                    .clipShape(Capsule())
-                                    .overlay(Capsule().stroke(Color.white.opacity(0.15), lineWidth: 0.75))
-                                    .padding([.top, .leading], 14)
-                                    
                                     Spacer()
                                     
                                     Button(action: { playerManager.isMuted.toggle() }) {
@@ -346,13 +340,9 @@ public struct NativeShortsFeedView: View {
                             DragGesture(minimumDistance: 30)
                                 .onEnded { val in
                                     if val.translation.height < -40 {
-                                        withAnimation(.easeInOut(duration: 0.25)) {
-                                            vm.goToNext()
-                                        }
+                                        vm.goToNext()
                                     } else if val.translation.height > 40 {
-                                        withAnimation(.easeInOut(duration: 0.25)) {
-                                            vm.goToPrev()
-                                        }
+                                        vm.goToPrev()
                                     }
                                 }
                         )
@@ -422,9 +412,7 @@ public struct NativeShortsFeedView: View {
                         // Right Side Up/Down Navigation Arrows (Desktop Floating Controls)
                         VStack(spacing: 14) {
                             Button(action: {
-                                withAnimation(.easeInOut(duration: 0.25)) {
-                                    vm.goToPrev()
-                                }
+                                vm.goToPrev()
                             }) {
                                 Image(systemName: "chevron.up")
                                     .font(.system(size: 16, weight: .bold))
@@ -439,9 +427,7 @@ public struct NativeShortsFeedView: View {
                             .help("Short trước (Mũi tên lên)")
                             
                             Button(action: {
-                                withAnimation(.easeInOut(duration: 0.25)) {
-                                    vm.goToNext()
-                                }
+                                vm.goToNext()
                             }) {
                                 Image(systemName: "chevron.down")
                                     .font(.system(size: 16, weight: .bold))
@@ -484,13 +470,13 @@ public struct NativeShortsFeedView: View {
             // Hidden Keyboard Shortcuts for Navigation
             Group {
                 Button("") {
-                    withAnimation { vm.goToNext() }
+                    vm.goToNext()
                 }
                 .keyboardShortcut(.downArrow, modifiers: [])
                 .opacity(0)
                 
                 Button("") {
-                    withAnimation { vm.goToPrev() }
+                    vm.goToPrev()
                 }
                 .keyboardShortcut(.upArrow, modifiers: [])
                 .opacity(0)
