@@ -941,6 +941,35 @@ public final class YTDLPService: @unchecked Sendable {
                     if targetToken != nil { break }
                 }
             }
+            
+            if targetToken == nil, let panels = root1["engagementPanels"] as? [[String: Any]] {
+                for panel in panels {
+                    if let renderer = panel["engagementPanelSectionListRenderer"] as? [String: Any],
+                       let pid = renderer["panelIdentifier"] as? String,
+                       pid.contains("comments") {
+                        if let content = renderer["content"] as? [String: Any],
+                           let sectionList = content["sectionListRenderer"] as? [String: Any],
+                           let secContents = sectionList["contents"] as? [[String: Any]] {
+                            for sec in secContents {
+                                if let itemSec = sec["itemSectionRenderer"] as? [String: Any],
+                                   let items = itemSec["contents"] as? [[String: Any]] {
+                                    for it in items {
+                                        if let cont = it["continuationItemRenderer"] as? [String: Any],
+                                           let ep = cont["continuationEndpoint"] as? [String: Any],
+                                           let cmd = ep["continuationCommand"] as? [String: Any],
+                                           let tok = cmd["token"] as? String {
+                                            targetToken = tok
+                                            break
+                                        }
+                                    }
+                                }
+                                if targetToken != nil { break }
+                            }
+                        }
+                    }
+                    if targetToken != nil { break }
+                }
+            }
         }
         
         guard let token = targetToken, !token.isEmpty else {

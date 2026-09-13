@@ -11,6 +11,7 @@ final class NativeShortsViewModel: ObservableObject {
     @Published var dislikedShorts: Set<String> = []
     @Published var toastMessage: String? = nil
     @Published var isAutoScrollEnabled: Bool = false
+    @Published var isCommentsOpen: Bool = false
     
     private let queryPool = [
         "#shorts việt nam",
@@ -231,6 +232,26 @@ final class NativeShortsViewModel: ObservableObject {
         showToast(isAutoScrollEnabled ? "🔄 Đã BẬT Tự động cuộn Shorts" : "⏸ Đã TẮT Tự động cuộn")
     }
     
+    var currentShort: Video? {
+        guard currentIndex >= 0 && currentIndex < shorts.count else { return nil }
+        return shorts[currentIndex]
+    }
+    
+    func toggleComments() {
+        withAnimation(.spring(response: 0.32, dampingFraction: 0.85)) {
+            isCommentsOpen.toggle()
+        }
+        if isCommentsOpen {
+            if let current = currentShort {
+                if PlayerManager.shared.currentVideo?.id != current.id {
+                    PlayerManager.shared.loadAndPlay(video: current)
+                } else if PlayerManager.shared.comments.isEmpty && !PlayerManager.shared.isLoadingComments {
+                    PlayerManager.shared.startLoadingComments(for: current.id)
+                }
+            }
+        }
+    }
+    
     func checkAutoScroll(currentTime: Double, duration: Double, proxy: ScrollViewProxy) {
         guard isAutoScrollEnabled, duration > 3.0, currentIndex < shorts.count - 1 else { return }
         let currentShort = shorts[currentIndex]
@@ -367,7 +388,7 @@ public struct NativeShortsFeedView: View {
                             )
                         }
                         .overlay(
-                            // Hidden keyboard shortcuts for Up / Down arrows & Auto-Scroll
+                            // Hidden keyboard shortcuts for Up / Down arrows, Auto-Scroll & Comments
                             Group {
                                 Button("") { vm.goToNext(proxy: proxy) }
                                     .keyboardShortcut(.downArrow, modifiers: [])
@@ -378,6 +399,14 @@ public struct NativeShortsFeedView: View {
                                 Button("") { vm.toggleAutoScroll() }
                                     .keyboardShortcut("a", modifiers: [])
                                     .opacity(0)
+                                Button("") { vm.toggleComments() }
+                                    .keyboardShortcut("c", modifiers: [])
+                                    .opacity(0)
+                                if vm.isCommentsOpen {
+                                    Button("") { vm.toggleComments() }
+                                        .keyboardShortcut(.escape, modifiers: [])
+                                        .opacity(0)
+                                }
                             }
                             .frame(width: 0, height: 0)
                         )
@@ -416,6 +445,26 @@ public struct NativeShortsFeedView: View {
                             Spacer()
                         }
                     }
+                }
+                
+                // Comments Slide-Over Drawer
+                if vm.isCommentsOpen {
+                    HStack(spacing: 0) {
+                        // Clickable dimmed backdrop area on the left to dismiss
+                        Color.black.opacity(0.28)
+                            .contentShape(Rectangle())
+                            .onTapGesture {
+                                vm.toggleComments()
+                            }
+                        
+                        ShortsCommentsDrawer(
+                            playerManager: playerManager,
+                            onClose: { vm.toggleComments() }
+                        )
+                        .frame(width: min(420, max(330, containerGeo.size.width * 0.38)))
+                        .transition(.move(edge: .trailing).combined(with: .opacity))
+                    }
+                    .zIndex(45)
                 }
                 
                 // Toast Notification Overlay
@@ -711,6 +760,29 @@ struct ShortFeedRowView: View {
                     }
                 }
                 
+                // Comments Button
+                let commentCountText: String = {
+                    if isActive {
+                        if let total = playerManager.totalCommentsCountText, !total.isEmpty {
+                            return total
+                        } else if !playerManager.comments.isEmpty {
+                            return "\(playerManager.comments.count)"
+                        }
+                    }
+                    return "Bình luận"
+                }()
+                ActionButton(
+                    icon: "ellipsis.bubble.fill",
+                    label: commentCountText,
+                    isActive: vm.isCommentsOpen && isActive,
+                    activeColor: .cyan
+                ) {
+                    if !isActive {
+                        onTapCard()
+                    }
+                    vm.toggleComments()
+                }
+                
                 // Share Button
                 ActionButton(
                     icon: "arrowshape.turn.up.right.fill",
@@ -767,3 +839,278 @@ private struct ActionButton: View {
         .buttonStyle(.plain)
     }
 }
+
+// MARK: - Shorts Comments Drawer & Rows
+
+struct ShortsCommentsDrawer: View {
+    @ObservedObject var playerManager: PlayerManager
+    let onClose: () -> Void
+    
+    var body: some View {
+        VStack(spacing: 0) {
+            // Header
+            HStack(alignment: .center, spacing: 10) {
+                HStack(spacing: 6) {
+                    Image(systemName: "ellipsis.bubble.fill")
+                        .font(.system(size: 15, weight: .bold))
+                        .foregroundColor(.cyan)
+                    Text("Bình luận")
+                        .font(.system(size: 15.5, weight: .bold))
+                        .foregroundColor(.white)
+                    
+                    if let total = playerManager.totalCommentsCountText, !total.isEmpty {
+                        Text("(\(total))")
+                            .font(.system(size: 12.5, weight: .medium))
+                            .foregroundColor(Color(white: 0.6))
+                    } else if !playerManager.comments.isEmpty {
+                        Text("(\(playerManager.comments.count))")
+                            .font(.system(size: 12.5, weight: .medium))
+                            .foregroundColor(Color(white: 0.6))
+                    }
+                }
+                
+                Spacer()
+                
+                // Sort Menu (Hàng đầu / Mới nhất)
+                if playerManager.sortNewestToken != nil || playerManager.sortTopToken != nil {
+                    Menu {
+                        Button(action: { playerManager.switchCommentSort(to: .top) }) {
+                            HStack {
+                                Text("Bình luận hàng đầu")
+                                if playerManager.commentSortMode == .top {
+                                    Image(systemName: "checkmark")
+                                }
+                            }
+                        }
+                        Button(action: { playerManager.switchCommentSort(to: .newest) }) {
+                            HStack {
+                                Text("Mới nhất trước")
+                                if playerManager.commentSortMode == .newest {
+                                    Image(systemName: "checkmark")
+                                }
+                            }
+                        }
+                    } label: {
+                        HStack(spacing: 4) {
+                            Image(systemName: "line.3.horizontal.decrease")
+                                .font(.system(size: 11))
+                            Text(playerManager.commentSortMode == .top ? "Hàng đầu" : "Mới nhất")
+                                .font(.system(size: 11.5, weight: .medium))
+                            Image(systemName: "chevron.down")
+                                .font(.system(size: 8.5))
+                        }
+                        .foregroundColor(Color(white: 0.8))
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 4)
+                        .background(Color(white: 0.2))
+                        .cornerRadius(6)
+                    }
+                    .menuStyle(BorderlessButtonMenuStyle())
+                }
+                
+                // Refresh Button
+                Button(action: { playerManager.refreshComments() }) {
+                    Image(systemName: "arrow.clockwise")
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundColor(Color(white: 0.7))
+                        .frame(width: 28, height: 28)
+                        .background(Color(white: 0.18))
+                        .clipShape(Circle())
+                }
+                .buttonStyle(.plain)
+                .help("Làm mới bình luận")
+                
+                // Close Button
+                Button(action: onClose) {
+                    Image(systemName: "xmark")
+                        .font(.system(size: 11, weight: .bold))
+                        .foregroundColor(Color(white: 0.85))
+                        .frame(width: 28, height: 28)
+                        .background(Color(white: 0.22))
+                        .clipShape(Circle())
+                }
+                .buttonStyle(.plain)
+                .help("Đóng (Phím Esc / C)")
+            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 14)
+            .background(Color(white: 0.12))
+            .overlay(
+                Rectangle()
+                    .fill(Color.white.opacity(0.08))
+                    .frame(height: 1),
+                alignment: .bottom
+            )
+            
+            // Content
+            if playerManager.comments.isEmpty {
+                if playerManager.isLoadingComments {
+                    VStack(spacing: 12) {
+                        Spacer()
+                        ProgressView()
+                            .controlSize(.regular)
+                        Text("Đang tải bình luận Shorts...")
+                            .font(.system(size: 13, weight: .medium))
+                            .foregroundColor(Color(white: 0.6))
+                        Spacer()
+                    }
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                } else {
+                    VStack(spacing: 12) {
+                        Spacer()
+                        Image(systemName: "bubble.left.and.bubble.right")
+                            .font(.system(size: 36))
+                            .foregroundColor(Color(white: 0.35))
+                        Text("Chưa có bình luận nào")
+                            .font(.system(size: 14, weight: .semibold))
+                            .foregroundColor(Color(white: 0.75))
+                        Text("Video này chưa có bình luận hoặc tác giả đã tắt tính năng bình luận.")
+                            .font(.system(size: 12))
+                            .foregroundColor(Color(white: 0.45))
+                            .multilineTextAlignment(.center)
+                            .padding(.horizontal, 24)
+                        Button("Thử tải lại") {
+                            playerManager.refreshComments()
+                        }
+                        .buttonStyle(.bordered)
+                        .padding(.top, 6)
+                        Spacer()
+                    }
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                }
+            } else {
+                ScrollView(.vertical, showsIndicators: true) {
+                    LazyVStack(alignment: .leading, spacing: 14) {
+                        ForEach(playerManager.comments) { comment in
+                            ShortsCommentRow(comment: comment)
+                        }
+                        
+                        // Load More indicator / button
+                        if playerManager.isLoadingMoreComments {
+                            HStack(spacing: 8) {
+                                ProgressView()
+                                    .scaleEffect(0.7)
+                                    .frame(width: 14, height: 14)
+                                Text("Đang tải thêm bình luận...")
+                                    .font(.system(size: 12))
+                                    .foregroundColor(Color(white: 0.6))
+                            }
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 12)
+                        } else if playerManager.canLoadMoreComments {
+                            Button(action: { playerManager.loadMoreComments() }) {
+                                HStack(spacing: 6) {
+                                    Image(systemName: "arrow.down.circle")
+                                        .font(.system(size: 12))
+                                    Text("Xem thêm bình luận")
+                                        .font(.system(size: 12, weight: .medium))
+                                }
+                                .foregroundColor(.cyan)
+                                .frame(maxWidth: .infinity)
+                                .padding(.vertical, 8)
+                                .background(Color(white: 0.16))
+                                .cornerRadius(8)
+                            }
+                            .buttonStyle(.plain)
+                            .padding(.horizontal, 16)
+                            .padding(.vertical, 8)
+                        }
+                    }
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 14)
+                }
+            }
+        }
+        .background(
+            Color(white: 0.09)
+                .opacity(0.97)
+        )
+        .overlay(
+            Rectangle()
+                .fill(Color.white.opacity(0.12))
+                .frame(width: 1),
+            alignment: .leading
+        )
+        .shadow(color: Color.black.opacity(0.55), radius: 24, x: -6, y: 0)
+    }
+}
+
+struct ShortsCommentRow: View {
+    let comment: VideoComment
+    
+    var body: some View {
+        HStack(alignment: .top, spacing: 10) {
+            // Avatar
+            if let avatarUrl = comment.avatarUrl, let url = URL(string: avatarUrl) {
+                AsyncImage(url: url) { phase in
+                    if let img = phase.image {
+                        img.resizable().scaledToFill()
+                    } else {
+                        Circle().fill(Color(white: 0.2))
+                    }
+                }
+                .frame(width: 32, height: 32)
+                .clipShape(Circle())
+                .overlay(Circle().stroke(Color.white.opacity(0.12), lineWidth: 1))
+            } else {
+                ZStack {
+                    Circle().fill(Color(white: 0.25))
+                    Text(String(comment.author.prefix(1)).uppercased())
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundColor(.white)
+                }
+                .frame(width: 32, height: 32)
+            }
+            
+            // Details
+            VStack(alignment: .leading, spacing: 4) {
+                HStack(spacing: 6) {
+                    Text(comment.author)
+                        .font(.system(size: 12.5, weight: .semibold))
+                        .foregroundColor(Color(white: 0.95))
+                    
+                    if !comment.publishedTime.isEmpty {
+                        Text("•  \(comment.publishedTime)")
+                            .font(.system(size: 11))
+                            .foregroundColor(Color(white: 0.5))
+                    }
+                }
+                
+                Text(comment.text)
+                    .font(.system(size: 12.5))
+                    .lineSpacing(2.5)
+                    .foregroundColor(Color(white: 0.88))
+                    .fixedSize(horizontal: false, vertical: true)
+                    .textSelection(.enabled)
+                
+                if !comment.likeCount.isEmpty || (comment.replyCount != nil && comment.replyCount != "0") {
+                    HStack(spacing: 14) {
+                        if !comment.likeCount.isEmpty {
+                            HStack(spacing: 4) {
+                                Image(systemName: "hand.thumbsup")
+                                    .font(.system(size: 10))
+                                Text(comment.likeCount)
+                                    .font(.system(size: 11, weight: .medium))
+                            }
+                            .foregroundColor(Color(white: 0.55))
+                        }
+                        
+                        if let replies = comment.replyCount, !replies.isEmpty && replies != "0" {
+                            HStack(spacing: 4) {
+                                Image(systemName: "bubble.left.and.bubble.right")
+                                    .font(.system(size: 10))
+                                Text("\(replies) phản hồi")
+                                    .font(.system(size: 11, weight: .medium))
+                            }
+                            .foregroundColor(Color(white: 0.55))
+                        }
+                    }
+                    .padding(.top, 2)
+                }
+            }
+            Spacer(minLength: 0)
+        }
+        .padding(.vertical, 4)
+    }
+}
+

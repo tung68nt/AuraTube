@@ -1,9 +1,9 @@
 {
-  "version": "2.0.12",
-  "build": 13,
-  "title": "AuraTube v2.0.12 (Tự Động Cuộn Shorts & Tối Ưu Triệt Để Con Lăn Chuột)",
-  "releaseNotes": "• Chế độ Tự động cuộn (Auto-Scroll) Shorts: Tự động chuyển mượt mà sang video tiếp theo khi video hiện tại phát xong. Trang bị nút bấm bật/tắt nhanh ở thanh tiêu đề và dock điều khiển cạnh video (có hiệu ứng phát sáng xanh khi bật), hỗ trợ phím tắt nhanh 'A'.\n• Khắc phục triệt để con lăn chuột trên Shorts: Xử lý cơ chế bắt và chuyển tiếp sự kiện cuộn (event forwarding) từ WKWebView, cho phép lăn chuột mượt mà ngay cả khi con trỏ chuột nằm trực tiếp trên khung phát video. Chuẩn hoá xung lăn chuột cơ học, lăn 1 khấc chuyển ngay 1 video dứt khoát.\n• Triệt tiêu độ trễ và giật lag: Tối ưu hoá luồng render loại bỏ hoàn toàn các vòng lặp tính toán giao diện liên tục, khôi phục tốc độ phản hồi 120 FPS siêu mượt.\n• Thanh công cụ Fullscreen tràn viền: Đưa thanh điều khiển dưới cùng khi xem toàn màn hình tràn hết 100% chiều ngang mép dưới, không còn viền lề thô.",
-  "downloadUrl": "https://github.com/tung68nt/AuraTube/releases/download/v2.0.12/AuraTube-v2.0.12.dmg",
+  "version": "2.0.13",
+  "build": 14,
+  "title": "AuraTube v2.0.13 (Bổ Sung Khung Xem & Tương Tác Bình Luận Shorts)",
+  "releaseNotes": "• Hiển thị bình luận trên YouTube Shorts: Bổ sung nút Bình luận (icon bong bóng thoại) ngay trên thanh công cụ bên cạnh video với số lượng bình luận thực tế.\n• Ngăn kéo bình luận (Slide-over Comments Drawer): Trượt mượt mà từ cạnh phải, thiết kế kính mờ sang trọng hiển thị đầy đủ avatar, tên tác giả, ngày đăng, nội dung chi tiết, lượt thích và số phản hồi.\n• Đầy đủ tính năng tương tác: Hỗ trợ chuyển chế độ sắp xếp 'Bình luận hàng đầu' và 'Mới nhất', nút làm mới, nút tải thêm bình luận.\n• Phím tắt tiện lợi: Nhấn phím 'C' để bật/tắt ngăn bình luận, hoặc phím 'Esc' để đóng nhanh chóng.\n• Nâng cấp bộ phân giải token bình luận YouTube (hỗ trợ cả engagementPanels và twoColumnWatchNextResults) đảm bảo tải bình luận 100% ổn định.",
+  "downloadUrl": "https://github.com/tung68nt/AuraTube/releases/download/v2.0.13/AuraTube-v2.0.13.dmg",
   "publishedAt": "2026-09-13",
   "minOSVersion": "13.0",
   "fileSize": "3.0 MB"
