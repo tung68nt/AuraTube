@@ -316,7 +316,11 @@ public struct NativeShortsFeedView: View {
     
     public var body: some View {
         GeometryReader { containerGeo in
+            let containerWidth = containerGeo.size.width
             let containerHeight = containerGeo.size.height
+            let drawerWidth: CGFloat = min(420, max(340, containerWidth * 0.36))
+            let maxShiftLeft: CGFloat = max(0, (containerWidth - 454) / 2 - 24)
+            let horizontalOffset: CGFloat = vm.isCommentsOpen ? -min(drawerWidth / 2 + 10, maxShiftLeft) : 0
             
             ZStack {
                 Color(white: 0.07).ignoresSafeArea()
@@ -374,6 +378,8 @@ public struct NativeShortsFeedView: View {
                             }
                             .padding(.vertical, max(24, (containerHeight - 675) / 2))
                         }
+                        .offset(x: horizontalOffset)
+                        .animation(.spring(response: 0.36, dampingFraction: 0.85), value: vm.isCommentsOpen)
                         .onAppear {
                             vm.startScrollMonitor(proxy: proxy)
                         }
@@ -439,29 +445,25 @@ public struct NativeShortsFeedView: View {
                                 }
                                 .buttonStyle(.plain)
                                 .help("Bật/Tắt tự động chuyển sang video tiếp theo khi xem xong (Phím tắt: A)")
-                                .padding(.trailing, 28)
+                                .padding(.trailing, vm.isCommentsOpen ? (drawerWidth + 20) : 28)
                                 .padding(.top, 16)
+                                .animation(.spring(response: 0.36, dampingFraction: 0.85), value: vm.isCommentsOpen)
                             }
                             Spacer()
                         }
                     }
                 }
                 
-                // Comments Slide-Over Drawer
+                // Comments Side Drawer (Positioned alongside shifted video - Zero overlap)
                 if vm.isCommentsOpen {
                     HStack(spacing: 0) {
-                        // Clickable dimmed backdrop area on the left to dismiss
-                        Color.black.opacity(0.28)
-                            .contentShape(Rectangle())
-                            .onTapGesture {
-                                vm.toggleComments()
-                            }
+                        Spacer()
                         
                         ShortsCommentsDrawer(
                             playerManager: playerManager,
                             onClose: { vm.toggleComments() }
                         )
-                        .frame(width: min(420, max(330, containerGeo.size.width * 0.38)))
+                        .frame(width: drawerWidth)
                         .transition(.move(edge: .trailing).combined(with: .opacity))
                     }
                     .zIndex(45)
