@@ -56,10 +56,20 @@ class YouTubeApp {
 
     // Initialize player
     this.player = new AdFreePlayer();
+
+    // YouTube Shorts Feed Controller
+    this.shortsFeedContainer = document.getElementById('shortsFeedContainer');
+    this.shortsReel = document.getElementById('shortsReel');
+    this.shortsPrevBtn = document.getElementById('shortsPrevBtn');
+    this.shortsNextBtn = document.getElementById('shortsNextBtn');
+    this.shortsController = new ShortsFeedController(this);
+
     window.app = this;
   }
 
   bindEvents() {
+    this.shortsController.bindEvents();
+
     // Hamburger Menu Toggle Sidebar
     this.menuToggleBtn = document.getElementById('menuToggleBtn');
     this.sidebar = document.querySelector('.sidebar');
@@ -292,80 +302,35 @@ class YouTubeApp {
       i.classList.toggle('active', i.dataset.view === view);
     });
 
-    if (view === 'trending') {
-      this.sectionTitle.textContent = 'Thịnh hành';
-      this.loadTrending();
-    } else if (view === 'shorts') {
-      this.sectionTitle.textContent = 'YouTube Shorts';
-      this.loadShorts();
-    } else if (view === 'subscriptions') {
-      this.sectionTitle.textContent = 'Kênh Đăng Ký (Theo Dõi)';
-      this.loadSubscriptions();
-    } else if (view === 'history') {
-      this.sectionTitle.textContent = 'Video Đã Xem';
-      this.renderVideoGrid(this.history);
-    } else if (view === 'bookmarks') {
-      this.sectionTitle.textContent = 'Danh Sách Xem Sau';
-      this.renderVideoGrid(this.bookmarks);
-    } else if (view === 'downloads') {
-      this.sectionTitle.textContent = 'Tệp Đã Tải Về';
-      this.loadDownloadsList();
-    }
-  }
-
-  async loadShorts() {
-    this.sectionTitle.textContent = 'YouTube Shorts';
-    this.videoGrid.className = 'shorts-grid';
-    this.videoGrid.innerHTML = `<div style="grid-column: 1/-1; text-align: center; padding: 60px 20px; color: var(--yt-spec-text-secondary);">Đang tải YouTube Shorts...</div>`;
-    try {
-      const res = await fetch('/api/shorts');
-      const data = await res.json();
-      if (data.success && data.videos && data.videos.length > 0) {
-        this.videos = data.videos;
-        this.renderShortsGrid(data.videos);
-      } else {
-        throw new Error('Không có video Shorts nào');
+    if (view === 'shorts') {
+      if (this.player && this.player.video && !this.player.video.paused) {
+        this.player.video.pause();
       }
-    } catch (err) {
-      this.videoGrid.innerHTML = `<div style="grid-column: 1/-1; text-align: center; padding: 40px; color: #ff5252;">Không thể tải Shorts: ${err.message}</div>`;
+      this.contentArea.classList.add('shorts-mode');
+      if (this.shortsFeedContainer) this.shortsFeedContainer.style.display = 'flex';
+      this.shortsController.open();
+    } else {
+      this.contentArea.classList.remove('shorts-mode');
+      if (this.shortsFeedContainer) this.shortsFeedContainer.style.display = 'none';
+      if (this.shortsController) this.shortsController.close();
+
+      if (view === 'trending') {
+        this.sectionTitle.textContent = 'Thịnh hành';
+        this.loadTrending();
+      } else if (view === 'subscriptions') {
+        this.sectionTitle.textContent = 'Kênh Đăng Ký (Theo Dõi)';
+        this.loadSubscriptions();
+      } else if (view === 'history') {
+        this.sectionTitle.textContent = 'Video Đã Xem';
+        this.renderVideoGrid(this.history);
+      } else if (view === 'bookmarks') {
+        this.sectionTitle.textContent = 'Danh Sách Xem Sau';
+        this.renderVideoGrid(this.bookmarks);
+      } else if (view === 'downloads') {
+        this.sectionTitle.textContent = 'Tệp Đã Tải Về';
+        this.loadDownloadsList();
+      }
     }
-  }
-
-  renderShortsGrid(shorts) {
-    this.videoGrid.className = 'shorts-grid';
-    this.videoGrid.innerHTML = shorts.map(v => {
-      const duration = this.formatDuration(v.duration) || 'Shorts';
-      return `
-        <div class="short-card" data-id="${v.id}">
-          <div class="short-thumb-wrap">
-            <img src="${v.thumbnail}" alt="${this.escapeHtml(v.title)}" class="short-thumb" loading="lazy" />
-            <div class="short-badge">
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="#ff0033"><path d="M17.77 10.32l-1.2-.5L18 9.06c1.84-.96 2.53-3.23 1.56-5.06s-3.24-2.53-5.07-1.56L6 6.94c-1.29.68-2.07 2.04-2 3.49.07 1.42.93 2.67 2.22 3.25.03.01 1.2.5 1.2.5L6 14.93c-1.83.97-2.53 3.24-1.56 5.07.97 1.83 3.24 2.53 5.07 1.56l8.5-4.5c1.29-.68 2.06-2.04 1.99-3.49-.07-1.42-.94-2.68-2.23-3.25zM10 14.5v-5l4.5 2.5-4.5 2.5z"/></svg>
-              <span>${duration}</span>
-            </div>
-          </div>
-          <div class="short-meta">
-            <h3 class="short-title" title="${this.escapeHtml(v.title)}">${this.escapeHtml(v.title)}</h3>
-            <div class="short-views">${this.formatViews(v.viewCount)} lượt xem</div>
-          </div>
-        </div>
-      `;
-    }).join('');
-
-    this.videoGrid.querySelectorAll('.short-card').forEach(card => {
-      const id = card.dataset.id;
-      card.addEventListener('mouseenter', () => {
-        if (id) fetch(`/api/stream?v=${id}&quality=720`).catch(() => {});
-      }, { once: true });
-      card.addEventListener('click', () => {
-        const targetVideo = (shorts || []).find(v => v.id === id);
-        if (targetVideo) {
-          this.openWatchView(targetVideo);
-        } else {
-          this.playVideoById(id);
-        }
-      });
-    });
   }
 
   async loadSubscriptions() {
@@ -561,6 +526,12 @@ class YouTubeApp {
   }
 
   async openWatchView(video) {
+    if (this.shortsController) {
+      this.shortsController.close();
+    }
+    if (this.shortsFeedContainer) {
+      this.shortsFeedContainer.style.display = 'none';
+    }
     if (this.contentArea && !this.contentArea.classList.contains('watching')) {
       this.savedScrollTop = this.contentArea.scrollTop || 0;
     }
@@ -1090,6 +1061,626 @@ class YouTubeApp {
     } catch (e) {
       console.warn('playVideoById error:', e);
     }
+  }
+}
+
+/**
+ * YouTube Shorts Vertical Reel Controller (Exact YouTube Native UX)
+ */
+class ShortsFeedController {
+  constructor(app) {
+    this.app = app;
+    this.container = null;
+    this.reel = null;
+    this.prevBtn = null;
+    this.nextBtn = null;
+    this.shorts = [];
+    this.currentIndex = 0;
+    this.isOpen = false;
+    this.isLoading = false;
+    this.currentPage = 1;
+    this.isMuted = false;
+    this.lastWheelTime = 0;
+    this.touchStartY = 0;
+    this.observer = null;
+    this.likes = new Set();
+    this.dislikes = new Set();
+    this.subscribers = new Set();
+  }
+
+  bindEvents() {
+    this.container = this.app.shortsFeedContainer;
+    this.reel = this.app.shortsReel;
+    this.prevBtn = this.app.shortsPrevBtn;
+    this.nextBtn = this.app.shortsNextBtn;
+
+    if (this.prevBtn) {
+      this.prevBtn.addEventListener('click', () => {
+        this.goToIndex(this.currentIndex - 1);
+      });
+    }
+
+    if (this.nextBtn) {
+      this.nextBtn.addEventListener('click', () => {
+        this.goToIndex(this.currentIndex + 1);
+      });
+    }
+
+    // Wheel navigation (debounced snap)
+    if (this.reel) {
+      this.reel.addEventListener('wheel', (e) => {
+        if (!this.isOpen) return;
+        if (Math.abs(e.deltaY) < 25) return;
+        const now = Date.now();
+        if (now - this.lastWheelTime < 380) {
+          e.preventDefault();
+          return;
+        }
+        this.lastWheelTime = now;
+        e.preventDefault();
+        if (e.deltaY > 0) {
+          this.goToIndex(this.currentIndex + 1);
+        } else {
+          this.goToIndex(this.currentIndex - 1);
+        }
+      }, { passive: false });
+
+      // Touch swipe
+      this.reel.addEventListener('touchstart', (e) => {
+        if (!this.isOpen) return;
+        if (e.touches && e.touches[0]) {
+          this.touchStartY = e.touches[0].clientY;
+        }
+      }, { passive: true });
+
+      this.reel.addEventListener('touchend', (e) => {
+        if (!this.isOpen) return;
+        if (e.changedTouches && e.changedTouches[0]) {
+          const touchEndY = e.changedTouches[0].clientY;
+          const delta = this.touchStartY - touchEndY;
+          if (Math.abs(delta) > 50) {
+            if (delta > 0) {
+              this.goToIndex(this.currentIndex + 1);
+            } else {
+              this.goToIndex(this.currentIndex - 1);
+            }
+          }
+        }
+      }, { passive: true });
+    }
+
+    // Keyboard navigation
+    window.addEventListener('keydown', (e) => {
+      if (!this.isOpen) return;
+      if (['INPUT', 'TEXTAREA'].includes(document.activeElement?.tagName)) return;
+
+      if (e.key === 'ArrowDown' || e.key === 'PageDown' || e.key === 'j') {
+        e.preventDefault();
+        this.goToIndex(this.currentIndex + 1);
+      } else if (e.key === 'ArrowUp' || e.key === 'PageUp' || e.key === 'k') {
+        e.preventDefault();
+        this.goToIndex(this.currentIndex - 1);
+      } else if (e.key === ' ' || e.code === 'Space') {
+        e.preventDefault();
+        this.togglePlayPauseCurrent();
+      } else if (e.key === 'm' || e.key === 'M') {
+        e.preventDefault();
+        this.toggleMute();
+      }
+    });
+
+    this.setupObserver();
+  }
+
+  setupObserver() {
+    if (!this.reel) return;
+    if (this.observer) this.observer.disconnect();
+
+    this.observer = new IntersectionObserver((entries) => {
+      if (!this.isOpen) return;
+      entries.forEach(entry => {
+        if (entry.isIntersecting) {
+          const idx = parseInt(entry.target.dataset.index, 10);
+          if (!isNaN(idx) && idx !== this.currentIndex) {
+            this.currentIndex = idx;
+            this.updateNavButtons();
+            this.playActiveShort();
+            this.checkInfiniteLoad();
+          }
+        }
+      });
+    }, {
+      root: this.reel,
+      threshold: 0.65
+    });
+  }
+
+  async open() {
+    this.isOpen = true;
+    if (this.shorts.length === 0) {
+      await this.loadInitialShorts();
+    } else {
+      this.playActiveShort();
+    }
+  }
+
+  close() {
+    this.isOpen = false;
+    this.pauseAll();
+  }
+
+  async loadInitialShorts() {
+    if (this.isLoading) return;
+    this.isLoading = true;
+    this.currentPage = 1;
+    this.reel.innerHTML = `<div style="display:flex; flex-direction:column; align-items:center; justify-content:center; height:60vh; color:#aaa; font-size:15px; gap:16px;">
+      <div class="short-spinner active" style="position:static; transform:none;"></div>
+      <span>Đang tải YouTube Shorts chất lượng cao...</span>
+    </div>`;
+
+    try {
+      const res = await fetch('/api/shorts?page=1');
+      const data = await res.json();
+      if (data.success && data.videos && data.videos.length > 0) {
+        this.shorts = data.videos;
+        this.renderAllShorts();
+        this.currentIndex = 0;
+        this.updateNavButtons();
+        setTimeout(() => {
+          this.goToIndex(0, false);
+        }, 60);
+      } else {
+        throw new Error('Không có video Shorts nào từ hệ thống');
+      }
+    } catch (err) {
+      this.reel.innerHTML = `<div style="text-align:center; padding: 80px 20px; color: #ff5252; font-size:15px;">Không thể tải Shorts: ${err.message}</div>`;
+    } finally {
+      this.isLoading = false;
+    }
+  }
+
+  async loadMoreShorts() {
+    if (this.isLoading) return;
+    this.isLoading = true;
+    this.currentPage++;
+
+    try {
+      const res = await fetch(`/api/shorts?page=${this.currentPage}`);
+      const data = await res.json();
+      if (data.success && data.videos && data.videos.length > 0) {
+        const newVideos = data.videos.filter(nv => !this.shorts.some(s => s.id === nv.id));
+        if (newVideos.length > 0) {
+          const startIdx = this.shorts.length;
+          this.shorts.push(...newVideos);
+          newVideos.forEach((v, i) => {
+            const itemEl = this.createShortItemElement(v, startIdx + i);
+            this.reel.appendChild(itemEl);
+            if (this.observer) this.observer.observe(itemEl);
+          });
+          this.updateNavButtons();
+        }
+      }
+    } catch (e) {
+      console.warn('loadMoreShorts failed:', e);
+    } finally {
+      this.isLoading = false;
+    }
+  }
+
+  checkInfiniteLoad() {
+    if (this.currentIndex >= this.shorts.length - 3) {
+      this.loadMoreShorts();
+    }
+  }
+
+  renderAllShorts() {
+    this.reel.innerHTML = '';
+    this.shorts.forEach((v, idx) => {
+      const itemEl = this.createShortItemElement(v, idx);
+      this.reel.appendChild(itemEl);
+      if (this.observer) this.observer.observe(itemEl);
+    });
+  }
+
+  createShortItemElement(v, idx) {
+    const item = document.createElement('div');
+    item.className = 'short-reel-item';
+    item.dataset.id = v.id;
+    item.dataset.index = idx;
+
+    const viewsFormatted = this.app.formatViews ? this.app.formatViews(v.viewCount) : (v.viewCount || '100N');
+    const isLiked = this.likes.has(v.id);
+    const isSubscribed = this.subscribers.has(v.uploader);
+
+    item.innerHTML = `
+      <div class="short-main-wrapper">
+        <div class="short-player-card">
+          <video class="short-video" playsinline loop preload="none"></video>
+          <audio class="short-audio" loop></audio>
+          <img src="${v.thumbnail}" alt="${this.escapeHtml(v.title)}" class="short-poster-img" loading="lazy" />
+          <div class="short-spinner"></div>
+          <div class="short-play-indicator">
+            <svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+          </div>
+          <div class="short-top-bar">
+            <button class="short-mute-btn" title="Bật/Tắt âm thanh (M)">
+              ${this.getVolumeSvg(this.isMuted)}
+            </button>
+          </div>
+          <div class="short-bottom-overlay">
+            <div class="short-channel-row">
+              <img src="${v.avatar}" alt="${this.escapeHtml(v.uploader)}" class="short-channel-avatar" onerror="this.src='https://ui-avatars.com/api/?name=YT&background=ff0033&color=fff'" />
+              <span class="short-channel-name" title="${this.escapeHtml(v.uploader)}">${this.escapeHtml(v.uploader)}</span>
+              <button class="short-sub-btn ${isSubscribed ? 'subscribed' : ''}">
+                ${isSubscribed ? 'Đã đăng ký' : 'Đăng ký'}
+              </button>
+            </div>
+            <div class="short-title-text" title="${this.escapeHtml(v.title)}">${this.escapeHtml(v.title)}</div>
+            <div class="short-sound-row">
+              <svg class="short-sound-icon" viewBox="0 0 24 24" fill="currentColor"><path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"/></svg>
+              <span class="short-sound-title">Âm thanh gốc - ${this.escapeHtml(v.uploader)}</span>
+            </div>
+          </div>
+          <div class="short-progress-wrap">
+            <div class="short-progress-bar"></div>
+          </div>
+        </div>
+
+        <!-- Floating Actions Bar -->
+        <div class="short-actions-bar">
+          <div class="short-action-item">
+            <button class="short-action-btn like-btn ${isLiked ? 'active' : ''}" title="Thích">
+              <svg viewBox="0 0 24 24" fill="currentColor"><path d="M1 21h4V9H1v12zm22-11c0-1.1-.9-2-2-2h-6.31l.95-4.57.03-.32c0-.41-.17-.79-.44-1.06L14.17 1 7.59 7.59C7.22 7.95 7 8.45 7 9v10c0 1.1.9 2 2 2h9c.83 0 1.54-.5 1.84-1.22l3.02-7.05c.09-.23.14-.47.14-.73v-2z"/></svg>
+            </button>
+            <span class="short-action-label">${viewsFormatted}</span>
+          </div>
+
+          <div class="short-action-item">
+            <button class="short-action-btn dislike-btn ${this.dislikes.has(v.id) ? 'active' : ''}" title="Không thích">
+              <svg viewBox="0 0 24 24" fill="currentColor"><path d="M15 3H6c-.83 0-1.54.5-1.84 1.22l-3.02 7.05c-.09.23-.14.47-.14.73v2c0 1.1.9 2 2 2h6.31l-.95 4.57-.03.32c0 .41.17.79.44 1.06L9.83 23l6.59-6.59c.37-.36.58-.86.58-1.41V5c0-1.1-.9-2-2-2zm4 0v12h4V3h-4z"/></svg>
+            </button>
+            <span class="short-action-label">Không thích</span>
+          </div>
+
+          <div class="short-action-item">
+            <button class="short-action-btn comment-btn" title="Bình luận">
+              <svg viewBox="0 0 24 24" fill="currentColor"><path d="M20 2H4c-1.1 0-1.99.9-1.99 2L2 22l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zM6 9h12v2H6V9zm8 5H6v-2h8v2zm4-6H6V6h12v2z"/></svg>
+            </button>
+            <span class="short-action-label">Bình luận</span>
+          </div>
+
+          <div class="short-action-item">
+            <button class="short-action-btn share-btn" title="Chia sẻ">
+              <svg viewBox="0 0 24 24" fill="currentColor"><path d="M14 9V5l7 7-7 7v-4.1c-5 0-8.5 1.6-11 5.1 1-5 4-10 11-11z"/></svg>
+            </button>
+            <span class="short-action-label">Chia sẻ</span>
+          </div>
+
+          <div class="short-action-item">
+            <button class="short-action-btn more-btn" title="Mở trong trình phát">
+              <svg viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="5" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="12" cy="19" r="2"/></svg>
+            </button>
+            <span class="short-action-label">Xem đủ</span>
+          </div>
+        </div>
+      </div>
+    `;
+
+    this.attachCardEvents(item, v);
+    return item;
+  }
+
+  attachCardEvents(item, v) {
+    const card = item.querySelector('.short-player-card');
+    const video = item.querySelector('.short-video');
+    const audio = item.querySelector('.short-audio');
+    const muteBtn = item.querySelector('.short-mute-btn');
+    const subBtn = item.querySelector('.short-sub-btn');
+    const likeBtn = item.querySelector('.like-btn');
+    const dislikeBtn = item.querySelector('.dislike-btn');
+    const commentBtn = item.querySelector('.comment-btn');
+    const shareBtn = item.querySelector('.share-btn');
+    const moreBtn = item.querySelector('.more-btn');
+    const indicator = item.querySelector('.short-play-indicator');
+    const progressBar = item.querySelector('.short-progress-bar');
+    const spinner = item.querySelector('.short-spinner');
+    const poster = item.querySelector('.short-poster-img');
+
+    // Click on video toggles play/pause
+    card.addEventListener('click', (e) => {
+      if (e.target.closest('.short-top-bar') || e.target.closest('.short-bottom-overlay')) return;
+      if (!video.src) {
+        this.playCard(item, v);
+        return;
+      }
+      if (video.paused) {
+        video.play().catch(() => {});
+        if (item.dataset.hasSeparateAudio === 'true' && audio.src) audio.play().catch(() => {});
+        this.showPlayIndicator(indicator, true);
+      } else {
+        video.pause();
+        if (item.dataset.hasSeparateAudio === 'true' && audio.src) audio.pause();
+        this.showPlayIndicator(indicator, false);
+      }
+    });
+
+    // Mute button
+    muteBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      this.toggleMute();
+    });
+
+    // Subscribe
+    subBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      if (this.subscribers.has(v.uploader)) {
+        this.subscribers.delete(v.uploader);
+        subBtn.classList.remove('subscribed');
+        subBtn.textContent = 'Đăng ký';
+        this.app.showToast(`Đã hủy đăng ký kênh: ${v.uploader}`);
+      } else {
+        this.subscribers.add(v.uploader);
+        subBtn.classList.add('subscribed');
+        subBtn.textContent = 'Đã đăng ký';
+        this.app.showToast(`🔔 Đã đăng ký kênh: ${v.uploader}`);
+      }
+    });
+
+    // Like
+    likeBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      if (this.likes.has(v.id)) {
+        this.likes.delete(v.id);
+        likeBtn.classList.remove('active');
+        this.app.showToast('Đã bỏ thích');
+      } else {
+        this.likes.add(v.id);
+        likeBtn.classList.add('active');
+        this.dislikes.delete(v.id);
+        dislikeBtn.classList.remove('active');
+        this.app.showToast('👍 Đã thích Short!');
+      }
+    });
+
+    // Dislike
+    dislikeBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      if (this.dislikes.has(v.id)) {
+        this.dislikes.delete(v.id);
+        dislikeBtn.classList.remove('active');
+      } else {
+        this.dislikes.add(v.id);
+        dislikeBtn.classList.add('active');
+        this.likes.delete(v.id);
+        likeBtn.classList.remove('active');
+        this.app.showToast('Đã đánh dấu không thích');
+      }
+    });
+
+    // Comments
+    commentBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      this.app.showToast('💬 Bình luận đang được cập nhật...');
+    });
+
+    // Share
+    shareBtn.addEventListener('click', async (e) => {
+      e.stopPropagation();
+      const url = `https://www.youtube.com/shorts/${v.id}`;
+      try {
+        await navigator.clipboard.writeText(url);
+        this.app.showToast('🔗 Đã sao chép liên kết Short!');
+      } catch (err) {
+        this.app.showToast(`Liên kết: ${url}`);
+      }
+    });
+
+    // More / Open Full Player
+    moreBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      this.close();
+      this.app.openWatchView(v);
+    });
+
+    // Video events
+    video.addEventListener('timeupdate', () => {
+      if (video.duration) {
+        const pct = (video.currentTime / video.duration) * 100;
+        progressBar.style.width = `${pct}%`;
+      }
+    });
+
+    video.addEventListener('waiting', () => {
+      spinner.classList.add('active');
+    });
+
+    video.addEventListener('playing', () => {
+      spinner.classList.remove('active');
+      poster.classList.add('hidden');
+    });
+
+    video.addEventListener('ended', () => {
+      video.currentTime = 0;
+      video.play().catch(() => {});
+      if (item.dataset.hasSeparateAudio === 'true' && audio.src) {
+        audio.currentTime = 0;
+        audio.play().catch(() => {});
+      }
+    });
+  }
+
+  showPlayIndicator(indicator, isPlaying) {
+    if (!indicator) return;
+    indicator.innerHTML = isPlaying
+      ? `<svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>`
+      : `<svg viewBox="0 0 24 24" fill="currentColor"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg>`;
+    indicator.classList.add('show');
+    setTimeout(() => {
+      indicator.classList.remove('show');
+    }, 450);
+  }
+
+  goToIndex(index, smooth = true) {
+    if (index < 0 || index >= this.shorts.length) return;
+    this.currentIndex = index;
+    this.updateNavButtons();
+
+    const targetItem = this.reel.children[index];
+    if (targetItem) {
+      targetItem.scrollIntoView({
+        behavior: smooth ? 'smooth' : 'instant',
+        block: 'center'
+      });
+      this.playActiveShort();
+      this.checkInfiniteLoad();
+    }
+  }
+
+  updateNavButtons() {
+    if (this.prevBtn) {
+      this.prevBtn.disabled = this.currentIndex <= 0;
+      this.prevBtn.classList.toggle('disabled', this.currentIndex <= 0);
+    }
+    if (this.nextBtn) {
+      const isEnd = this.currentIndex >= this.shorts.length - 1;
+      this.nextBtn.disabled = isEnd;
+      this.nextBtn.classList.toggle('disabled', isEnd);
+    }
+  }
+
+  playActiveShort() {
+    if (!this.isOpen) return;
+    const currentItem = this.reel.children[this.currentIndex];
+    if (!currentItem) return;
+
+    // Pause all other videos
+    Array.from(this.reel.children).forEach((item, idx) => {
+      if (idx !== this.currentIndex) {
+        const v = item.querySelector('.short-video');
+        const a = item.querySelector('.short-audio');
+        if (v && !v.paused) v.pause();
+        if (a && !a.paused) a.pause();
+      }
+    });
+
+    const videoData = this.shorts[this.currentIndex];
+    this.playCard(currentItem, videoData);
+
+    // Preload next short in background
+    if (this.currentIndex + 1 < this.shorts.length) {
+      const nextId = this.shorts[this.currentIndex + 1].id;
+      fetch(`/api/stream?v=${nextId}&quality=720`).catch(() => {});
+    }
+  }
+
+  async playCard(card, videoData) {
+    const video = card.querySelector('.short-video');
+    const audio = card.querySelector('.short-audio');
+    const spinner = card.querySelector('.short-spinner');
+
+    video.muted = this.isMuted;
+    audio.muted = this.isMuted;
+
+    if (video.src && video.src !== window.location.href) {
+      video.play().catch(() => {});
+      if (card.dataset.hasSeparateAudio === 'true' && audio.src) {
+        audio.currentTime = video.currentTime;
+        audio.play().catch(() => {});
+      }
+      return;
+    }
+
+    spinner.classList.add('active');
+    try {
+      const res = await fetch(`/api/stream?v=${videoData.id}&quality=720`);
+      const stream = await res.json();
+      if (!this.isOpen || parseInt(card.dataset.index, 10) !== this.currentIndex) return;
+
+      const videoUrl = stream.proxyVideoUrl || `/api/proxy-stream?v=${videoData.id}&quality=720&type=video`;
+      video.src = videoUrl;
+
+      if (stream.hasSeparateAudio && stream.proxyAudioUrl) {
+        card.dataset.hasSeparateAudio = 'true';
+        audio.src = stream.proxyAudioUrl;
+        audio.muted = this.isMuted;
+      } else {
+        card.dataset.hasSeparateAudio = 'false';
+      }
+
+      video.load();
+      video.play().then(() => {
+        spinner.classList.remove('active');
+        if (card.dataset.hasSeparateAudio === 'true') {
+          audio.currentTime = video.currentTime;
+          audio.play().catch(() => {});
+        }
+      }).catch(err => {
+        spinner.classList.remove('active');
+        console.warn('Playback notice:', err.message);
+      });
+    } catch (err) {
+      spinner.classList.remove('active');
+      console.error('Error loading short stream:', err);
+    }
+  }
+
+  pauseAll() {
+    if (!this.reel) return;
+    Array.from(this.reel.children).forEach(item => {
+      const v = item.querySelector('.short-video');
+      const a = item.querySelector('.short-audio');
+      if (v) v.pause();
+      if (a) a.pause();
+    });
+  }
+
+  togglePlayPauseCurrent() {
+    const currentItem = this.reel.children[this.currentIndex];
+    if (!currentItem) return;
+    const video = currentItem.querySelector('.short-video');
+    const audio = currentItem.querySelector('.short-audio');
+    const indicator = currentItem.querySelector('.short-play-indicator');
+    if (!video) return;
+
+    if (video.paused) {
+      video.play().catch(() => {});
+      if (currentItem.dataset.hasSeparateAudio === 'true' && audio.src) audio.play().catch(() => {});
+      this.showPlayIndicator(indicator, true);
+    } else {
+      video.pause();
+      if (currentItem.dataset.hasSeparateAudio === 'true' && audio.src) audio.pause();
+      this.showPlayIndicator(indicator, false);
+    }
+  }
+
+  toggleMute() {
+    this.isMuted = !this.isMuted;
+    if (!this.reel) return;
+    Array.from(this.reel.children).forEach(item => {
+      const v = item.querySelector('.short-video');
+      const a = item.querySelector('.short-audio');
+      const btn = item.querySelector('.short-mute-btn');
+      if (v) v.muted = this.isMuted;
+      if (a) a.muted = this.isMuted;
+      if (btn) btn.innerHTML = this.getVolumeSvg(this.isMuted);
+    });
+    this.app.showToast(this.isMuted ? '🔇 Đã tắt tiếng' : '🔊 Đã bật tiếng');
+  }
+
+  getVolumeSvg(isMuted) {
+    if (isMuted) {
+      return `<svg viewBox="0 0 24 24" fill="currentColor"><path d="M16.5 12c0-1.77-1.02-3.29-2.5-4.03v2.21l2.45 2.45c.03-.2.05-.41.05-.63zm2.5 0c0 .94-.2 1.82-.54 2.64l1.51 1.51C20.63 14.91 21 13.5 21 12c0-4.28-2.99-7.86-7-8.77v2.06c2.89.86 5 3.54 5 6.71zM4.27 3L3 4.27 7.73 9H3v6h4l5 5v-6.73l4.25 4.25c-.67.52-1.42.93-2.25 1.18v2.06c1.38-.31 2.63-.95 3.69-1.81L19.73 21 21 19.73l-9-9L4.27 3zM12 4L9.91 6.09 12 8.18V4z"/></svg>`;
+    }
+    return `<svg viewBox="0 0 24 24" fill="currentColor"><path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z"/></svg>`;
+  }
+
+  escapeHtml(str) {
+    if (!str) return '';
+    return String(str)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;');
   }
 }
 

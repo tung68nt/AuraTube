@@ -31,11 +31,11 @@ public final class UpdateService: NSObject, ObservableObject, @preconcurrency UR
     }()
     
     public var currentVersion: String {
-        Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "2.0.5"
+        Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "2.0.6"
     }
     
     public var currentBuild: String {
-        Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? "6"
+        Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? "7"
     }
     
     private override init() {

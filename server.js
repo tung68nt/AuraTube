@@ -175,27 +175,10 @@ app.get('/api/trending', async (req, res) => {
  */
 app.get('/api/shorts', async (req, res) => {
   try {
-    let result = await fastyoutube.searchYouTube('#shorts việt nam');
-    let videoList = (result && result.videos) || [];
-    if (videoList.length === 0) {
-      result = await fastyoutube.searchYouTube('#shorts trending');
-      videoList = (result && result.videos) || [];
-    }
-    const shorts = videoList.filter(v => {
-      if (!v.duration) return true;
-      if (typeof v.duration === 'number') return v.duration <= 65;
-      const str = String(v.duration).trim();
-      const parts = str.split(':').map(Number);
-      if (parts.length === 2) {
-        const secs = parts[0] * 60 + parts[1];
-        return secs <= 65; // Authentic YouTube Shorts duration <= 65s
-      }
-      if (parts.length === 1 && !isNaN(parts[0])) {
-        return parts[0] <= 65;
-      }
-      return false;
-    });
-    res.json({ success: true, videos: shorts.length > 0 ? shorts : videoList });
+    const page = parseInt(req.query.page, 10) || 1;
+    const tag = (req.query.tag || 'trending').trim();
+    const shorts = await fastyoutube.getShortsFeed(tag, page);
+    res.json({ success: true, videos: shorts });
   } catch (error) {
     console.error('Shorts error:', error);
     res.status(500).json({ success: false, error: error.message });

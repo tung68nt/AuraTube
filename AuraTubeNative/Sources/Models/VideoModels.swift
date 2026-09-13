@@ -1,5 +1,30 @@
 import Foundation
 
+public struct ChannelInfo: Identifiable, Codable, Hashable {
+    public let id: String
+    public var title: String
+    public var handle: String?
+    public var subscriberCount: String?
+    public var avatarUrl: String
+    public var description: String?
+    
+    public init(
+        id: String,
+        title: String,
+        handle: String? = nil,
+        subscriberCount: String? = nil,
+        avatarUrl: String = "",
+        description: String? = nil
+    ) {
+        self.id = id
+        self.title = title
+        self.handle = handle
+        self.subscriberCount = subscriberCount
+        self.avatarUrl = avatarUrl
+        self.description = description
+    }
+}
+
 public struct Video: Identifiable, Codable, Hashable {
     public let id: String
     public var title: String
@@ -12,6 +37,8 @@ public struct Video: Identifiable, Codable, Hashable {
     public var publishedTime: String?
     public var thumbnail: String
     public var description: String?
+    public var isExplicitShort: Bool?
+    public var channelAvatarUrl: String?
     
     public init(
         id: String,
@@ -24,7 +51,9 @@ public struct Video: Identifiable, Codable, Hashable {
         viewCountFormatted: String = "",
         publishedTime: String? = nil,
         thumbnail: String = "",
-        description: String? = nil
+        description: String? = nil,
+        isShort: Bool? = nil,
+        channelAvatarUrl: String? = nil
     ) {
         self.id = id
         self.title = title
@@ -37,6 +66,8 @@ public struct Video: Identifiable, Codable, Hashable {
         self.publishedTime = publishedTime
         self.thumbnail = thumbnail.isEmpty ? "https://i.ytimg.com/vi/\(id)/hqdefault.jpg" : thumbnail
         self.description = description
+        self.isExplicitShort = isShort
+        self.channelAvatarUrl = channelAvatarUrl
     }
     
     public var metadataFormatted: String {
@@ -64,8 +95,9 @@ public struct Video: Identifiable, Codable, Hashable {
     }
     
     public var isShort: Bool {
+        if let explicit = isExplicitShort { return explicit }
         let lower = title.lowercased()
-        return lower.contains("#shorts") || lower.contains("#short") || lower.contains("/shorts/")
+        return lower.contains("#shorts") || lower.contains("#short") || lower.contains("/shorts/") || durationFormatted == "Shorts"
     }
 }
 

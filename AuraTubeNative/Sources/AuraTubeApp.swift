@@ -47,8 +47,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     public static func showStandardAboutPanel() {
         var options: [NSApplication.AboutPanelOptionKey: Any] = [
             .applicationName: "AuraTube",
-            .applicationVersion: "2.0.5",
-            .version: "6"
+            .applicationVersion: "2.0.6",
+            .version: "7"
         ]
         let copyright = "Copyright © 2026 Tung Nguyen. All rights reserved."
         let attr = NSAttributedString(

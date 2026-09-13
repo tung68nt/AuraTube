@@ -65,30 +65,95 @@ public final class YTDLPService: @unchecked Sendable {
     
     // MARK: - InnerTube Fast Search & Trending API (<1s, pure native)
     
+    public struct SearchResultPage {
+        public let channel: ChannelInfo?
+        public let videos: [Video]
+        public let shorts: [Video]
+        public let continuationToken: String?
+        
+        public init(channel: ChannelInfo? = nil, videos: [Video], shorts: [Video] = [], continuationToken: String? = nil) {
+            self.channel = channel
+            self.videos = videos
+            self.shorts = shorts
+            self.continuationToken = continuationToken
+        }
+        
+        public var allItems: [Video] {
+            return videos + shorts
+        }
+    }
+    
     public func fetchTrendingVideos(region: String = "VN") async -> [Video] {
         return await searchVideos(query: "nhạc việt hot trending")
     }
     
-    public func searchVideos(query: String, limit: Int = 24) async -> [Video] {
-        // 1. Try high-speed InnerTube API first
-        if let videos = await searchViaInnerTube(query: query), !videos.isEmpty {
-            return videos
-        }
-        
-        // 2. Fallback to local yt-dlp flat-playlist CLI
-        return await searchViaYtDlp(query: query, limit: limit)
+    public func fetchTrendingVideosWithContinuation(region: String = "VN", continuationToken: String? = nil) async -> SearchResultPage {
+        return await searchVideosWithContinuation(query: "nhạc việt hot trending", continuationToken: continuationToken)
     }
     
-    private func searchViaInnerTube(query: String) async -> [Video]? {
+    public func searchVideos(query: String, limit: Int = 24) async -> [Video] {
+        let page = await searchVideosWithContinuation(query: query, continuationToken: nil, limit: limit)
+        return page.allItems
+    }
+    
+    public func searchVideosWithContinuation(query: String, continuationToken: String? = nil, limit: Int = 24) async -> SearchResultPage {
+        // 1. Try high-speed InnerTube API first
+        if let result = await searchViaInnerTube(query: query, continuationToken: continuationToken),
+           (!result.videos.isEmpty || !result.shorts.isEmpty || result.channel != nil) {
+            return result
+        }
+        
+        // If continuation was requested but InnerTube didn't return results, don't fallback to flat playlist
+        if continuationToken != nil {
+            return SearchResultPage(channel: nil, videos: [], shorts: [], continuationToken: nil)
+        }
+        
+        // 2. Fallback to local yt-dlp flat-playlist CLI (initial query only)
+        let fallback = await searchViaYtDlp(query: query, limit: limit)
+        return SearchResultPage(channel: nil, videos: fallback, shorts: [], continuationToken: nil)
+    }
+    
+    /// Fast YouTube search suggestions autocomplete (<50ms)
+    public func fetchSearchSuggestions(query: String) async -> [String] {
+        let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return [] }
+        
+        var components = URLComponents(string: "https://suggestqueries-clients6.youtube.com/complete/search")
+        components?.queryItems = [
+            URLQueryItem(name: "client", value: "firefox"),
+            URLQueryItem(name: "ds", value: "yt"),
+            URLQueryItem(name: "hl", value: "vi"),
+            URLQueryItem(name: "gl", value: "VN"),
+            URLQueryItem(name: "q", value: trimmed)
+        ]
+        guard let url = components?.url else { return [] }
+        
+        var request = URLRequest(url: url)
+        request.httpMethod = "GET"
+        request.setValue("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/134.0.0.0 Safari/537.36", forHTTPHeaderField: "User-Agent")
+        request.timeoutInterval = 3.0
+        
+        guard let (data, response) = try? await URLSession.shared.data(for: request),
+              let http = response as? HTTPURLResponse, http.statusCode == 200,
+              let json = try? JSONSerialization.jsonObject(with: data) as? [Any],
+              json.count > 1,
+              let suggestions = json[1] as? [String] else {
+            return []
+        }
+        
+        return suggestions
+    }
+    
+    private func searchViaInnerTube(query: String, continuationToken: String? = nil) async -> SearchResultPage? {
         guard let url = URL(string: "https://www.youtube.com/youtubei/v1/search?prettyPrint=false") else { return nil }
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.setValue("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/134.0.0.0 Safari/537.36", forHTTPHeaderField: "User-Agent")
         request.setValue("vi,en;q=0.9", forHTTPHeaderField: "Accept-Language")
-        request.timeoutInterval = 6.0
+        request.timeoutInterval = 7.0
         
-        let body: [String: Any] = [
+        var body: [String: Any] = [
             "context": [
                 "client": [
                     "clientName": "WEB",
@@ -96,9 +161,14 @@ public final class YTDLPService: @unchecked Sendable {
                     "hl": "vi",
                     "gl": "VN"
                 ]
-            ],
-            "query": query
+            ]
         ]
+        
+        if let continuation = continuationToken, !continuation.isEmpty {
+            body["continuation"] = continuation
+        } else {
+            body["query"] = query
+        }
         
         guard let httpBody = try? JSONSerialization.data(withJSONObject: body) else { return nil }
         request.httpBody = httpBody
@@ -109,9 +179,198 @@ public final class YTDLPService: @unchecked Sendable {
             return nil
         }
         
-        var results: [Video] = []
-        extractInnerTubeVideos(from: root, results: &results)
-        return results
+        var videos: [Video] = []
+        extractInnerTubeVideos(from: root, results: &videos)
+        
+        var shorts: [Video] = []
+        let videoIds = Set(videos.map { $0.id })
+        extractInnerTubeShorts(from: root, results: &shorts, existingIds: videoIds)
+        
+        let channel = (continuationToken == nil) ? extractInnerTubeChannel(from: root) : nil
+        let nextContinuation = extractContinuationToken(from: root)
+        return SearchResultPage(channel: channel, videos: videos, shorts: shorts, continuationToken: nextContinuation)
+    }
+    
+    private func extractContinuationToken(from obj: Any) -> String? {
+        if let dict = obj as? [String: Any] {
+            if let cir = dict["continuationItemRenderer"] as? [String: Any],
+               let endpoint = cir["continuationEndpoint"] as? [String: Any],
+               let cmd = endpoint["continuationCommand"] as? [String: Any],
+               let token = cmd["token"] as? String, !token.isEmpty {
+                return token
+            }
+            for (_, value) in dict {
+                if let token = extractContinuationToken(from: value) {
+                    return token
+                }
+            }
+        } else if let array = obj as? [Any] {
+            for element in array {
+                if let token = extractContinuationToken(from: element) {
+                    return token
+                }
+            }
+        }
+        return nil
+    }
+    
+    private func extractInnerTubeChannel(from obj: Any) -> ChannelInfo? {
+        if let dict = obj as? [String: Any] {
+            if let cr = dict["channelRenderer"] as? [String: Any],
+               let cid = cr["channelId"] as? String {
+                var title = ""
+                if let titleDict = cr["title"] as? [String: Any] {
+                    title = titleDict["simpleText"] as? String ?? ""
+                    if title.isEmpty, let runs = titleDict["runs"] as? [[String: Any]] {
+                        title = runs.compactMap { $0["text"] as? String }.joined()
+                    }
+                }
+                var handle: String? = nil
+                var subs: String? = nil
+                if let subDict = cr["subscriberCountText"] as? [String: Any] {
+                    let text = subDict["simpleText"] as? String
+                    if text?.hasPrefix("@") == true {
+                        handle = text
+                    } else {
+                        subs = text
+                    }
+                }
+                var avatar = ""
+                if let thumbDict = cr["thumbnail"] as? [String: Any],
+                   let thumbs = thumbDict["thumbnails"] as? [[String: Any]],
+                   let lastUrl = thumbs.last?["url"] as? String {
+                    avatar = lastUrl.hasPrefix("//") ? "https:" + lastUrl : lastUrl
+                }
+                var desc: String? = nil
+                if let descDict = cr["descriptionSnippet"] as? [String: Any],
+                   let runs = descDict["runs"] as? [[String: Any]] {
+                    desc = runs.compactMap { $0["text"] as? String }.joined()
+                }
+                return ChannelInfo(
+                    id: cid,
+                    title: title.isEmpty ? "YouTube Channel" : title,
+                    handle: handle,
+                    subscriberCount: subs,
+                    avatarUrl: avatar,
+                    description: desc
+                )
+            }
+            for (_, value) in dict {
+                if let ch = extractInnerTubeChannel(from: value) {
+                    return ch
+                }
+            }
+        } else if let array = obj as? [Any] {
+            for element in array {
+                if let ch = extractInnerTubeChannel(from: element) {
+                    return ch
+                }
+            }
+        }
+        return nil
+    }
+    
+    private func extractInnerTubeShorts(from obj: Any, results: inout [Video], existingIds: Set<String>) {
+        if let dict = obj as? [String: Any] {
+            if let sl = dict["shortsLockupViewModel"] as? [String: Any] {
+                var videoId = ""
+                if let eid = sl["entityId"] as? String, eid.hasPrefix("shorts-shelf-item-") {
+                    videoId = String(eid.dropFirst("shorts-shelf-item-".count))
+                }
+                if videoId.isEmpty,
+                   let onTap = sl["onTap"] as? [String: Any],
+                   let itCmd = onTap["innertubeCommand"] as? [String: Any],
+                   let cmdMeta = itCmd["commandMetadata"] as? [String: Any],
+                   let webMeta = cmdMeta["webCommandMetadata"] as? [String: Any],
+                   let url = webMeta["url"] as? String, url.hasPrefix("/shorts/") {
+                    videoId = String(url.dropFirst("/shorts/".count))
+                }
+                
+                if videoId.count == 11, !existingIds.contains(videoId), !results.contains(where: { $0.id == videoId }) {
+                    var title = ""
+                    var views = ""
+                    if let om = sl["overlayMetadata"] as? [String: Any] {
+                        if let pt = om["primaryText"] as? [String: Any], let c = pt["content"] as? String {
+                            title = c
+                        }
+                        if let st = om["secondaryText"] as? [String: Any], let c = st["content"] as? String {
+                            views = c
+                        }
+                    }
+                    if title.isEmpty, let a11y = sl["accessibilityText"] as? String {
+                        title = a11y
+                    }
+                    
+                    var thumb = "https://i.ytimg.com/vi/\(videoId)/hqdefault.jpg"
+                    if let tvm = sl["thumbnailViewModel"] as? [String: Any],
+                       let innerTvm = tvm["thumbnailViewModel"] as? [String: Any],
+                       let img = innerTvm["image"] as? [String: Any],
+                       let srcs = img["sources"] as? [[String: Any]],
+                       let last = srcs.last?["url"] as? String {
+                        thumb = last.hasPrefix("//") ? "https:" + last : last
+                    }
+                    
+                    if !title.isEmpty {
+                        results.append(Video(
+                            id: videoId,
+                            title: title,
+                            uploader: "YouTube Shorts",
+                            duration: nil,
+                            durationFormatted: "Shorts",
+                            viewCount: nil,
+                            viewCountFormatted: views,
+                            publishedTime: nil,
+                            thumbnail: thumb,
+                            description: nil,
+                            isShort: true
+                        ))
+                    }
+                }
+            }
+            
+            if let rir = dict["reelItemRenderer"] as? [String: Any],
+               let videoId = rir["videoId"] as? String, videoId.count == 11,
+               !existingIds.contains(videoId), !results.contains(where: { $0.id == videoId }) {
+                var title = ""
+                if let hl = rir["headline"] as? [String: Any], let s = hl["simpleText"] as? String {
+                    title = s
+                }
+                var views = ""
+                if let vct = rir["viewCountText"] as? [String: Any], let s = vct["simpleText"] as? String {
+                    views = s
+                }
+                var thumb = "https://i.ytimg.com/vi/\(videoId)/hqdefault.jpg"
+                if let td = rir["thumbnail"] as? [String: Any],
+                   let thumbs = td["thumbnails"] as? [[String: Any]],
+                   let last = thumbs.last?["url"] as? String {
+                    thumb = last.hasPrefix("//") ? "https:" + last : last
+                }
+                
+                if !title.isEmpty {
+                    results.append(Video(
+                        id: videoId,
+                        title: title,
+                        uploader: "YouTube Shorts",
+                        duration: nil,
+                        durationFormatted: "Shorts",
+                        viewCount: nil,
+                        viewCountFormatted: views,
+                        publishedTime: nil,
+                        thumbnail: thumb,
+                        description: nil,
+                        isShort: true
+                    ))
+                }
+            }
+            
+            for (_, value) in dict {
+                extractInnerTubeShorts(from: value, results: &results, existingIds: existingIds)
+            }
+        } else if let array = obj as? [Any] {
+            for element in array {
+                extractInnerTubeShorts(from: element, results: &results, existingIds: existingIds)
+            }
+        }
     }
     
     private func extractInnerTubeVideos(from obj: Any, results: inout [Video]) {
@@ -170,10 +429,22 @@ public final class YTDLPService: @unchecked Sendable {
                     thumb = lastUrl
                 }
                 
+                var channelAvatar: String? = nil
+                if let ct = dict["channelThumbnailSupportedRenderers"] as? [String: Any],
+                   let linkRenderer = ct["channelThumbnailWithLinkRenderer"] as? [String: Any],
+                   let thumb = linkRenderer["thumbnail"] as? [String: Any],
+                   let thumbs = thumb["thumbnails"] as? [[String: Any]],
+                   let lastThumb = thumbs.last?["url"] as? String {
+                    channelAvatar = lastThumb.hasPrefix("//") ? "https:" + lastThumb : lastThumb
+                }
+                
                 var desc: String? = nil
                 if let descSnippets = dict["detailedMetadataSnippets"] as? [[String: Any]],
                    let textDict = descSnippets.first?["snippetText"] as? [String: Any],
                    let runs = textDict["runs"] as? [[String: Any]] {
+                    desc = runs.compactMap { $0["text"] as? String }.joined()
+                } else if let descDict = dict["descriptionSnippet"] as? [String: Any],
+                          let runs = descDict["runs"] as? [[String: Any]] {
                     desc = runs.compactMap { $0["text"] as? String }.joined()
                 }
                 
@@ -188,7 +459,9 @@ public final class YTDLPService: @unchecked Sendable {
                         viewCountFormatted: viewStr,
                         publishedTime: publishedStr,
                         thumbnail: thumb,
-                        description: desc
+                        description: desc,
+                        isShort: false,
+                        channelAvatarUrl: channelAvatar
                     ))
                 }
             }

@@ -171,30 +171,13 @@ public final class MiniPlayerEngine: NSObject, WKNavigationDelegate, WKScriptMes
                 try {
                     var media = document.querySelectorAll('video, audio');
                     for (var i = 0; i < media.length; i++) {
-                        media[i].muted = true;
-                        media[i].volume = 0;
+                        if (!media[i].muted) media[i].muted = true;
+                        if (media[i].volume > 0) media[i].volume = 0;
                     }
                 } catch(e) {}
             }
             enforceMute();
-            setInterval(enforceMute, 250);
 
-            // Compress / Force small quality for lightweight silky-smooth playback
-            function enforceLowQuality() {
-                try {
-                    var p = document.getElementById('movie_player') || document.querySelector('.html5-video-player');
-                    if (p) {
-                        if (typeof p.setPlaybackQualityRange === 'function') {
-                            p.setPlaybackQualityRange('small', 'medium');
-                        }
-                        if (typeof p.setPlaybackQuality === 'function') {
-                            p.setPlaybackQuality('small');
-                        }
-                    }
-                } catch(e) {}
-            }
-            enforceLowQuality();
-            setInterval(enforceLowQuality, 1500);
 
             function reportVideoDimensions() {
                 try {
@@ -214,7 +197,6 @@ public final class MiniPlayerEngine: NSObject, WKNavigationDelegate, WKScriptMes
             }
             document.addEventListener('loadedmetadata', reportVideoDimensions, true);
             document.addEventListener('resize', reportVideoDimensions, true);
-            setInterval(reportVideoDimensions, 1500);
 
             document.addEventListener('play', function(e) {
                 if (e.target && (e.target.tagName === 'VIDEO' || e.target.tagName === 'AUDIO')) {
@@ -225,22 +207,25 @@ public final class MiniPlayerEngine: NSObject, WKNavigationDelegate, WKScriptMes
                 reportVideoDimensions();
             }, true);
 
-            // Silky-Smooth Video Sync (zero jitter, avoids constant seeking)
-            window.addEventListener('message', function(e) {
+            // Rock-Solid, Butter-Smooth 60fps Dual-Player Phase-Locked Synchronizer
+            var isSeekingState = false;
+            var lastSeekTimestamp = 0;
+
+            function handleSync(data) {
                 try {
-                    var data = typeof e.data === 'string' ? JSON.parse(e.data) : e.data;
-                    if (!data || data.event !== 'auratube_sync') return;
-                    
                     var v = document.querySelector('video');
                     if (!v) return;
                     
-                    v.muted = true;
-                    v.volume = 0;
+                    if (!v.muted) v.muted = true;
+                    if (v.volume > 0) v.volume = 0;
                     
                     var targetTime = data.masterTime;
-                    var shouldPlay = data.isPlaying;
+                    var shouldPlay = data.isPlaying === true;
+                    var forceSnap = data.forceSnap === true;
+                    var now = performance.now();
                     
-                    if (shouldPlay && v.paused) {
+                    // 1. Play / Pause state sync
+                    if (shouldPlay && v.paused && !isSeekingState) {
                         v.play().catch(function(){});
                     } else if (!shouldPlay && !v.paused) {
                         v.pause();
@@ -251,39 +236,100 @@ public final class MiniPlayerEngine: NSObject, WKNavigationDelegate, WKScriptMes
                     var diff = targetTime - v.currentTime;
                     var absDiff = Math.abs(diff);
                     
-                    // 1. Explicit user seek, popover reveal, or video change: instant frame snap
-                    if (data.forceSnap) {
-                        v.currentTime = targetTime;
-                        v.playbackRate = 1.0;
-                        return;
-                    }
-                    
-                    // 2. If video is paused, only snap if offset
-                    if (!shouldPlay || v.paused) {
-                        if (absDiff > 0.05) {
+                    // 2. Explicit force snap (User scrubbed slider, opened popover, or switched video)
+                    if (forceSnap) {
+                        if (absDiff > 0.08 || v.paused) {
+                            isSeekingState = true;
+                            lastSeekTimestamp = now;
                             v.currentTime = targetTime;
+                            v.playbackRate = 1.0;
                         }
+                        return;
+                    }
+                    
+                    // If video is paused, only snap if offset is noticeable (> 80ms)
+                    if (!shouldPlay || v.paused) {
+                        if (absDiff > 0.08 && !isSeekingState && (now - lastSeekTimestamp > 800)) {
+                            isSeekingState = true;
+                            lastSeekTimestamp = now;
+                            v.currentTime = targetTime;
+                            v.playbackRate = 1.0;
+                        }
+                        return;
+                    }
+                    
+                    // 3. Active Playback Synchronization:
+                    // If currently seeking or within the 1.5s post-seek stabilization window:
+                    // DO NOT adjust playbackRate or seek again! Let video play smoothly!
+                    if (isSeekingState || (now - lastSeekTimestamp < 1500)) {
                         v.playbackRate = 1.0;
                         return;
                     }
                     
-                    // 3. Continuous sub-frame lockstep synchronization:
-                    // Hard snap only for massive drift (> 1.2s)
-                    if (absDiff > 1.2) {
+                    // A. Emergency Hard Resync: only if drift is massive (> 2.5s) AND at least 3.5s since last seek
+                    if (absDiff > 2.5 && (now - lastSeekTimestamp > 3500)) {
+                        isSeekingState = true;
+                        lastSeekTimestamp = now;
                         v.currentTime = targetTime;
                         v.playbackRate = 1.0;
-                    } else if (absDiff > 0.015) {
-                        // Proportional rate steering (kP = 1.5):
-                        // Smoothly eliminates 20-200ms differences within 100-300ms without buffering or seeking!
-                        var correction = diff * 1.5;
-                        correction = Math.max(-0.30, Math.min(0.30, correction));
-                        v.playbackRate = 1.0 + correction;
-                    } else {
-                        // Sub-frame deadband (< 15ms) -> 100% lockstep!
-                        v.playbackRate = 1.0;
+                        return;
                     }
+                    
+                    // B. Deadband: within 75ms (< 2 frames), video is in perfect perceptual sync.
+                    // Absolutely keep at pure 1.00x native 60fps! Zero stutter!
+                    if (absDiff <= 0.075) {
+                        if (v.playbackRate !== 1.0) {
+                            v.playbackRate = 1.0;
+                        }
+                        return;
+                    }
+                    
+                    // C. Micro proportional rate steering:
+                    // For differences between 75ms and 600ms, apply tiny imperceptible ±3.5% adjustment.
+                    // For differences between 600ms and 2500ms, apply ±6% adjustment max.
+                    var kP = 0.12;
+                    var correction = diff * kP;
+                    var maxAdj = (absDiff > 0.6) ? 0.06 : 0.035;
+                    correction = Math.max(-maxAdj, Math.min(maxAdj, correction));
+                    
+                    v.playbackRate = 1.0 + correction;
+                } catch(err) {}
+            }
+
+            window.addEventListener('message', function(e) {
+                try {
+                    var data = typeof e.data === 'string' ? JSON.parse(e.data) : e.data;
+                    if (!data || data.event !== 'auratube_sync') return;
+                    handleSync(data);
                 } catch(err) {}
             });
+
+            function hookVideoSyncEvents() {
+                try {
+                    var v = document.querySelector('video');
+                    if (!v || v.__auratube_synchooked) return;
+                    v.__auratube_synchooked = true;
+                    
+                    v.addEventListener('seeking', function() {
+                        isSeekingState = true;
+                    });
+                    v.addEventListener('seeked', function() {
+                        isSeekingState = false;
+                        lastSeekTimestamp = performance.now();
+                        v.playbackRate = 1.0;
+                    });
+                    v.addEventListener('volumechange', function() {
+                        if (!v.muted) v.muted = true;
+                        if (v.volume > 0) v.volume = 0;
+                    });
+                    v.addEventListener('play', function() {
+                        if (!v.muted) v.muted = true;
+                        if (v.volume > 0) v.volume = 0;
+                    });
+                } catch(e) {}
+            }
+            hookVideoSyncEvents();
+            setInterval(hookVideoSyncEvents, 800);
 
             window.addEventListener('keydown', function(e) {
                 if (e.code === 'Space' || e.keyCode === 32) {
@@ -332,7 +378,7 @@ public final class MiniPlayerEngine: NSObject, WKNavigationDelegate, WKScriptMes
     private func setupPlayerManagerBridge() {
         let pm = PlayerManager.shared
         
-        // 1. Play / Pause observer: instant simultaneous sync & reliable pause
+        // 1. Play / Pause observer: instant simultaneous sync & reliable pause (no forced seek!)
         pm.registerPlayPauseObserver(id: observerId) { [weak self] shouldPlay in
             guard let self = self else { return }
             let masterTime = PlayerManager.shared.currentTime
@@ -346,7 +392,7 @@ public final class MiniPlayerEngine: NSObject, WKNavigationDelegate, WKScriptMes
                         event: 'auratube_sync',
                         masterTime: \(masterTime),
                         isPlaying: \(shouldPlay),
-                        forceSnap: true
+                        forceSnap: false
                     }), '*');
                 }
                 var v = document.querySelector('video');
@@ -465,7 +511,7 @@ public final class MiniPlayerEngine: NSObject, WKNavigationDelegate, WKScriptMes
             }
         }
         
-        // Popover opened: enforce small quality and snap immediately to master playback frame
+        // Popover opened: snap smoothly to master playback frame
         NotificationCenter.default.addObserver(
             forName: NSNotification.Name("AuraTubeMenuBarPopoverShown"),
             object: nil,
@@ -482,8 +528,6 @@ public final class MiniPlayerEngine: NSObject, WKNavigationDelegate, WKScriptMes
                     if (ifr && ifr.contentWindow) {
                         ifr.contentWindow.postMessage(JSON.stringify({event: "command", func: "mute", args: []}), '*');
                         ifr.contentWindow.postMessage(JSON.stringify({event: "command", func: "setVolume", args: [0]}), '*');
-                        ifr.contentWindow.postMessage(JSON.stringify({event: "command", func: "setPlaybackQualityRange", args: ["small", "medium"]}), '*');
-                        ifr.contentWindow.postMessage(JSON.stringify({event: "command", func: "setPlaybackQuality", args: ["small"]}), '*');
                         ifr.contentWindow.postMessage(JSON.stringify({
                             event: 'auratube_sync',
                             masterTime: \(pm.currentTime),
@@ -584,8 +628,6 @@ public final class MiniPlayerEngine: NSObject, WKNavigationDelegate, WKScriptMes
                 if (ifr && ifr.contentWindow) {
                   ifr.contentWindow.postMessage(JSON.stringify({event: "command", func: "mute", args: []}), '*');
                   ifr.contentWindow.postMessage(JSON.stringify({event: "command", func: "setVolume", args: [0]}), '*');
-                  ifr.contentWindow.postMessage(JSON.stringify({event: "command", func: "setPlaybackQualityRange", args: ["small", "medium"]}), '*');
-                  ifr.contentWindow.postMessage(JSON.stringify({event: "command", func: "setPlaybackQuality", args: ["small"]}), '*');
                   ifr.contentWindow.postMessage(JSON.stringify({event: "command", func: "playVideo", args: []}), '*');
                   ifr.contentWindow.postMessage(JSON.stringify({event: "listening"}), '*');
                 }
@@ -661,8 +703,6 @@ public final class MiniPlayerEngine: NSObject, WKNavigationDelegate, WKScriptMes
                     if (ifr && ifr.contentWindow) {
                         ifr.contentWindow.postMessage(JSON.stringify({event: "command", func: "mute", args: []}), '*');
                         ifr.contentWindow.postMessage(JSON.stringify({event: "command", func: "setVolume", args: [0]}), '*');
-                        ifr.contentWindow.postMessage(JSON.stringify({event: "command", func: "setPlaybackQualityRange", args: ["small", "medium"]}), '*');
-                        ifr.contentWindow.postMessage(JSON.stringify({event: "command", func: "setPlaybackQuality", args: ["small"]}), '*');
                         ifr.contentWindow.postMessage(JSON.stringify({
                             event: 'auratube_sync',
                             masterTime: \(pm.currentTime),

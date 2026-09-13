@@ -22,6 +22,70 @@ try {
 
 const MODERN_UA = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/134.0.0.0 Safari/537.36';
 
+function extractAllShorts(obj, results = []) {
+  if (!obj || typeof obj !== 'object') return results;
+
+  // 1. Modern shortsLockupViewModel
+  if (obj.shortsLockupViewModel) {
+    const s = obj.shortsLockupViewModel;
+    const title = s.overlayMetadata?.primaryText?.content || s.accessibilityText || '';
+    const viewCount = s.overlayMetadata?.secondaryText?.content || '';
+    let thumb = s.thumbnailViewModel?.thumbnailViewModel?.image?.sources?.slice(-1)[0]?.url || '';
+    if (thumb.startsWith('//')) thumb = 'https:' + thumb;
+
+    let videoId = s.onTap?.innertubeCommand?.reelWatchEndpoint?.videoId;
+    if (!videoId) {
+      const match = JSON.stringify(s).match(/"videoId":"([a-zA-Z0-9_-]{11})"/);
+      if (match) videoId = match[1];
+    }
+
+    if (videoId && videoId.length === 11 && !results.some(v => v.id === videoId)) {
+      results.push({
+        id: videoId,
+        title: title || 'YouTube Short',
+        uploader: 'YouTube Creator',
+        avatar: `https://ui-avatars.com/api/?name=${encodeURIComponent((title || 'YT').slice(0, 8))}&background=ff0033&color=fff&size=80`,
+        duration: 'Shorts',
+        viewCount: viewCount || '100N lượt xem',
+        publishedTime: 'Gần đây',
+        thumbnail: thumb || `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`,
+        url: `https://www.youtube.com/shorts/${videoId}`,
+        isShort: true
+      });
+    }
+  }
+
+  // 2. Traditional reelItemRenderer
+  if (obj.reelItemRenderer) {
+    const r = obj.reelItemRenderer;
+    const videoId = r.videoId;
+    const title = r.headline?.simpleText || r.headline?.runs?.map(x => x.text).join('') || '';
+    const viewCount = r.viewCountText?.simpleText || '';
+    let thumb = r.thumbnail?.thumbnails?.slice(-1)[0]?.url || '';
+    if (thumb.startsWith('//')) thumb = 'https:' + thumb;
+
+    if (videoId && videoId.length === 11 && !results.some(v => v.id === videoId)) {
+      results.push({
+        id: videoId,
+        title: title || 'YouTube Short',
+        uploader: 'YouTube Creator',
+        avatar: `https://ui-avatars.com/api/?name=${encodeURIComponent((title || 'YT').slice(0, 8))}&background=ff0033&color=fff&size=80`,
+        duration: 'Shorts',
+        viewCount: viewCount || '100N lượt xem',
+        publishedTime: 'Gần đây',
+        thumbnail: thumb || `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`,
+        url: `https://www.youtube.com/shorts/${videoId}`,
+        isShort: true
+      });
+    }
+  }
+
+  for (const k of Object.keys(obj)) {
+    extractAllShorts(obj[k], results);
+  }
+  return results;
+}
+
 function extractAllVideos(obj, results = []) {
   if (!obj || typeof obj !== 'object') return results;
   if (obj.videoId && (obj.title || obj.headline)) {
@@ -258,10 +322,80 @@ async function getSubscriptions(cookie) {
   }
 }
 
+async function getShortsFeed(tag = 'trending', page = 1) {
+  const queryPool = [
+    '#shorts việt nam',
+    '#shorts trending',
+    '#shorts hài hước triệu view',
+    '#shorts âm nhạc hot tiktok',
+    '#shorts khám phá thế giới',
+    '#shorts đời sống thú vị',
+    '#shorts công nghệ thông minh',
+    '#shorts thú cưng cute'
+  ];
+
+  let query = '#shorts';
+  if (tag && tag !== 'all' && tag !== 'trending') {
+    query = `#shorts ${tag}`;
+  } else {
+    const idx = Math.max(0, (page - 1) % queryPool.length);
+    query = queryPool[idx];
+  }
+
+  try {
+    const res = await fetch('https://www.youtube.com/youtubei/v1/search?prettyPrint=false', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'User-Agent': MODERN_UA,
+        'Accept-Language': 'vi,en;q=0.9'
+      },
+      body: JSON.stringify({
+        context: {
+          client: {
+            clientName: 'WEB',
+            clientVersion: '2.20240101.00.00',
+            hl: 'vi',
+            gl: 'VN'
+          }
+        },
+        query
+      }),
+      signal: AbortSignal.timeout(6500)
+    });
+
+    if (res.ok) {
+      const data = await res.json();
+      let shorts = extractAllShorts(data);
+      if (shorts.length > 0) return shorts;
+    }
+  } catch (err) {
+    console.warn('[getShortsFeed] InnerTube error:', err.message);
+  }
+
+  // Backup search
+  try {
+    const fallback = await searchYouTube(query);
+    if (fallback && fallback.videos && fallback.videos.length > 0) {
+      return fallback.videos.map(v => ({
+        ...v,
+        isShort: true,
+        duration: 'Shorts'
+      }));
+    }
+  } catch (err) {
+    console.error('[getShortsFeed] fallback error:', err.message);
+  }
+
+  return [];
+}
+
 module.exports = {
   searchYouTube,
   getTrendingVideos,
   getSubscriptions,
+  getShortsFeed,
   extractAllVideos,
+  extractAllShorts,
   findChannelRenderer
 };

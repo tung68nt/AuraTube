@@ -2,6 +2,7 @@ import SwiftUI
 
 public enum NavigationSection: String, CaseIterable, Identifiable {
     case home = "Trang chủ"
+    case shorts = "Shorts"
     case bookmarks = "Xem sau"
     case history = "Video đã xem"
     case downloads = "Tệp đã tải về"
@@ -11,6 +12,7 @@ public enum NavigationSection: String, CaseIterable, Identifiable {
     public var iconName: String {
         switch self {
         case .home: return "house.fill"
+        case .shorts: return "play.square.stack.fill"
         case .bookmarks: return "bookmark.fill"
         case .history: return "clock.fill"
         case .downloads: return "arrow.down.circle.fill"
@@ -25,6 +27,46 @@ final class ContentViewModel: ObservableObject {
     @Published var searchQuery: String = ""
     @Published var searchResults: [Video] = []
     @Published var isSearching: Bool = false
+    
+    // Structured Search Results & Categories
+    @Published var searchChannel: ChannelInfo? = nil
+    @Published var searchVideos: [Video] = []
+    @Published var searchShorts: [Video] = []
+    @Published var searchFilter: String = "Tất cả"
+    
+    // Autocomplete Suggestions & Infinite Scroll Pagination
+    @Published var searchSuggestions: [String] = []
+    @Published var showSuggestions: Bool = false
+    @Published var searchContinuationToken: String? = nil
+    @Published var isLoadingSearch: Bool = false
+    @Published var isLoadingMoreSearch: Bool = false
+    @Published var canLoadMoreSearch: Bool = true
+    
+    private var suggestionTask: Task<Void, Never>? = nil
+    
+    func updateSearchSuggestions(for query: String) {
+        suggestionTask?.cancel()
+        let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else {
+            searchSuggestions = []
+            showSuggestions = false
+            return
+        }
+        
+        suggestionTask = Task {
+            try? await Task.sleep(nanoseconds: 160_000_000) // 160ms debounce
+            guard !Task.isCancelled else { return }
+            let suggestions = await YTDLPService.shared.fetchSearchSuggestions(query: trimmed)
+            guard !Task.isCancelled else { return }
+            self.searchSuggestions = suggestions
+            self.showSuggestions = !suggestions.isEmpty
+        }
+    }
+    
+    func dismissSuggestions() {
+        suggestionTask?.cancel()
+        showSuggestions = false
+    }
 }
 
 // MARK: - Authentic YouTube Logo Badge (Official Bezier Geometry)
@@ -205,12 +247,19 @@ public struct ContentView: View {
                                 .textFieldStyle(.plain)
                                 .foregroundColor(.white)
                                 .font(.system(size: 13))
+                                .onChange(of: vm.searchQuery) { newQuery in
+                                    vm.updateSearchSuggestions(for: newQuery)
+                                }
+                                .onExitCommand {
+                                    vm.dismissSuggestions()
+                                }
                                 .onSubmit { performSearch() }
                         }
                         
                         if !vm.searchQuery.isEmpty {
                             Button(action: {
                                 vm.searchQuery = ""
+                                vm.dismissSuggestions()
                                 if vm.isSearching {
                                     vm.isSearching = false
                                 }
@@ -223,41 +272,42 @@ public struct ContentView: View {
                         }
                     }
                     .padding(.horizontal, 12)
-                    .frame(width: 440, height: 32)
+                    .frame(width: 400, height: 32)
                     .liquidGlassSearchBar()
                     
-                    // Left Controls: Brand + Navigation
+                    // Left Controls: Brand (Sidebar Column) + Navigation (Main Content Column)
                     HStack(spacing: 0) {
-                        HStack(spacing: 10) {
-                            YouTubeBrandBadge(width: 20)
+                        // Sidebar Header Area: Brand Logo & Title (Width: 220, matches sidebar below)
+                        HStack(spacing: 9) {
+                            YouTubeBrandBadge(width: 26)
                                 .padding(.leading, 16)
                             
-                            HStack(alignment: .center, spacing: 3) {
+                            HStack(alignment: .center, spacing: 3.5) {
                                 Text("AuraTube")
-                                    .font(.system(size: 13.5, weight: .bold))
+                                    .font(.system(size: 15, weight: .bold))
                                     .foregroundColor(.white)
-                                    .tracking(-0.3)
+                                    .tracking(-0.35)
                                     .lineLimit(1)
                                     .fixedSize()
                                 
                                 Text("VN")
-                                    .font(.system(size: 8, weight: .bold))
+                                    .font(.system(size: 8.5, weight: .bold))
                                     .foregroundColor(Color.white.opacity(0.60))
-                                    .offset(y: -4)
+                                    .offset(y: -4.5)
                                     .lineLimit(1)
                                     .fixedSize()
                             }
                             
                             Spacer()
                         }
-                        .frame(width: 160, height: 52, alignment: .leading)
+                        .frame(width: 220, height: 52, alignment: .leading)
                         
-                        // Vertical Separator
+                        // Vertical Column Separator aligned with Sidebar boundary below
                         Rectangle()
-                            .fill(Color.white.opacity(0.08))
-                            .frame(width: 0.75, height: 20)
+                            .fill(Color.white.opacity(0.06))
+                            .frame(width: 0.75, height: 24)
                         
-                        // Navigation Controls (Back / Forward)
+                        // Navigation Controls (Back / Forward) cleanly inside Main Content toolbar
                         HStack(spacing: 6) {
                             let canGoBack = vm.watchingVideo != nil || vm.isSearching
                             Button(action: {
@@ -475,28 +525,17 @@ public struct ContentView: View {
                         }
                     )
                 } else if vm.isSearching {
-                    // Search Results Grid
-                    ScrollView {
-                        VStack(alignment: .leading, spacing: 20) {
-                            Text("Kết quả tìm kiếm cho: \"\(vm.searchQuery)\"")
-                                .font(.system(size: 18, weight: .bold))
-                                .foregroundColor(.white)
-                                .padding(.horizontal, 24)
-                                .padding(.top, 16)
-                            
-                            LazyVGrid(columns: [GridItem(.adaptive(minimum: 300, maximum: 380), spacing: 20)], spacing: 28) {
-                                ForEach(vm.searchResults) { v in
-                                    VideoCardView(video: v) { playVideo(v) }
-                                }
-                            }
-                            .padding(.horizontal, 24)
-                        }
-                        .padding(.bottom, 40)
-                    }
+                    SearchResultsView(
+                        vm: vm,
+                        onSelectVideo: { playVideo($0) },
+                        onLoadMore: { loadMoreSearchResults() }
+                    )
                 } else {
                     switch vm.selectedSection {
                     case .home:
                         HomeView(onSelectVideo: { playVideo($0) })
+                    case .shorts:
+                        NativeShortsFeedView(onSelectVideo: { playVideo($0) })
                     case .bookmarks:
                         BookmarkListView(onSelectVideo: { playVideo($0) })
                     case .history:
@@ -544,11 +583,34 @@ public struct ContentView: View {
         }
     )
     .overlay(alignment: .top) {
-        if let feedback = updateService.scanFeedbackMessage {
-            ScanFeedbackToast(message: feedback)
-                .padding(.top, 58)
-                .transition(.move(edge: .top).combined(with: .opacity))
-                .zIndex(300)
+        ZStack(alignment: .top) {
+            if let feedback = updateService.scanFeedbackMessage {
+                ScanFeedbackToast(message: feedback)
+                    .padding(.top, 58)
+                    .transition(.move(edge: .top).combined(with: .opacity))
+                    .zIndex(300)
+            }
+            
+            if vm.showSuggestions && !vm.searchSuggestions.isEmpty {
+                // Invisible backdrop to dismiss suggestions when clicking outside
+                Color.black.opacity(0.001)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .onTapGesture {
+                        withAnimation(.easeOut(duration: 0.15)) {
+                            vm.dismissSuggestions()
+                        }
+                    }
+                
+                SearchSuggestionsDropdown(
+                    suggestions: vm.searchSuggestions,
+                    onSelect: { suggestion in
+                        performSearch(with: suggestion)
+                    }
+                )
+                .padding(.top, 46)
+                .transition(.opacity.combined(with: .scale(scale: 0.98, anchor: .top)))
+                .zIndex(999)
+            }
         }
     }
     .background(
@@ -572,16 +634,68 @@ public struct ContentView: View {
 }
     
     private func playVideo(_ video: Video) {
+        vm.dismissSuggestions()
         vm.watchingVideo = video
         playerManager.loadAndPlay(video: video)
     }
     
-    private func performSearch() {
-        guard !vm.searchQuery.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
+    private func performSearch(with queryOverride: String? = nil) {
+        if let override = queryOverride {
+            vm.searchQuery = override
+        }
+        let query = vm.searchQuery.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !query.isEmpty else { return }
+        
+        vm.dismissSuggestions()
         vm.isSearching = true
         vm.watchingVideo = nil
+        vm.isLoadingSearch = true
+        vm.isLoadingMoreSearch = false
+        vm.searchContinuationToken = nil
+        vm.searchChannel = nil
+        vm.searchVideos = []
+        vm.searchShorts = []
+        vm.searchResults = []
+        vm.searchFilter = "Tất cả"
+        vm.canLoadMoreSearch = true
+        
         Task {
-            vm.searchResults = await YTDLPService.shared.searchVideos(query: vm.searchQuery)
+            let page = await YTDLPService.shared.searchVideosWithContinuation(query: query)
+            vm.searchChannel = page.channel
+            vm.searchVideos = page.videos
+            vm.searchShorts = page.shorts
+            vm.searchResults = page.allItems
+            vm.searchContinuationToken = page.continuationToken
+            vm.canLoadMoreSearch = page.continuationToken != nil
+            vm.isLoadingSearch = false
+        }
+    }
+    
+    private func loadMoreSearchResults() {
+        guard !vm.isLoadingMoreSearch, !vm.isLoadingSearch, vm.canLoadMoreSearch,
+              let token = vm.searchContinuationToken, !token.isEmpty else { return }
+        
+        vm.isLoadingMoreSearch = true
+        Task {
+            let page = await YTDLPService.shared.searchVideosWithContinuation(query: vm.searchQuery, continuationToken: token)
+            var curVideos = vm.searchVideos
+            for v in page.videos {
+                if !curVideos.contains(where: { $0.id == v.id }) {
+                    curVideos.append(v)
+                }
+            }
+            var curShorts = vm.searchShorts
+            for s in page.shorts {
+                if !curShorts.contains(where: { $0.id == s.id }) {
+                    curShorts.append(s)
+                }
+            }
+            vm.searchVideos = curVideos
+            vm.searchShorts = curShorts
+            vm.searchResults = curVideos + curShorts
+            vm.searchContinuationToken = page.continuationToken
+            vm.canLoadMoreSearch = page.continuationToken != nil && (!page.videos.isEmpty || !page.shorts.isEmpty)
+            vm.isLoadingMoreSearch = false
         }
     }
 }
@@ -993,6 +1107,568 @@ struct SpinningRefreshIcon: View {
             }
         }
         .frame(width: size + 4, height: size + 4, alignment: .center)
+    }
+}
+
+// MARK: - Search Suggestions Dropdown (Liquid Glass with Backdrop Blur)
+struct SearchSuggestionsDropdown: View {
+    let suggestions: [String]
+    let onSelect: (String) -> Void
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 1) {
+            ForEach(Array(suggestions.prefix(10)), id: \.self) { item in
+                SearchSuggestionRow(text: item) {
+                    onSelect(item)
+                }
+            }
+        }
+        .padding(.vertical, 6)
+        .frame(width: 440)
+        .background(
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .fill(Color(red: 0.13, green: 0.13, blue: 0.15).opacity(0.96))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 12, style: .continuous)
+                        .strokeBorder(
+                            LinearGradient(
+                                colors: [Color.white.opacity(0.18), Color.white.opacity(0.06)],
+                                startPoint: .top,
+                                endPoint: .bottom
+                            ),
+                            lineWidth: 1
+                        )
+                )
+                .shadow(color: Color.black.opacity(0.55), radius: 20, x: 0, y: 10)
+        )
+        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+    }
+}
+
+struct SearchSuggestionRow: View {
+    let text: String
+    let action: () -> Void
+    @StateObject private var hoverVm = LiquidHoverViewModel()
+    
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 12) {
+                Image(systemName: "magnifyingglass")
+                    .foregroundColor(Color.white.opacity(hoverVm.isHovered ? 0.9 : 0.5))
+                    .font(.system(size: 12, weight: .medium))
+                    .frame(width: 16)
+                
+                Text(text)
+                    .font(.system(size: 13, weight: hoverVm.isHovered ? .semibold : .regular))
+                    .foregroundColor(hoverVm.isHovered ? .white : Color.white.opacity(0.88))
+                    .lineLimit(1)
+                
+                Spacer()
+                
+                Image(systemName: "arrow.up.left")
+                    .foregroundColor(Color.white.opacity(hoverVm.isHovered ? 0.6 : 0.25))
+                    .font(.system(size: 10.5, weight: .medium))
+            }
+            .padding(.horizontal, 14)
+            .padding(.vertical, 7.5)
+            .background(
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .fill(hoverVm.isHovered ? Color.white.opacity(0.09) : Color.clear)
+            )
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .padding(.horizontal, 6)
+        .onHover { hovering in
+            hoverVm.isHovered = hovering
+        }
+    }
+}
+
+// MARK: - Search Results View (Authentic YouTube Search Architecture)
+struct SearchResultsView: View {
+    @ObservedObject var vm: ContentViewModel
+    let onSelectVideo: (Video) -> Void
+    let onLoadMore: () -> Void
+    
+    private let filterOptions = ["Tất cả", "Video", "Shorts"]
+    
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 20) {
+                // 1. Filter Chips Bar
+                HStack(spacing: 8) {
+                    ForEach(filterOptions, id: \.self) { option in
+                        LiquidGlassCapsuleButton(
+                            action: { vm.searchFilter = option },
+                            isSelected: vm.searchFilter == option
+                        ) {
+                            Text(option)
+                                .font(.system(size: 12.5, weight: vm.searchFilter == option ? .semibold : .medium))
+                                .foregroundColor(vm.searchFilter == option ? Color.black.opacity(0.88) : Color.white.opacity(0.82))
+                                .padding(.horizontal, 14)
+                                .frame(height: 28)
+                        }
+                    }
+                    
+                    Spacer()
+                    
+                    if !vm.searchResults.isEmpty {
+                        Text("\(vm.searchVideos.count) video • \(vm.searchShorts.count) Shorts")
+                            .font(.system(size: 12, weight: .medium))
+                            .foregroundColor(Color.white.opacity(0.55))
+                    }
+                }
+                .padding(.horizontal, 28)
+                .padding(.top, 14)
+                
+                if vm.isLoadingSearch && vm.searchResults.isEmpty {
+                    VStack(spacing: 14) {
+                        ProgressView()
+                            .controlSize(.large)
+                        Text("Đang tìm kiếm video và kênh...")
+                            .font(.system(size: 13))
+                            .foregroundColor(Color(white: 0.6))
+                    }
+                    .frame(maxWidth: .infinity, minHeight: 350)
+                } else if vm.searchResults.isEmpty && vm.searchChannel == nil {
+                    VStack(spacing: 14) {
+                        Image(systemName: "magnifyingglass")
+                            .font(.system(size: 38))
+                            .foregroundColor(Color(white: 0.4))
+                        Text("Không tìm thấy kết quả nào cho \"\(vm.searchQuery)\"")
+                            .font(.system(size: 14.5, weight: .medium))
+                            .foregroundColor(Color(white: 0.75))
+                        Text("Hãy thử kiểm tra lại chính tả hoặc tìm kiếm từ khoá khác")
+                            .font(.system(size: 12))
+                            .foregroundColor(Color(white: 0.5))
+                    }
+                    .frame(maxWidth: .infinity, minHeight: 350)
+                } else {
+                    // 2. Channel Card (if found and in "Tất cả" tab)
+                    if (vm.searchFilter == "Tất cả" || vm.searchFilter == "Video"), let channel = vm.searchChannel {
+                        SearchChannelCardView(channel: channel)
+                            .padding(.horizontal, 28)
+                            .padding(.vertical, 6)
+                        
+                        Divider()
+                            .background(Color.white.opacity(0.08))
+                            .padding(.horizontal, 28)
+                    }
+                    
+                    // 3. Content Display based on Filter
+                    if vm.searchFilter == "Shorts" {
+                        // Shorts Grid View
+                        LazyVGrid(columns: [GridItem(.adaptive(minimum: 160, maximum: 200), spacing: 16)], spacing: 22) {
+                            ForEach(Array(vm.searchShorts.enumerated()), id: \.element.id) { index, short in
+                                SearchShortCardView(video: short) {
+                                    onSelectVideo(short)
+                                }
+                                .onAppear {
+                                    if index >= vm.searchShorts.count - 4 {
+                                        onLoadMore()
+                                    }
+                                }
+                            }
+                        }
+                        .padding(.horizontal, 28)
+                    } else if vm.searchFilter == "Video" {
+                        // Videos List View
+                        LazyVStack(spacing: 16) {
+                            ForEach(Array(vm.searchVideos.enumerated()), id: \.element.id) { index, video in
+                                SearchVideoRowView(video: video) {
+                                    onSelectVideo(video)
+                                }
+                                .onAppear {
+                                    if index >= vm.searchVideos.count - 4 {
+                                        onLoadMore()
+                                    }
+                                }
+                            }
+                        }
+                        .padding(.horizontal, 28)
+                    } else {
+                        // "Tất cả" Tab: Integrated View (Videos list + Shorts shelf in between)
+                        VStack(alignment: .leading, spacing: 20) {
+                            let topVideos = Array(vm.searchVideos.prefix(3))
+                            let remainingVideos = Array(vm.searchVideos.dropFirst(3))
+                            
+                            LazyVStack(spacing: 16) {
+                                ForEach(topVideos) { video in
+                                    SearchVideoRowView(video: video) {
+                                        onSelectVideo(video)
+                                    }
+                                }
+                            }
+                            
+                            // Shorts Shelf (if available)
+                            if !vm.searchShorts.isEmpty {
+                                SearchShortsShelfView(
+                                    title: "Shorts",
+                                    shorts: Array(vm.searchShorts.prefix(14)),
+                                    onSelectShort: { onSelectVideo($0) }
+                                )
+                            }
+                            
+                            // Remaining videos
+                            LazyVStack(spacing: 16) {
+                                ForEach(Array(remainingVideos.enumerated()), id: \.element.id) { index, video in
+                                    SearchVideoRowView(video: video) {
+                                        onSelectVideo(video)
+                                    }
+                                    .onAppear {
+                                        if index >= remainingVideos.count - 4 {
+                                            onLoadMore()
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        .padding(.horizontal, 28)
+                    }
+                    
+                    // 4. Loading More Footer / End of results
+                    if vm.isLoadingMoreSearch {
+                        HStack(spacing: 10) {
+                            ProgressView()
+                                .controlSize(.small)
+                            Text("Đang tải thêm kết quả từ YouTube...")
+                                .font(.system(size: 12.5))
+                                .foregroundColor(Color.white.opacity(0.65))
+                        }
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 24)
+                    } else if !vm.canLoadMoreSearch && !vm.searchResults.isEmpty {
+                        HStack(spacing: 8) {
+                            Image(systemName: "checkmark.circle.fill")
+                                .foregroundColor(Color.white.opacity(0.35))
+                                .font(.system(size: 12))
+                            Text("Đã hiển thị hết kết quả tìm kiếm")
+                                .font(.system(size: 12))
+                                .foregroundColor(Color.white.opacity(0.45))
+                        }
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 24)
+                    }
+                }
+            }
+            .padding(.bottom, 40)
+        }
+    }
+}
+
+// MARK: - Search Channel Card View (Top of Search Results)
+struct SearchChannelCardView: View {
+    let channel: ChannelInfo
+    @StateObject private var hoverVm = LiquidHoverViewModel()
+    
+    var body: some View {
+        HStack(spacing: 24) {
+            // Large Circular Avatar
+            AsyncImage(url: URL(string: channel.avatarUrl)) { phase in
+                if let img = phase.image {
+                    img.resizable().scaledToFill()
+                } else {
+                    Circle().fill(Color(white: 0.18))
+                }
+            }
+            .frame(width: 82, height: 82)
+            .clipShape(Circle())
+            .overlay(Circle().strokeBorder(Color.white.opacity(0.18), lineWidth: 1.5))
+            .shadow(color: Color.black.opacity(0.35), radius: 8, x: 0, y: 4)
+            
+            // Channel Info
+            VStack(alignment: .leading, spacing: 4) {
+                HStack(spacing: 6) {
+                    Text(channel.title)
+                        .font(.system(size: 18, weight: .bold))
+                        .foregroundColor(.white)
+                    
+                    Image(systemName: "checkmark.seal.fill")
+                        .foregroundColor(Color.white.opacity(0.7))
+                        .font(.system(size: 13))
+                }
+                
+                HStack(spacing: 8) {
+                    if let handle = channel.handle, !handle.isEmpty {
+                        Text(handle)
+                            .font(.system(size: 13, weight: .medium))
+                            .foregroundColor(Color.white.opacity(0.68))
+                    }
+                    if let subs = channel.subscriberCount, !subs.isEmpty {
+                        Text("•")
+                            .foregroundColor(Color.white.opacity(0.4))
+                        Text(subs)
+                            .font(.system(size: 13))
+                            .foregroundColor(Color.white.opacity(0.68))
+                    }
+                }
+                
+                if let desc = channel.description, !desc.isEmpty {
+                    Text(desc)
+                        .font(.system(size: 12))
+                        .foregroundColor(Color.white.opacity(0.55))
+                        .lineLimit(2)
+                        .padding(.top, 2)
+                }
+            }
+            
+            Spacer()
+            
+            // Channel Badge / Indicator
+            HStack(spacing: 6) {
+                Image(systemName: "play.tv.fill")
+                    .font(.system(size: 12, weight: .semibold))
+                Text("Kênh YouTube")
+                    .font(.system(size: 12.5, weight: .semibold))
+            }
+            .foregroundColor(.white)
+            .padding(.horizontal, 16)
+            .padding(.vertical, 8)
+            .background(
+                RoundedRectangle(cornerRadius: 18, style: .continuous)
+                    .fill(Color.white.opacity(hoverVm.isHovered ? 0.18 : 0.12))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 18, style: .continuous)
+                            .strokeBorder(Color.white.opacity(0.2), lineWidth: 1)
+                    )
+            )
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 14)
+        .background(
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .fill(Color.white.opacity(hoverVm.isHovered ? 0.04 : 0.015))
+        )
+        .onHover { hovering in
+            hoverVm.isHovered = hovering
+        }
+    }
+}
+
+// MARK: - Search Video Row View (Authentic Horizontal Search Card)
+struct SearchVideoRowView: View {
+    let video: Video
+    let onSelect: () -> Void
+    @StateObject private var hoverVm = LiquidHoverViewModel()
+    
+    var body: some View {
+        Button(action: onSelect) {
+            HStack(alignment: .top, spacing: 18) {
+                // Left: 16:9 Thumbnail
+                ZStack(alignment: .bottomTrailing) {
+                    AsyncImage(url: URL(string: video.thumbnail)) { phase in
+                        if let img = phase.image {
+                            img.resizable().scaledToFill()
+                        } else {
+                            Color(white: 0.12)
+                        }
+                    }
+                    .frame(width: 320, height: 180)
+                    .clipped()
+                    .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 10, style: .continuous)
+                            .strokeBorder(
+                                LinearGradient(
+                                    colors: [
+                                        Color.white.opacity(hoverVm.isHovered ? 0.28 : 0.12),
+                                        Color.white.opacity(hoverVm.isHovered ? 0.10 : 0.02)
+                                    ],
+                                    startPoint: .top,
+                                    endPoint: .bottom
+                                ),
+                                lineWidth: 1
+                            )
+                    )
+                    
+                    // Duration badge
+                    Text(video.durationFormatted)
+                        .font(.system(size: 11.5, weight: .semibold, design: .rounded))
+                        .foregroundColor(.white)
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 3)
+                        .background(Color.black.opacity(0.85))
+                        .clipShape(RoundedRectangle(cornerRadius: 5, style: .continuous))
+                        .padding(8)
+                }
+                
+                // Right: Details
+                VStack(alignment: .leading, spacing: 6) {
+                    // Title
+                    Text(video.title)
+                        .font(.system(size: 15.5, weight: .semibold))
+                        .foregroundColor(.white)
+                        .lineLimit(2)
+                        .multilineTextAlignment(.leading)
+                        .lineSpacing(3)
+                    
+                    // Metadata: Views & Date
+                    Text(video.metadataFormatted)
+                        .font(.system(size: 12))
+                        .foregroundColor(Color.white.opacity(0.6))
+                    
+                    // Channel
+                    HStack(spacing: 8) {
+                        if let avatar = video.channelAvatarUrl, !avatar.isEmpty {
+                            AsyncImage(url: URL(string: avatar)) { phase in
+                                if let img = phase.image {
+                                    img.resizable().scaledToFill()
+                                } else {
+                                    Circle().fill(Color(white: 0.2))
+                                }
+                            }
+                            .frame(width: 24, height: 24)
+                            .clipShape(Circle())
+                        } else {
+                            Circle()
+                                .fill(Color(white: 0.22))
+                                .frame(width: 24, height: 24)
+                                .overlay(
+                                    Text(video.uploader.prefix(1).uppercased())
+                                        .font(.system(size: 11, weight: .bold))
+                                        .foregroundColor(.white)
+                                )
+                        }
+                        
+                        Text(video.uploader)
+                            .font(.system(size: 12.5, weight: .medium))
+                            .foregroundColor(Color.white.opacity(0.82))
+                    }
+                    .padding(.vertical, 4)
+                    
+                    // Description Preview Snippet
+                    if let desc = video.description, !desc.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                        Text(desc)
+                            .font(.system(size: 12))
+                            .foregroundColor(Color.white.opacity(0.52))
+                            .lineLimit(2)
+                            .multilineTextAlignment(.leading)
+                            .lineSpacing(2)
+                    }
+                    
+                    Spacer(minLength: 0)
+                }
+                
+                Spacer(minLength: 0)
+            }
+            .padding(10)
+            .background(
+                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    .fill(hoverVm.isHovered ? Color.white.opacity(0.05) : Color.clear)
+            )
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .onHover { hovering in
+            hoverVm.isHovered = hovering
+        }
+    }
+}
+
+// MARK: - Search Shorts Shelf View (Horizontal Scrollable Shorts)
+struct SearchShortsShelfView: View {
+    let title: String
+    let shorts: [Video]
+    let onSelectShort: (Video) -> Void
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            // Header
+            HStack(spacing: 8) {
+                Image(systemName: "play.rectangle.fill")
+                    .foregroundColor(Color(red: 1.0, green: 0.1, blue: 0.1))
+                    .font(.system(size: 17, weight: .bold))
+                
+                Text(title)
+                    .font(.system(size: 18, weight: .bold))
+                    .foregroundColor(.white)
+            }
+            .padding(.top, 6)
+            
+            // Horizontal scrollable Shorts cards
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 14) {
+                    ForEach(shorts) { short in
+                        SearchShortCardView(video: short) {
+                            onSelectShort(short)
+                        }
+                    }
+                }
+                .padding(.vertical, 4)
+            }
+        }
+        .padding(.vertical, 8)
+    }
+}
+
+// MARK: - Search Short Card View (9:16 Vertical Card)
+struct SearchShortCardView: View {
+    let video: Video
+    let onSelect: () -> Void
+    @StateObject private var hoverVm = LiquidHoverViewModel()
+    
+    var body: some View {
+        Button(action: onSelect) {
+            VStack(alignment: .leading, spacing: 8) {
+                // 9:16 Vertical Thumbnail
+                ZStack(alignment: .bottomTrailing) {
+                    AsyncImage(url: URL(string: video.thumbnail)) { phase in
+                        if let img = phase.image {
+                            img.resizable().scaledToFill()
+                        } else {
+                            Color(white: 0.14)
+                        }
+                    }
+                    .frame(width: 170, height: 285)
+                    .clipped()
+                    .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 12, style: .continuous)
+                            .strokeBorder(
+                                LinearGradient(
+                                    colors: [
+                                        Color.white.opacity(hoverVm.isHovered ? 0.35 : 0.12),
+                                        Color.white.opacity(hoverVm.isHovered ? 0.12 : 0.03)
+                                    ],
+                                    startPoint: .top,
+                                    endPoint: .bottom
+                                ),
+                                lineWidth: 1.2
+                            )
+                    )
+                    
+                    // Subtle dark gradient at bottom for contrast
+                    LinearGradient(
+                        colors: [Color.clear, Color.black.opacity(0.8)],
+                        startPoint: .center,
+                        endPoint: .bottom
+                    )
+                    .frame(width: 170, height: 90)
+                    .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                    
+                    if !video.viewCountFormatted.isEmpty {
+                        Text(video.viewCountFormatted)
+                            .font(.system(size: 11, weight: .semibold))
+                            .foregroundColor(.white)
+                            .padding(8)
+                    }
+                }
+                
+                // Short Title
+                Text(video.title)
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundColor(hoverVm.isHovered ? .white : Color.white.opacity(0.9))
+                    .lineLimit(2)
+                    .frame(width: 170, alignment: .leading)
+                    .multilineTextAlignment(.leading)
+            }
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .onHover { hovering in
+            hoverVm.isHovered = hovering
+        }
     }
 }
 

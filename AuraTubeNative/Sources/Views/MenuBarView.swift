@@ -23,10 +23,10 @@ public struct MenuBarView: View {
                 Button(action: {
                     AppDelegate.showStandardAboutPanel()
                 }) {
-                    HStack(spacing: 7) {
-                        YouTubeBrandBadge(width: 22)
+                    HStack(spacing: 8) {
+                        YouTubeBrandBadge(width: 25)
                         Text("AuraTube")
-                            .font(.custom("Roboto-Bold", size: 14))
+                            .font(.custom("Roboto-Bold", size: 14.5))
                             .foregroundColor(.white)
                             .tracking(-0.3)
                     }

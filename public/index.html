@@ -118,6 +118,24 @@
         <!-- Injected via JavaScript -->
       </div>
 
+      <!-- YouTube Shorts Fullscreen Vertical Feed Container (Exact YouTube Native UX) -->
+      <div class="shorts-feed-container" id="shortsFeedContainer" style="display: none;">
+        <!-- Desktop Floating Navigation Controls -->
+        <div class="shorts-nav-controls">
+          <button class="shorts-nav-btn prev-btn" id="shortsPrevBtn" title="Short trước (Phím mũi tên Lên)">
+            <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 8l-6 6 1.41 1.41L12 10.83l4.59 4.58L18 14z"/></svg>
+          </button>
+          <button class="shorts-nav-btn next-btn" id="shortsNextBtn" title="Short tiếp theo (Phím mũi tên Xuống)">
+            <svg viewBox="0 0 24 24" fill="currentColor"><path d="M16.59 8.59L12 13.17 7.41 8.59 6 10l6 6 6-6z"/></svg>
+          </button>
+        </div>
+
+        <!-- The scrolling reel wrapper -->
+        <div class="shorts-reel" id="shortsReel">
+          <!-- Short items injected dynamically via app.js -->
+        </div>
+      </div>
+
       <!-- Watch View Overlay -->
       <div class="watch-overlay" id="watchOverlay">
         <button class="back-btn" id="backBtn">

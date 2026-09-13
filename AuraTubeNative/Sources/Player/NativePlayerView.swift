@@ -183,11 +183,10 @@ public struct NativePlayerView: NSViewRepresentable {
             context.coordinator.didClickAutoPlay = false
             context.coordinator.clickAttempts = 0
             
-            let startPos = max(0, Int(playerManager.currentTime))
-            
             if wasLoaded {
-                // Instant video switch without tearing down WKWebView DOM
-                let js = "if (typeof window.loadNewVideo === 'function') { window.loadNewVideo('\(video.id)', \(startPos)); } else { location.reload(); }"
+                // Video switch: Use loadNewVideo with startPos=0 and quality preference
+                let q = (playerManager.selectedQuality != "auto") ? playerManager.selectedQuality : "1080"
+                let js = "if (typeof window.loadNewVideo === 'function') { window.loadNewVideo('\(video.id)', 0, '\(q)'); } else { location.reload(); }"
                 nsView.evaluateJavaScript(js) { [weak nsView, weak coord = context.coordinator] _, err in
                     if err != nil {
                         guard let v = nsView else { return }
@@ -195,7 +194,9 @@ public struct NativePlayerView: NSViewRepresentable {
                         v.loadHTMLString(html, baseURL: URL(string: "https://auratube.app"))
                     }
                     if let v = nsView, let c = coord {
-                        c.ensureAutoPlay(on: v)
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) {
+                            c.ensureAutoPlay(on: v)
+                        }
                     }
                 }
             } else {
@@ -214,6 +215,8 @@ public struct NativePlayerView: NSViewRepresentable {
     
     public static func generateHTML(for video: Video, playerManager: PlayerManager) -> String {
         let startPos = max(0, Int(playerManager.currentTime))
+        let qParam = (playerManager.selectedQuality != "auto") ? "hd\(playerManager.selectedQuality)" : "hd1080"
+        let muteParam = playerManager.isMuted ? "1" : "0"
         
         return """
         <!DOCTYPE html>
@@ -232,20 +235,44 @@ public struct NativePlayerView: NSViewRepresentable {
         <body>
         <iframe 
             id="ytPlayer"
-            src="https://www.youtube.com/embed/\(video.id)?autoplay=1&mute=1&playsinline=1&controls=0&enablejsapi=1&rel=0&modestbranding=1&fs=1&origin=https://auratube.app&widget_referrer=https://auratube.app&start=\(startPos)" 
+            src="https://www.youtube.com/embed/\(video.id)?autoplay=1&mute=\(muteParam)&playsinline=1&controls=0&enablejsapi=1&rel=0&modestbranding=1&fs=1&origin=https://auratube.app&widget_referrer=https://auratube.app&start=\(startPos)&vq=\(qParam)" 
             allow="autoplay; encrypted-media; picture-in-picture; fullscreen" 
             allowfullscreen="true">
         </iframe>
         <script>
           var isPlaying = true;
           var isMuted = \(playerManager.isMuted ? "true" : "false");
+          var currentVideoId = '\(video.id)';
 
-          window.loadNewVideo = function(newId, startSec) {
+          window.loadNewVideo = function(newId, startSec, targetQuality) {
             isPlaying = true;
+            currentVideoId = newId;
+            var start = startSec || 0;
+            var q = targetQuality ? ('hd' + targetQuality) : 'hd1080';
             var ifr = document.getElementById('ytPlayer');
-            if (ifr) {
-              var newSrc = 'https://www.youtube.com/embed/' + newId + '?autoplay=1&mute=1&playsinline=1&controls=0&enablejsapi=1&rel=0&modestbranding=1&fs=1&origin=https://auratube.app&widget_referrer=https://auratube.app&start=' + (startSec || 0);
-              ifr.src = newSrc;
+            
+            // 1. Direct loadVideoById to active player
+            if (ifr && ifr.contentWindow) {
+              try {
+                ifr.contentWindow.postMessage(JSON.stringify({
+                  event: "command",
+                  func: "loadVideoById",
+                  args: [{
+                    videoId: newId,
+                    startSeconds: start,
+                    suggestedQuality: q
+                  }]
+                }), '*');
+                ifr.contentWindow.postMessage(JSON.stringify({event: "command", func: "unMute", args: []}), '*');
+                ifr.contentWindow.postMessage(JSON.stringify({event: "command", func: "setVolume", args: [100]}), '*');
+                ifr.contentWindow.postMessage(JSON.stringify({event: "command", func: "playVideo", args: []}), '*');
+              } catch(e) {}
+            }
+            
+            // 2. Fallback update if iframe needs URL redirection
+            var targetSrc = 'https://www.youtube.com/embed/' + newId + '?autoplay=1&mute=0&playsinline=1&controls=0&enablejsapi=1&rel=0&modestbranding=1&fs=1&origin=https://auratube.app&widget_referrer=https://auratube.app&start=' + start + '&vq=' + q;
+            if (!ifr.src || ifr.src.indexOf(newId) === -1) {
+              ifr.src = targetSrc;
             }
             postStateSync();
           };
@@ -255,6 +282,7 @@ public struct NativePlayerView: NSViewRepresentable {
               if (window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.playerBridge) {
                 window.webkit.messageHandlers.playerBridge.postMessage({
                   type: 'stateChange',
+                  videoId: currentVideoId,
                   isPlaying: isPlaying
                 });
               }
@@ -698,9 +726,21 @@ public struct NativePlayerView: NSViewRepresentable {
                 
                 function emitDirectSync() {
                     try {
+                        var vidId = '';
+                        var player = document.getElementById('movie_player') || document.querySelector('.html5-video-player');
+                        if (player && typeof player.getVideoData === 'function') {
+                            var vd = player.getVideoData();
+                            if (vd && vd.video_id) vidId = vd.video_id;
+                        }
+                        if (!vidId) {
+                            var parts = (location.pathname || '').split('/');
+                            var embIdx = parts.indexOf('embed');
+                            if (embIdx !== -1 && parts[embIdx + 1]) vidId = parts[embIdx + 1].slice(0, 11);
+                        }
                         if (window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.playerBridge) {
                             window.webkit.messageHandlers.playerBridge.postMessage({
                                 type: 'directSync',
+                                videoId: vidId,
                                 currentTime: v.currentTime,
                                 duration: v.duration || 0,
                                 isPlaying: !v.paused && !v.ended
@@ -710,9 +750,15 @@ public struct NativePlayerView: NSViewRepresentable {
                 }
                 
                 v.addEventListener('timeupdate', emitDirectSync);
-                v.addEventListener('play', emitDirectSync);
+                v.addEventListener('play', function() {
+                    emitDirectSync();
+                    autoStartPlayback();
+                });
                 v.addEventListener('pause', emitDirectSync);
-                v.addEventListener('playing', emitDirectSync);
+                v.addEventListener('playing', function() {
+                    emitDirectSync();
+                    autoStartPlayback();
+                });
                 v.addEventListener('ended', function() {
                     emitDirectSync();
                     try {
@@ -841,83 +887,130 @@ public struct NativePlayerView: NSViewRepresentable {
                     default: ytQuality = 'default'; break;
                 }
 
-                // 1. Direct player methods
+                // 1. Save quality in localStorage so YouTube preserves the user's resolution
+                try {
+                    if (targetQuality !== 'auto') {
+                        localStorage.setItem('yt-player-quality', JSON.stringify({
+                            data: ytQuality,
+                            creation: Date.now()
+                        }));
+                    } else {
+                        localStorage.removeItem('yt-player-quality');
+                    }
+                } catch(e) {}
+
+                // 2. Direct player methods with exact matched quality from getAvailableQualityData
+                var targetFormatQuality = ytQuality;
+                if (typeof p.getAvailableQualityData === 'function') {
+                    var qData = p.getAvailableQualityData() || [];
+                    for (var i = 0; i < qData.length; i++) {
+                        var item = qData[i];
+                        if (targetQuality === 'auto') {
+                            if (item.quality === 'auto' || item.quality === 'default') {
+                                targetFormatQuality = item.quality;
+                                break;
+                            }
+                        } else {
+                            var qLbl = (item.qualityLabel || '').toLowerCase();
+                            if (qLbl.startsWith(targetQuality) || qLbl.includes(targetQuality + 'p') || item.quality === ytQuality) {
+                                targetFormatQuality = item.quality;
+                                break;
+                            }
+                        }
+                    }
+                }
+
                 if (typeof p.setPlaybackQualityRange === 'function') {
-                    p.setPlaybackQualityRange(ytQuality, ytQuality);
+                    p.setPlaybackQualityRange(targetFormatQuality, targetFormatQuality);
                 }
                 if (typeof p.setPlaybackQuality === 'function') {
-                    p.setPlaybackQuality(ytQuality);
+                    p.setPlaybackQuality(targetFormatQuality);
                 }
 
-                // 2. Settings menu automated click
+                // 3. Seamlessly switch video stream to target resolution using suggestedQuality
+                if (targetQuality !== 'auto' && typeof p.loadVideoById === 'function') {
+                    var v = document.querySelector('video');
+                    var curTime = (v && v.currentTime) ? v.currentTime : 0;
+                    var vidData = (typeof p.getVideoData === 'function') ? p.getVideoData() : null;
+                    var currentVid = (vidData && vidData.video_id) ? vidData.video_id : '';
+                    if (currentVid && v && !v.paused && curTime > 0.05) {
+                        p.loadVideoById({
+                            videoId: currentVid,
+                            startSeconds: curTime,
+                            suggestedQuality: targetFormatQuality
+                        });
+                        p.unMute();
+                        p.setVolume(100);
+                        p.playVideo();
+                    }
+                }
+
+                // 4. Fallback settings menu click if present
                 var settingsBtn = p.querySelector('.ytp-settings-button');
-                if (!settingsBtn) {
-                    if (retries < 6) {
-                        setTimeout(function() { forceQualityChange(targetQuality, retries + 1); }, 200);
+                if (settingsBtn) {
+                    var stealth = document.getElementById('auratube-stealth-style');
+                    if (!stealth) {
+                        stealth = document.createElement('style');
+                        stealth.id = 'auratube-stealth-style';
+                        stealth.innerHTML = '.ytp-settings-menu, .ytp-panel-popup { opacity: 0 !important; pointer-events: none !important; }';
+                        (document.head || document.documentElement).appendChild(stealth);
                     }
-                    return;
-                }
 
-                // Temporary stealth style to ensure settings menu never flashes
-                var stealth = document.getElementById('auratube-stealth-style');
-                if (!stealth) {
-                    stealth = document.createElement('style');
-                    stealth.id = 'auratube-stealth-style';
-                    stealth.innerHTML = '.ytp-settings-menu, .ytp-panel-popup { opacity: 0 !important; pointer-events: none !important; }';
-                    (document.head || document.documentElement).appendChild(stealth);
-                }
-
-                settingsBtn.click();
-                setTimeout(function() {
-                    var items = p.querySelectorAll('.ytp-menuitem');
-                    var qMenu = null;
-                    for (var i = 0; i < items.length; i++) {
-                        var t = (items[i].textContent || '').toLowerCase();
-                        if (t.includes('chất lượng') || t.includes('quality') || 
-                            t.includes('1080') || t.includes('720') || t.includes('480') ||
-                            t.includes('360') || t.includes('2160') || t.includes('1440') ||
-                            t.includes('tự động') || t.includes('auto')) {
-                            qMenu = items[i];
-                            break;
+                    settingsBtn.click();
+                    setTimeout(function() {
+                        var items = p.querySelectorAll('.ytp-menuitem');
+                        var qMenu = null;
+                        for (var i = 0; i < items.length; i++) {
+                            var t = (items[i].textContent || '').toLowerCase();
+                            if (t.includes('chất lượng') || t.includes('quality') || 
+                                t.includes('1080') || t.includes('720') || t.includes('480') ||
+                                t.includes('360') || t.includes('2160') || t.includes('1440') ||
+                                t.includes('tự động') || t.includes('auto')) {
+                                qMenu = items[i];
+                                break;
+                            }
                         }
-                    }
-                    if (qMenu) {
-                        qMenu.click();
-                        setTimeout(function() {
-                            var subItems = p.querySelectorAll('.ytp-menuitem');
-                            var matched = null;
-                            for (var j = 0; j < subItems.length; j++) {
-                                var text = (subItems[j].textContent || '').toLowerCase();
-                                if (targetQuality === 'auto') {
-                                    if (text.includes('tự động') || text.includes('auto')) {
-                                        matched = subItems[j];
-                                        break;
-                                    }
-                                } else {
-                                    if (text.includes(targetQuality + 'p') || text.startsWith(targetQuality) || text.includes(targetQuality)) {
-                                        matched = subItems[j];
-                                        break;
-                                    }
-                                }
-                            }
-                            if (matched) {
-                                matched.click();
-                            }
-                            settingsBtn.click();
+                        if (qMenu) {
+                            qMenu.click();
                             setTimeout(function() {
-                                if (stealth && stealth.parentNode) {
-                                    stealth.parentNode.removeChild(stealth);
+                                var subItems = p.querySelectorAll('.ytp-menuitem');
+                                var matched = null;
+                                for (var j = 0; j < subItems.length; j++) {
+                                    var text = (subItems[j].textContent || '').toLowerCase();
+                                    if (targetQuality === 'auto') {
+                                        if (text.includes('tự động') || text.includes('auto')) {
+                                            matched = subItems[j];
+                                            break;
+                                        }
+                                    } else {
+                                        if (text.includes(targetQuality + 'p') || text.startsWith(targetQuality) || text.includes(targetQuality)) {
+                                            matched = subItems[j];
+                                            break;
+                                        }
+                                    }
                                 }
-                                checkAndReportQualities();
+                                if (matched) {
+                                    matched.click();
+                                }
+                                settingsBtn.click();
+                                setTimeout(function() {
+                                    if (stealth && stealth.parentNode) {
+                                        stealth.parentNode.removeChild(stealth);
+                                    }
+                                    checkAndReportQualities();
+                                }, 50);
                             }, 50);
-                        }, 50);
-                    } else {
-                        settingsBtn.click();
-                        if (stealth && stealth.parentNode) {
-                            stealth.parentNode.removeChild(stealth);
+                        } else {
+                            settingsBtn.click();
+                            if (stealth && stealth.parentNode) {
+                                stealth.parentNode.removeChild(stealth);
+                            }
                         }
-                    }
-                }, 50);
+                    }, 50);
+                }
+
+                setTimeout(checkAndReportQualities, 300);
+                setTimeout(checkAndReportQualities, 1000);
             } catch(e) {}
         }
 
@@ -950,7 +1043,7 @@ public struct NativePlayerView: NSViewRepresentable {
         
         func ensureAutoPlay(on view: WKWebView) {
             guard !isActuallyPlaying else { return }
-            guard clickAttempts < 10 else { return }
+            guard clickAttempts < 20 else { return }
             clickAttempts += 1
             
             // 1. Direct JavaScript commands to player and iframe
@@ -959,10 +1052,8 @@ public struct NativePlayerView: NSViewRepresentable {
                 var ifr = document.querySelector('iframe');
                 if (ifr && ifr.contentWindow) {
                     ifr.contentWindow.postMessage(JSON.stringify({event: "command", func: "playVideo", args: []}), '*');
-                    if (!\(PlayerManager.shared.isMuted)) {
-                        ifr.contentWindow.postMessage(JSON.stringify({event: "command", func: "unMute", args: []}), '*');
-                        ifr.contentWindow.postMessage(JSON.stringify({event: "command", func: "setVolume", args: [100]}), '*');
-                    }
+                    ifr.contentWindow.postMessage(JSON.stringify({event: "command", func: "unMute", args: []}), '*');
+                    ifr.contentWindow.postMessage(JSON.stringify({event: "command", func: "setVolume", args: [100]}), '*');
                     ifr.contentWindow.postMessage(JSON.stringify({event: "listening"}), '*');
                 }
             })();
@@ -1000,10 +1091,10 @@ public struct NativePlayerView: NSViewRepresentable {
                 }
             }
             
-            // Retry after 0.3s until isActuallyPlaying becomes true
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { [weak self, weak view] in
+            // Retry after 0.25s until isActuallyPlaying becomes true
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) { [weak self, weak view] in
                 guard let self = self, let v = view else { return }
-                if !self.isActuallyPlaying && self.clickAttempts < 10 {
+                if !self.isActuallyPlaying && self.clickAttempts < 20 {
                     self.ensureAutoPlay(on: v)
                 }
             }
@@ -1039,6 +1130,7 @@ public struct NativePlayerView: NSViewRepresentable {
                 }
                 
                 if let type = body["type"] as? String, type == "playerReady" {
+                    self.clickAttempts = 0
                     if let wv = self.targetWebView {
                         self.ensureAutoPlay(on: wv)
                     }
@@ -1120,19 +1212,28 @@ public struct NativePlayerView: NSViewRepresentable {
                 }
                 
                 if let type = body["type"] as? String, type == "stateChange" {
+                    let msgVideoId = body["videoId"] as? String
+                    if let msgVid = msgVideoId, !msgVid.isEmpty, let currentVid = PlayerManager.shared.currentVideo?.id, msgVid != currentVid {
+                        return
+                    }
                     if let playing = body["isPlaying"] as? Bool {
                         PlayerManager.shared.updatePlaybackSync(
                             currentTime: PlayerManager.shared.currentTime,
                             duration: PlayerManager.shared.duration,
                             isPlaying: playing,
                             isMuted: nil,
-                            source: "main"
+                            source: "main",
+                            videoId: msgVideoId
                         )
                     }
                     return
                 }
                 
                 if let type = body["type"] as? String, type == "directSync" {
+                    let msgVideoId = body["videoId"] as? String
+                    if let msgVid = msgVideoId, !msgVid.isEmpty, let currentVid = PlayerManager.shared.currentVideo?.id, msgVid != currentVid {
+                        return
+                    }
                     guard let currentTime = body["currentTime"] as? Double, !currentTime.isNaN else { return }
                     let duration = body["duration"] as? Double ?? PlayerManager.shared.duration
                     let isPlaying = body["isPlaying"] as? Bool
@@ -1147,13 +1248,18 @@ public struct NativePlayerView: NSViewRepresentable {
                         duration: duration,
                         isPlaying: isPlaying,
                         isMuted: nil,
-                        source: "main"
+                        source: "main",
+                        videoId: msgVideoId
                     )
                     return
                 }
                 
                 // Fallback: Only accept explicit currentTime if it is a valid number
                 if let cur = body["currentTime"] as? Double, !cur.isNaN {
+                    let msgVideoId = body["videoId"] as? String
+                    if let msgVid = msgVideoId, !msgVid.isEmpty, let currentVid = PlayerManager.shared.currentVideo?.id, msgVid != currentVid {
+                        return
+                    }
                     let duration = body["duration"] as? Double ?? PlayerManager.shared.duration
                     let isPlaying = body["isPlaying"] as? Bool
                     PlayerManager.shared.updatePlaybackSync(
@@ -1161,7 +1267,8 @@ public struct NativePlayerView: NSViewRepresentable {
                         duration: duration,
                         isPlaying: isPlaying,
                         isMuted: nil,
-                        source: "main"
+                        source: "main",
+                        videoId: msgVideoId
                     )
                 }
             }

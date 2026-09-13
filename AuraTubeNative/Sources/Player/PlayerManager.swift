@@ -252,7 +252,10 @@ public final class PlayerManager: ObservableObject {
         }
     }
     
-    public func updatePlaybackSync(currentTime: Double, duration: Double, isPlaying: Bool?, isMuted: Bool?, source: String = "main") {
+    public func updatePlaybackSync(currentTime: Double, duration: Double, isPlaying: Bool?, isMuted: Bool?, source: String = "main", videoId: String? = nil) {
+        if let vid = videoId, !vid.isEmpty, let currentId = currentVideo?.id, vid != currentId {
+            return
+        }
         let now = ProcessInfo.processInfo.systemUptime
         
         // 1. Seeking lock: prevent stale pre-seek time updates from snapping back the timeline
@@ -299,9 +302,9 @@ public final class PlayerManager: ObservableObject {
                 }
                 
                 let now = ProcessInfo.processInfo.systemUptime
-                // Fast convergence phase for 2.5s post-seek: sync every 150ms to lockstep eliminate any ms drift!
+                // Fast convergence phase for 2.5s post-seek: sync every 200ms; regular playback sync every 500ms
                 let isPostSeekConvergence = (now - lastSeekTimestamp < 2.5)
-                let syncInterval = isPostSeekConvergence ? 0.15 : 0.8
+                let syncInterval = isPostSeekConvergence ? 0.20 : 0.50
                 
                 if hasActiveMainPlayer && (now - lastMiniSyncUptime >= syncInterval) {
                     lastMiniSyncUptime = now
@@ -315,11 +318,7 @@ public final class PlayerManager: ObservableObject {
                 if !hasActiveMainPlayer {
                     self.currentTime = currentTime
                 } else {
-                    // Main player is active: only accept mini time if main player is NOT playing
-                    // and mini time jumped by more than 3s (e.g. user dragged mini slider)
-                    if !self.isPlaying && abs(self.currentTime - currentTime) > 3.0 {
-                        self.currentTime = currentTime
-                    }
+                    // Main player is active: mini player is strictly a visual follower, ignore time updates
                 }
             }
         }
@@ -346,17 +345,8 @@ public final class PlayerManager: ObservableObject {
                     if playing != self.isPlaying {
                         self.isPlaying = playing
                     }
-                } else {
-                    // When main player IS active:
-                    // If main player is playing, but mini reports false (e.g. buffering/unstarted),
-                    // NEVER allow mini to pause the main player!
-                    // Instead, tell mini player to catch up and play!
-                    if self.isPlaying && !playing {
-                        for observer in playPauseObservers.values {
-                            observer(true)
-                        }
-                    }
                 }
+                // When main player IS active, mini player is a passive follower
             }
         }
         

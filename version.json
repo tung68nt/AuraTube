@@ -1,10 +1,10 @@
 {
-  "version": "2.0.5",
-  "build": 6,
-  "title": "AuraTube v2.0.5 (Nền Đặc Chuẩn macOS, Tối Ưu Tương Phản & Tinh Gọn Sidebar)",
-  "releaseNotes": "• Khắc phục hoàn toàn lỗi xuyên thấu cửa sổ: Chuyển toàn bộ nền ứng dụng và header sang chế độ nền đặc (Opaque Canvas) chuẩn macOS Dark Mode, ngăn chặn triệt để hiện tượng ứng dụng nền (trình duyệt, email, desktop) bị nhìn xuyên qua thanh điều hướng.\n• Tối ưu tương phản thanh bên (Sidebar): Đổi icon mục đang chọn sang màu trắng sáng độ tương phản cao, dễ quan sát trên mọi nền màn hình.\n• Cân đối và mở rộng kích thước nút: Nút điều hướng được mở rộng với padding và spacing thoáng đãng (~44pt), bo góc mềm mại, tạo cảm giác bấm đầm tay và tự nhiên.\n• Tinh giản danh mục điều hướng: Loại bỏ các tiêu đề phân mục thừa (\"KHÁM PHÁ\" / \"THƯ VIỆN\"), giữ giao diện 4 nút tối giản, hiện đại và chuẩn Apple HIG.\n• Cải tiến lệnh phát/tạm dừng: Tối ưu đồng bộ phát và tạm dừng video tức thì từ cả cửa sổ chính và Mini Player.",
-  "downloadUrl": "https://github.com/tung68nt/AuraTube/releases/download/v2.0.5/AuraTube-v2.0.5.dmg",
-  "publishedAt": "2026-09-09",
+  "version": "2.0.6",
+  "build": 7,
+  "title": "AuraTube v2.0.6 (Vá Lỗi Chuyển Video Autoplay, Kẹt Timeline & Chuẩn Hóa Độ Phân Giải 1080p/2K)",
+  "releaseNotes": "• Sửa lỗi chuyển video không Autoplay: Video mới tự động phát ngay lập tức khi chuyển bài, loại bỏ hiện tượng bị đứng ở thumbnail.\n• Khắc phục kẹt timeline: Không còn bị gián đoạn hay nhảy mốc thời gian của video cũ khi chọn video mới. Timeline luôn bắt đầu từ 0:00.\n• Khắc phục lỗi tự động tắt tiếng (Auto Muted): Đảm bảo âm thanh phát rõ ràng ngay khi video bắt đầu mà không cần bấm unmute thủ công.\n• Chuẩn hóa độ phân giải HD/2K: Gỡ bỏ việc ép chất lượng thấp, kích hoạt chuyển đổi tức thì giữa các mức chất lượng 1080p, 1440p (2K), 2160p (4K) và lưu cấu hình vĩnh viễn.",
+  "downloadUrl": "https://github.com/tung68nt/AuraTube/releases/download/v2.0.6/AuraTube-v2.0.6.dmg",
+  "publishedAt": "2026-09-13",
   "minOSVersion": "13.0",
-  "fileSize": "2.7 MB"
+  "fileSize": "2.9 MB"
 }
