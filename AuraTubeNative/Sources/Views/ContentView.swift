@@ -1442,24 +1442,31 @@ struct SearchChannelCardView: View {
             
             Spacer()
             
-            // Channel Badge / Indicator
-            HStack(spacing: 6) {
-                Image(systemName: "play.tv.fill")
-                    .font(.system(size: 12, weight: .semibold))
-                Text("Kênh YouTube")
-                    .font(.system(size: 12.5, weight: .semibold))
+            // Channel Subscribe Button
+            let isSub = ChannelSubscriptionManager.shared.isSubscribed(channel.title) || ChannelSubscriptionManager.shared.isSubscribed(channel.id)
+            Button(action: {
+                ChannelSubscriptionManager.shared.toggleSubscription(
+                    title: channel.title,
+                    id: channel.id,
+                    handle: channel.handle,
+                    avatarUrl: channel.avatarUrl
+                )
+            }) {
+                HStack(spacing: 6) {
+                    Image(systemName: isSub ? "checkmark" : "bell.fill")
+                        .font(.system(size: 11.5, weight: .semibold))
+                    Text(isSub ? "Đã đăng ký" : "Đăng ký")
+                        .font(.system(size: 12.5, weight: .semibold))
+                }
+                .foregroundColor(isSub ? Color.white.opacity(0.85) : Color.black)
+                .padding(.horizontal, 16)
+                .padding(.vertical, 8)
+                .background(
+                    Capsule()
+                        .fill(isSub ? Color.white.opacity(0.20) : Color.white)
+                )
             }
-            .foregroundColor(.white)
-            .padding(.horizontal, 16)
-            .padding(.vertical, 8)
-            .background(
-                RoundedRectangle(cornerRadius: 18, style: .continuous)
-                    .fill(Color.white.opacity(hoverVm.isHovered ? 0.18 : 0.12))
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 18, style: .continuous)
-                            .strokeBorder(Color.white.opacity(0.2), lineWidth: 1)
-                    )
-            )
+            .buttonStyle(.plain)
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 14)

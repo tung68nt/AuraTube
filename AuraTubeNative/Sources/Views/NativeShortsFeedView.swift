@@ -113,6 +113,21 @@ final class NativeShortsViewModel: ObservableObject {
         guard currentIndex >= 0 && currentIndex < shorts.count else { return }
         let current = shorts[currentIndex]
         playShort(current)
+        
+        let targetId = current.id
+        let targetIdx = currentIndex
+        if current.uploader == "YouTube Shorts" || current.uploader == "YouTube Creator" || current.uploader.isEmpty {
+            Task {
+                if let realAuthor = await YTDLPService.shared.fetchOEmbedAuthor(videoId: targetId) {
+                    if targetIdx < self.shorts.count && self.shorts[targetIdx].id == targetId {
+                        self.shorts[targetIdx].uploader = realAuthor
+                    }
+                    if PlayerManager.shared.currentVideo?.id == targetId {
+                        PlayerManager.shared.currentVideo?.uploader = realAuthor
+                    }
+                }
+            }
+        }
     }
     
     private func playShort(_ video: Video) {
@@ -193,6 +208,7 @@ public struct NativeShortsFeedView: View {
     @Binding var selectedShort: Video?
     var onSelectVideo: (Video) -> Void
     @StateObject private var vm = NativeShortsViewModel()
+    @ObservedObject private var subManager = ChannelSubscriptionManager.shared
     @ObservedObject private var playerManager = PlayerManager.shared
     
     public init(selectedShort: Binding<Video?> = .constant(nil), onSelectVideo: @escaping (Video) -> Void) {
@@ -267,6 +283,16 @@ public struct NativeShortsFeedView: View {
                             .frame(width: 380, height: 675)
                             
                             // Bottom Overlay Metadata
+                            let uploaderDisplay: String = {
+                                if let pCur = playerManager.currentVideo, pCur.id == currentShort.id, !pCur.uploader.isEmpty, pCur.uploader != "YouTube Shorts", pCur.uploader != "YouTube Creator" {
+                                    return pCur.uploader
+                                }
+                                if !currentShort.uploader.isEmpty, currentShort.uploader != "YouTube Shorts", currentShort.uploader != "YouTube Creator" {
+                                    return currentShort.uploader
+                                }
+                                return "Kênh Shorts"
+                            }()
+                            
                             VStack(alignment: .leading, spacing: 10) {
                                 // Channel Info Row
                                 HStack(spacing: 10) {
@@ -274,36 +300,45 @@ public struct NativeShortsFeedView: View {
                                         .fill(LinearGradient(colors: [Color.red.opacity(0.8), Color.purple.opacity(0.8)], startPoint: .topLeading, endPoint: .bottomTrailing))
                                         .frame(width: 34, height: 34)
                                         .overlay(
-                                            Text(String(currentShort.uploader.prefix(1)).uppercased())
+                                            Text(String(uploaderDisplay.prefix(1)).uppercased())
                                                 .font(.system(size: 13, weight: .bold))
                                                 .foregroundColor(.white)
                                         )
                                     
-                                    Text(currentShort.uploader)
+                                    Text(uploaderDisplay)
                                         .font(.system(size: 14, weight: .semibold))
                                         .foregroundColor(.white)
                                         .lineLimit(1)
                                     
                                     Spacer()
                                     
-                                    // Subscribe button
-                                    let isSub = vm.subscribedChannels.contains(currentShort.uploader)
+                                    // Subscribe button (saved locally without login)
+                                    let isSub = subManager.isSubscribed(uploaderDisplay)
                                     Button(action: {
+                                        subManager.toggleSubscription(
+                                            title: uploaderDisplay,
+                                            id: currentShort.uploaderId,
+                                            avatarUrl: currentShort.channelAvatarUrl
+                                        )
                                         if isSub {
-                                            vm.subscribedChannels.remove(currentShort.uploader)
-                                            vm.showToast("Đã hủy đăng ký kênh: \(currentShort.uploader)")
+                                            vm.showToast("Đã hủy lưu kênh: \(uploaderDisplay)")
                                         } else {
-                                            vm.subscribedChannels.insert(currentShort.uploader)
-                                            vm.showToast("🔔 Đã đăng ký kênh: \(currentShort.uploader)")
+                                            vm.showToast("🔔 Đã lưu kênh: \(uploaderDisplay)")
                                         }
                                     }) {
-                                        Text(isSub ? "Đã đăng ký" : "Đăng ký")
-                                            .font(.system(size: 12, weight: .semibold))
-                                            .foregroundColor(isSub ? .white : .black)
-                                            .padding(.horizontal, 12)
-                                            .padding(.vertical, 5)
-                                            .background(isSub ? Color.white.opacity(0.25) : Color.white)
-                                            .clipShape(Capsule())
+                                        HStack(spacing: 4) {
+                                            if isSub {
+                                                Image(systemName: "checkmark")
+                                                    .font(.system(size: 10, weight: .bold))
+                                            }
+                                            Text(isSub ? "Đã đăng ký" : "Đăng ký")
+                                                .font(.system(size: 12, weight: .semibold))
+                                        }
+                                        .foregroundColor(isSub ? .white : .black)
+                                        .padding(.horizontal, 12)
+                                        .padding(.vertical, 5)
+                                        .background(isSub ? Color.white.opacity(0.25) : Color.white)
+                                        .clipShape(Capsule())
                                     }
                                     .buttonStyle(.plain)
                                 }
@@ -319,7 +354,7 @@ public struct NativeShortsFeedView: View {
                                 HStack(spacing: 6) {
                                     Image(systemName: "music.note")
                                         .font(.system(size: 11))
-                                    Text("Âm thanh gốc - \(currentShort.uploader)")
+                                    Text("Âm thanh gốc - \(uploaderDisplay)")
                                         .font(.system(size: 11.5))
                                         .lineLimit(1)
                                 }

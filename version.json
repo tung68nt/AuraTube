@@ -1,9 +1,9 @@
 {
-  "version": "2.0.8",
-  "build": 9,
-  "title": "AuraTube v2.0.8 (Tối Ưu Hoá Tốc Độ Cuộn Shorts Siêu Mượt, Xoá Huy Hiệu Đếm /40)",
-  "releaseNotes": "• Loại bỏ huy hiệu đếm video: Đã xóa bỏ hoàn toàn huy hiệu /40 hiển thị trên góc video, trả lại giao diện xem Shorts tối giản, sạch sẽ và đúng chuẩn TikTok / YouTube Shorts.\n• Khắc phục triệt để giật lag khi cuộn: Duy trì WebKit player liên tục trong bộ nhớ, loại bỏ cơ chế hủy/tạo lại WebView khi chuyển bài, giúp chuyển Short mới tức thì (< 30ms) không bị tụt FPS.\n• Tối ưu cử chỉ Trackpad & Chuột: Lọc bỏ lực quán tính (momentum fling), chống nhảy cóc nhiều video khi nhấc tay, mỗi lần vuốt chuyển chính xác 1 Short cực kỳ mượt mà.",
-  "downloadUrl": "https://github.com/tung68nt/AuraTube/releases/download/v2.0.8/AuraTube-v2.0.8.dmg",
+  "version": "2.0.9",
+  "build": 10,
+  "title": "AuraTube v2.0.9 (Lưu Kênh Yêu Thích & Xem Video Đang Theo Dõi Không Cần Đăng Nhập)",
+  "releaseNotes": "• Lưu kênh cá nhân hoá không cần tài khoản: Cho phép người dùng bấm 'Đăng ký' ở bất kỳ video hay Shorts nào để lưu kênh vào danh sách theo dõi riêng tư lưu trữ trực tiếp trên máy macOS.\n• Bổ sung kệ Kênh & Tab 'Đang theo dõi' trên Trang chủ: Home hiển thị toàn bộ avatar kênh bạn đã lưu, hỗ trợ lọc video theo từng kênh hoặc xem nguồn cấp video tổng hợp mới nhất từ tất cả kênh đang theo dõi.\n• Gợi ý kênh thịnh hành & 1-click Theo dõi: Hỗ trợ người dùng mới dễ dàng theo dõi ngay các kênh yêu thích chỉ với 1 cú nhấp chuột.\n• Đồng bộ trạng thái Đăng ký tức thì: Trạng thái theo dõi được đồng bộ ngay lập tức giữa Video dài, Shorts, Trang tìm kiếm và Trang chủ.",
+  "downloadUrl": "https://github.com/tung68nt/AuraTube/releases/download/v2.0.9/AuraTube-v2.0.9.dmg",
   "publishedAt": "2026-09-13",
   "minOSVersion": "13.0",
   "fileSize": "3.0 MB"

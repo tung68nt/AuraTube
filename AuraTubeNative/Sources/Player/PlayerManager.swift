@@ -409,6 +409,12 @@ public final class PlayerManager: ObservableObject {
                 if !details.heights.isEmpty {
                     self.availableQualities = details.heights
                 }
+                if !details.author.isEmpty && details.author != "YouTube" {
+                    self.currentVideo?.uploader = details.author
+                }
+                if !details.title.isEmpty && (self.currentVideo?.title.isEmpty == true || self.currentVideo?.title == "Video YouTube") {
+                    self.currentVideo?.title = details.title
+                }
                 self.currentVideo?.description = details.desc
                 self.chapters = details.chapters
                 self.updateNowPlaying()

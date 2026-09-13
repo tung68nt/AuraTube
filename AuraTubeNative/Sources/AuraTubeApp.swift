@@ -45,10 +45,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     
     @MainActor
     public static func showStandardAboutPanel() {
+        let appVersion = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "2.0.9"
+        let buildNumber = Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? "10"
         var options: [NSApplication.AboutPanelOptionKey: Any] = [
             .applicationName: "AuraTube",
-            .applicationVersion: "2.0.6",
-            .version: "7"
+            .applicationVersion: appVersion,
+            .version: buildNumber
         ]
         let copyright = "Copyright © 2026 Tung Nguyen. All rights reserved."
         let attr = NSAttributedString(

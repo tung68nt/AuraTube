@@ -297,7 +297,8 @@ public final class YTDLPService: @unchecked Sendable {
                             views = c
                         }
                     }
-                    if title.isEmpty, let a11y = sl["accessibilityText"] as? String {
+                    let a11y = (sl["accessibilityText"] as? String) ?? ""
+                    if title.isEmpty && !a11y.isEmpty {
                         title = a11y
                     }
                     
@@ -310,11 +311,31 @@ public final class YTDLPService: @unchecked Sendable {
                         thumb = last.hasPrefix("//") ? "https:" + last : last
                     }
                     
+                    var uploader = ""
+                    let fullText = !a11y.isEmpty ? a11y : title
+                    if fullText.contains("|") {
+                        let parts = fullText.split(separator: "|").map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+                        if parts.count >= 2 {
+                            for p in parts[1...] {
+                                let clean = p.replacingOccurrences(of: "#shorts", with: "", options: .caseInsensitive)
+                                             .replacingOccurrences(of: "#short", with: "", options: .caseInsensitive)
+                                             .trimmingCharacters(in: .whitespacesAndNewlines)
+                                if !clean.isEmpty && clean.count <= 35 && !clean.lowercased().contains("lượt xem") && !clean.lowercased().contains("views") {
+                                    uploader = clean
+                                    break
+                                }
+                            }
+                        }
+                    }
+                    if uploader.isEmpty {
+                        uploader = "YouTube Creator"
+                    }
+                    
                     if !title.isEmpty {
                         results.append(Video(
                             id: videoId,
                             title: title,
-                            uploader: "YouTube Shorts",
+                            uploader: uploader,
                             duration: nil,
                             durationFormatted: "Shorts",
                             viewCount: nil,
@@ -346,11 +367,38 @@ public final class YTDLPService: @unchecked Sendable {
                     thumb = last.hasPrefix("//") ? "https:" + last : last
                 }
                 
+                var uploader = ""
+                if let sbt = rir["shortBylineText"] as? [String: Any],
+                   let runs = sbt["runs"] as? [[String: Any]],
+                   let t = runs.first?["text"] as? String, !t.isEmpty {
+                    uploader = t
+                } else if let ot = rir["ownerText"] as? [String: Any],
+                          let runs = ot["runs"] as? [[String: Any]],
+                          let t = runs.first?["text"] as? String, !t.isEmpty {
+                    uploader = t
+                } else if title.contains("|") {
+                    let parts = title.split(separator: "|").map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+                    if parts.count >= 2 {
+                        for p in parts[1...] {
+                            let clean = p.replacingOccurrences(of: "#shorts", with: "", options: .caseInsensitive)
+                                         .replacingOccurrences(of: "#short", with: "", options: .caseInsensitive)
+                                         .trimmingCharacters(in: .whitespacesAndNewlines)
+                            if !clean.isEmpty && clean.count <= 35 {
+                                uploader = clean
+                                break
+                            }
+                        }
+                    }
+                }
+                if uploader.isEmpty {
+                    uploader = "YouTube Creator"
+                }
+                
                 if !title.isEmpty {
                     results.append(Video(
                         id: videoId,
                         title: title,
-                        uploader: "YouTube Shorts",
+                        uploader: uploader,
                         duration: nil,
                         durationFormatted: "Shorts",
                         viewCount: nil,
@@ -529,6 +577,20 @@ public final class YTDLPService: @unchecked Sendable {
         } catch {
             return []
         }
+    }
+    
+    public func fetchOEmbedAuthor(videoId: String) async -> String? {
+        guard let url = URL(string: "https://www.youtube.com/oembed?url=https://www.youtube.com/watch?v=\(videoId)&format=json") else { return nil }
+        var req = URLRequest(url: url)
+        req.timeoutInterval = 2.5
+        req.setValue("Mozilla/5.0", forHTTPHeaderField: "User-Agent")
+        guard let (data, resp) = try? await URLSession.shared.data(for: req),
+              let http = resp as? HTTPURLResponse, http.statusCode == 200,
+              let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let author = json["author_name"] as? String, !author.isEmpty else {
+            return nil
+        }
+        return author
     }
     
     public func fetchVideoDetails(videoId: String) async -> (title: String, author: String, desc: String, views: Int?, heights: [Int]) {

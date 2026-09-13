@@ -16,6 +16,7 @@ public struct WatchView: View {
     var onSelectRelated: (Video) -> Void
     
     @ObservedObject private var playerManager = PlayerManager.shared
+    @ObservedObject private var subManager = ChannelSubscriptionManager.shared
     @StateObject private var vm = WatchViewModel()
     
     public init(video: Video, onBack: @escaping () -> Void, onSelectRelated: @escaping (Video) -> Void) {
@@ -110,14 +111,27 @@ public struct WatchView: View {
                         HStack(alignment: .center, spacing: 16) {
                             // Uploader info
                             HStack(spacing: 12) {
-                                ZStack {
-                                    Circle()
-                                        .fill(LinearGradient(colors: [Color(white: 0.15), Color(white: 0.25)], startPoint: .topLeading, endPoint: .bottomTrailing))
-                                        .frame(width: 42, height: 42)
-                                        .overlay(Circle().stroke(Color.white.opacity(0.12), lineWidth: 1))
-                                    Text(String(displayVideo.uploader.prefix(1)).uppercased())
-                                        .font(.system(size: 16, weight: .bold))
-                                        .foregroundColor(.white)
+                                if let avatarUrl = displayVideo.channelAvatarUrl, !avatarUrl.isEmpty {
+                                    AsyncImage(url: URL(string: avatarUrl)) { phase in
+                                        if let img = phase.image {
+                                            img.resizable().scaledToFill()
+                                        } else {
+                                            Circle().fill(Color(white: 0.2))
+                                        }
+                                    }
+                                    .frame(width: 42, height: 42)
+                                    .clipShape(Circle())
+                                    .overlay(Circle().stroke(Color.white.opacity(0.15), lineWidth: 1))
+                                } else {
+                                    ZStack {
+                                        Circle()
+                                            .fill(LinearGradient(colors: [Color(white: 0.15), Color(white: 0.25)], startPoint: .topLeading, endPoint: .bottomTrailing))
+                                            .frame(width: 42, height: 42)
+                                            .overlay(Circle().stroke(Color.white.opacity(0.12), lineWidth: 1))
+                                        Text(String(displayVideo.uploader.prefix(1)).uppercased())
+                                            .font(.system(size: 16, weight: .bold))
+                                            .foregroundColor(.white)
+                                    }
                                 }
                                 
                                 VStack(alignment: .leading, spacing: 2) {
@@ -132,18 +146,31 @@ public struct WatchView: View {
                                 }
                                 .frame(maxWidth: 200, alignment: .leading)
                                 
-                                // Subscribe Button
+                                // Subscribe Button (Persisted via ChannelSubscriptionManager without login)
+                                let isSub = ChannelSubscriptionManager.shared.isSubscribed(displayVideo.uploader)
                                 LiquidGlassCapsuleButton(
-                                    action: { vm.isSubscribed.toggle() },
-                                    isSelected: !vm.isSubscribed
+                                    action: {
+                                        ChannelSubscriptionManager.shared.toggleSubscription(
+                                            title: displayVideo.uploader,
+                                            id: displayVideo.uploaderId,
+                                            avatarUrl: displayVideo.channelAvatarUrl
+                                        )
+                                    },
+                                    isSelected: !isSub
                                 ) {
-                                    Text(vm.isSubscribed ? "Đã đăng ký" : "Đăng ký")
-                                        .font(.system(size: 12.5, weight: .semibold))
-                                        .lineLimit(1)
-                                        .fixedSize()
-                                        .padding(.horizontal, 14)
-                                        .frame(height: 32)
-                                        .foregroundColor(vm.isSubscribed ? Color.white.opacity(0.85) : Color.black.opacity(0.88))
+                                    HStack(spacing: 5) {
+                                        if isSub {
+                                            Image(systemName: "checkmark")
+                                                .font(.system(size: 11, weight: .bold))
+                                        }
+                                        Text(isSub ? "Đã đăng ký" : "Đăng ký")
+                                            .font(.system(size: 12.5, weight: .semibold))
+                                    }
+                                    .lineLimit(1)
+                                    .fixedSize()
+                                    .padding(.horizontal, 14)
+                                    .frame(height: 32)
+                                    .foregroundColor(isSub ? Color.white.opacity(0.85) : Color.black.opacity(0.88))
                                 }
                                 .padding(.leading, 4)
                             }
