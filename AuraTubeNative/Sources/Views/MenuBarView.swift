@@ -9,11 +9,29 @@ final class MenuBarViewModel: ObservableObject {
 
 public struct MenuBarView: View {
     @ObservedObject private var playerManager = PlayerManager.shared
+    @ObservedObject private var clock = PlaybackClock.shared
     @StateObject private var vm = MenuBarViewModel()
+    @State private var showCenterFlash: Bool = false
+    @State private var flashIsPlaying: Bool = false
+    @State private var isHoveringVideo: Bool = false
+    
     var onOpenMainWindow: () -> Void
     
     public init(onOpenMainWindow: @escaping () -> Void) {
         self.onOpenMainWindow = onOpenMainWindow
+    }
+    
+    private func triggerTogglePlayPause() {
+        playerManager.togglePlayPause()
+        flashIsPlaying = playerManager.isPlaying
+        withAnimation(.spring(response: 0.25, dampingFraction: 0.7)) {
+            showCenterFlash = true
+        }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.45) {
+            withAnimation(.easeOut(duration: 0.2)) {
+                showCenterFlash = false
+            }
+        }
     }
     
     public var body: some View {
@@ -52,28 +70,83 @@ public struct MenuBarView: View {
             // Video Info & Mini Player Preview
             if let video = playerManager.currentVideo {
                 VStack(spacing: 10) {
-                    ZStack(alignment: .bottomTrailing) {
-                        MiniNativePlayerView()
-                            .aspectRatio(playerManager.isCurrentVideoVertical ? (9/16) : (16/9), contentMode: .fit)
-                            .frame(height: playerManager.isCurrentVideoVertical ? 310 : nil)
-                            .frame(maxWidth: .infinity)
-                            .clipped()
-                            .cornerRadius(10)
-                            .overlay(
-                                RoundedRectangle(cornerRadius: 10)
-                                    .strokeBorder(
-                                        LinearGradient(
-                                            colors: [Color.white.opacity(0.35), Color.white.opacity(0.08)],
-                                            startPoint: .top,
-                                            endPoint: .bottom
-                                        ),
-                                        lineWidth: 1
-                                    )
-                            )
+                    Button(action: {
+                        triggerTogglePlayPause()
+                    }) {
+                        ZStack(alignment: .center) {
+                            MiniNativePlayerView()
+                                .allowsHitTesting(false)
+                                .aspectRatio(playerManager.isCurrentVideoVertical ? (9/16) : (16/9), contentMode: .fit)
+                                .frame(height: playerManager.isCurrentVideoVertical ? 310 : nil)
+                                .frame(maxWidth: .infinity)
+                                .clipped()
+                                .cornerRadius(10)
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 10)
+                                        .strokeBorder(
+                                            LinearGradient(
+                                                colors: [Color.white.opacity(0.35), Color.white.opacity(0.08)],
+                                                startPoint: .top,
+                                                endPoint: .bottom
+                                            ),
+                                            lineWidth: 1
+                                        )
+                                )
+                            
+                            // Center Play Button when Paused
+                            if !playerManager.isPlaying && !showCenterFlash {
+                                ZStack {
+                                    Circle()
+                                        .fill(Color.black.opacity(0.55))
+                                        .frame(width: 52, height: 52)
+                                        .overlay(
+                                            Circle()
+                                                .strokeBorder(
+                                                    LinearGradient(
+                                                        colors: [Color.white.opacity(0.5), Color.white.opacity(0.15)],
+                                                        startPoint: .topLeading,
+                                                        endPoint: .bottomTrailing
+                                                    ),
+                                                    lineWidth: 1.2
+                                                )
+                                        )
+                                    Image(systemName: "play.fill")
+                                        .font(.system(size: 22, weight: .bold))
+                                        .foregroundColor(.white)
+                                        .offset(x: 2)
+                                }
+                                .shadow(color: .black.opacity(0.4), radius: 8, x: 0, y: 3)
+                                .transition(.scale(scale: 0.85).combined(with: .opacity))
+                            }
+                            
+                            // Center Flash Animation on Play/Pause Toggle
+                            if showCenterFlash {
+                                ZStack {
+                                    Circle()
+                                        .fill(Color.black.opacity(0.6))
+                                        .frame(width: 56, height: 56)
+                                        .overlay(
+                                            Circle()
+                                                .strokeBorder(Color.white.opacity(0.3), lineWidth: 1)
+                                        )
+                                    Image(systemName: flashIsPlaying ? "play.fill" : "pause.fill")
+                                        .font(.system(size: 24, weight: .bold))
+                                        .foregroundColor(.white)
+                                        .offset(x: flashIsPlaying ? 2 : 0)
+                                }
+                                .transition(.scale(scale: 1.15).combined(with: .opacity))
+                            }
+                        }
+                        .contentShape(RoundedRectangle(cornerRadius: 10))
                     }
-                    .contentShape(Rectangle())
-                    .onTapGesture {
-                        playerManager.togglePlayPause()
+                    .buttonStyle(.plain)
+                    .onHover { hovering in
+                        isHoveringVideo = hovering
+                        if hovering {
+                            NSCursor.pointingHand.push()
+                        } else {
+                            NSCursor.pop()
+                        }
                     }
                     
                     VStack(alignment: .leading, spacing: 2) {
@@ -91,13 +164,13 @@ public struct MenuBarView: View {
                     VStack(spacing: 4) {
                         Slider(
                             value: Binding(
-                                get: { vm.isScrubbing ? vm.scrubTime : playerManager.currentTime },
+                                get: { vm.isScrubbing ? vm.scrubTime : clock.currentTime },
                                 set: { vm.scrubTime = $0 }
                             ),
                             in: 0...max(1, playerManager.duration),
                             onEditingChanged: { editing in
                                 if editing {
-                                    vm.scrubTime = playerManager.currentTime
+                                    vm.scrubTime = clock.currentTime
                                     vm.isScrubbing = true
                                 } else {
                                     playerManager.seek(to: vm.scrubTime)
@@ -108,7 +181,7 @@ public struct MenuBarView: View {
                         .controlSize(.mini)
                         
                         HStack {
-                            Text(formatTime(vm.isScrubbing ? vm.scrubTime : playerManager.currentTime))
+                            Text(formatTime(vm.isScrubbing ? vm.scrubTime : clock.currentTime))
                                 .font(.system(size: 11, weight: .regular))
                                 .foregroundColor(Color(white: 0.55))
                             Spacer()
@@ -126,7 +199,7 @@ public struct MenuBarView: View {
                                 .foregroundColor(.white)
                         }
                         
-                        LiquidGlassCircleButton(action: { playerManager.togglePlayPause() }, size: 34) {
+                        LiquidGlassCircleButton(action: { triggerTogglePlayPause() }, size: 34) {
                             Image(systemName: playerManager.isPlaying ? "pause.fill" : "play.fill")
                                 .font(.system(size: 15, weight: .bold))
                                 .foregroundColor(.white)
@@ -147,6 +220,14 @@ public struct MenuBarView: View {
                         }
                     }
                     .padding(.horizontal, 4)
+                    
+                    // Space key shortcut for quick toggle in Menu Bar
+                    Button("") {
+                        triggerTogglePlayPause()
+                    }
+                    .keyboardShortcut(.space, modifiers: [])
+                    .opacity(0)
+                    .frame(width: 0, height: 0)
                 }
             } else {
                 VStack(spacing: 8) {

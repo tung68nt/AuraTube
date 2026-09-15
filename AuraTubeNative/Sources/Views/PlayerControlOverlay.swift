@@ -23,23 +23,29 @@ final class PlayerControlViewModel: ObservableObject {
 
 public struct PlayerControlOverlay: View {
     @ObservedObject private var playerManager = PlayerManager.shared
+    @ObservedObject private var clock = PlaybackClock.shared
     @StateObject private var vm = PlayerControlViewModel()
     
     public init() {}
     
+    private var effectiveDuration: Double {
+        clock.duration > 0 ? clock.duration : playerManager.duration
+    }
+    
     private var effectiveTime: Double {
         if vm.isScrubbing {
-            return vm.scrubProgress * max(1, playerManager.duration)
+            return vm.scrubProgress * max(1, effectiveDuration)
         }
-        return playerManager.currentTime
+        return clock.currentTime > 0 ? clock.currentTime : playerManager.currentTime
     }
     
     private var progressRatio: Double {
-        guard playerManager.duration > 0 else { return 0 }
+        let dur = effectiveDuration
+        guard dur > 0 else { return 0 }
         if vm.isScrubbing {
             return vm.scrubProgress
         }
-        return min(1.0, max(0.0, playerManager.currentTime / playerManager.duration))
+        return min(1.0, max(0.0, effectiveTime / dur))
     }
     
     public var body: some View {
@@ -322,7 +328,7 @@ public struct PlayerControlOverlay: View {
                     .foregroundColor(Color(white: 0.7))
                 
                 // Display Current Chapter Title next to time (like YouTube)
-                if let ch = playerManager.currentChapter {
+                if !playerManager.isCurrentVideoVertical, let ch = playerManager.currentChapter {
                     Text("•")
                         .font(.system(size: 11, weight: .regular))
                         .foregroundColor(Color(white: 0.4))
@@ -332,7 +338,7 @@ public struct PlayerControlOverlay: View {
                         .foregroundColor(Color(white: 0.92))
                         .lineLimit(1)
                         .truncationMode(.tail)
-                        .frame(maxWidth: 260, alignment: .leading)
+                        .frame(maxWidth: 240, alignment: .leading)
                 }
             }
             .padding(.leading, 2)

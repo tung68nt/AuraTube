@@ -34,6 +34,7 @@ public final class PlayerManager: ObservableObject {
     @Published public var errorMessage: String?
     @Published public var isVideoFullscreen: Bool = false
     @Published public var isCurrentVideoVertical: Bool = false
+    @Published public var currentVideoAspectRatio: Double = 16.0 / 9.0
     
     // MARK: - Autoplay Next Video State
     @Published public var isAutoplayEnabled: Bool = (UserDefaults.standard.object(forKey: "auratube_autoplay") as? Bool) ?? true {
@@ -257,6 +258,8 @@ public final class PlayerManager: ObservableObject {
         if let vid = videoId, !vid.isEmpty, let currentId = currentVideo?.id, vid != currentId {
             return
         }
+        
+        PlaybackClock.shared.update(time: currentTime, duration: duration, isPlaying: isPlaying ?? self.isPlaying)
         let now = ProcessInfo.processInfo.systemUptime
         
         // 1. Seeking lock: prevent stale pre-seek time updates from snapping back the timeline
@@ -298,7 +301,7 @@ public final class PlayerManager: ObservableObject {
                 // discard the bogus 0.0s timestamp to eliminate timeline jitter.
                 if currentTime == 0 && self.currentTime > 1.0 && (self.isPlaying || isPlaying == true) {
                     // Bogus uninitialized 0.0s update ignored
-                } else {
+                } else if abs(self.currentTime - currentTime) >= 0.5 {
                     self.currentTime = currentTime
                 }
                 
@@ -395,6 +398,7 @@ public final class PlayerManager: ObservableObject {
         
         self.currentVideo = video
         self.isCurrentVideoVertical = video.isShort
+        self.currentVideoAspectRatio = video.isShort ? (9.0 / 16.0) : (16.0 / 9.0)
         self.selectedQuality = "auto"
         self.currentQuality = quality
         self.availableQualities = []
@@ -437,15 +441,33 @@ public final class PlayerManager: ObservableObject {
                 if !details.heights.isEmpty {
                     self.availableQualities = details.heights
                 }
+                var updated = self.currentVideo
                 if !details.author.isEmpty && details.author != "YouTube" {
-                    self.currentVideo?.uploader = details.author
+                    updated?.uploader = details.author
                 }
-                if !details.title.isEmpty && (self.currentVideo?.title.isEmpty == true || self.currentVideo?.title == "Video YouTube") {
-                    self.currentVideo?.title = details.title
+                if !details.title.isEmpty && (updated?.title.isEmpty == true || updated?.title == "Video YouTube") {
+                    updated?.title = details.title
                 }
-                self.currentVideo?.description = details.desc
+                if !details.desc.isEmpty {
+                    updated?.description = details.desc
+                }
+                if let up = updated {
+                    self.currentVideo = up
+                }
                 self.chapters = details.chapters
                 self.updateNowPlaying()
+            }
+        }
+    }
+    
+    public func updateVideoDimensions(isVertical: Bool, width: Double, height: Double) {
+        if self.isCurrentVideoVertical != isVertical {
+            self.isCurrentVideoVertical = isVertical
+        }
+        if height > 0 && width > 0 {
+            let ratio = width / height
+            if abs(self.currentVideoAspectRatio - ratio) > 0.01 {
+                self.currentVideoAspectRatio = ratio
             }
         }
     }
@@ -487,55 +509,6 @@ public final class PlayerManager: ObservableObject {
             }
             self.currentCommentContinuationToken = firstBatch.nextToken
             self.canLoadMoreComments = firstBatch.nextToken != nil
-            
-            // 2. Automatically continue streaming remaining comments progressively in background
-            var currentToken = firstBatch.nextToken
-            var seenIds = Set(firstBatch.comments.map { $0.id })
-            
-            while let token = currentToken, !Task.isCancelled, self.currentVideo?.id == videoId {
-                self.isLoadingMoreComments = true
-                
-                // Gentle sleep between requests to avoid rate limits and let UI render
-                try? await Task.sleep(nanoseconds: 180_000_000)
-                if Task.isCancelled || self.currentVideo?.id != videoId { break }
-                
-                let nextBatch = await YTDLPService.shared.fetchCommentsBatch(continuationToken: token)
-                if Task.isCancelled || self.currentVideo?.id != videoId { break }
-                
-                if nextBatch.comments.isEmpty && nextBatch.nextToken == nil {
-                    currentToken = nil
-                    self.currentCommentContinuationToken = nil
-                    self.canLoadMoreComments = false
-                    break
-                }
-                
-                var newComments: [VideoComment] = []
-                for c in nextBatch.comments {
-                    if !seenIds.contains(c.id) {
-                        seenIds.insert(c.id)
-                        newComments.append(c)
-                    }
-                }
-                
-                if !newComments.isEmpty {
-                    self.comments.append(contentsOf: newComments)
-                }
-                
-                if let total = nextBatch.totalCountText, !total.isEmpty {
-                    self.totalCommentsCountText = total
-                }
-                if let newest = nextBatch.sortNewestToken {
-                    self.sortNewestToken = newest
-                }
-                if let top = nextBatch.sortTopToken {
-                    self.sortTopToken = top
-                }
-                
-                currentToken = nextBatch.nextToken
-                self.currentCommentContinuationToken = nextBatch.nextToken
-                self.canLoadMoreComments = nextBatch.nextToken != nil
-            }
-            
             self.isLoadingMoreComments = false
         }
     }

@@ -73,8 +73,17 @@ public struct NativePlayerView: NSViewRepresentable {
         contentController.add(context.coordinator, contentWorld: .defaultClient, name: "playerBridge")
         
         let cleanScript = NativePlayerView.cleanScriptSource
-        let userScript = WKUserScript(source: cleanScript, injectionTime: .atDocumentEnd, forMainFrameOnly: false, in: .defaultClient)
-        contentController.addUserScript(userScript)
+        // Inject cleanScript at document start (in both .page and .defaultClient) so YouTube's top chrome bar
+        // (.ytp-chrome-top, channel info, avatar, and Cairo refresh badges) is hidden BEFORE DOM layout or rendering
+        let userScriptStartPage = WKUserScript(source: cleanScript, injectionTime: .atDocumentStart, forMainFrameOnly: false, in: .page)
+        contentController.addUserScript(userScriptStartPage)
+        let userScriptStartClient = WKUserScript(source: cleanScript, injectionTime: .atDocumentStart, forMainFrameOnly: false, in: .defaultClient)
+        contentController.addUserScript(userScriptStartClient)
+        
+        let userScriptEndPage = WKUserScript(source: cleanScript, injectionTime: .atDocumentEnd, forMainFrameOnly: false, in: .page)
+        contentController.addUserScript(userScriptEndPage)
+        let userScriptEndClient = WKUserScript(source: cleanScript, injectionTime: .atDocumentEnd, forMainFrameOnly: false, in: .defaultClient)
+        contentController.addUserScript(userScriptEndClient)
         config.userContentController = contentController
         
         let webView = ScrollForwardingWKWebView(frame: .zero, configuration: config)
@@ -508,8 +517,10 @@ public struct NativePlayerView: NSViewRepresentable {
                     [class*="channel-logo"],
                     [class*="channel-name"],
                     [class*="channel-avatar"],
+                    [class*="channel-subscribers"],
                     [class*="chrome-top"],
                     [class*="cairo-refresh"],
+                    .ytp-title-channel-text,
                     .ytp-cairo-refresh-signature-moments,
                     .ytp-cairo-refresh-signature-moments-title,
                     .ytp-cairo-refresh-signature-moments-avatar,
@@ -625,9 +636,10 @@ public struct NativePlayerView: NSViewRepresentable {
                     '.ytp-suggested-action-badge, .ytp-suggested-action, .ytp-ai-info-dialog, .ytp-content-disclosure, ' +
                     '[class*="ai-disclosure"], [class*="content-disclosure"], [class*="suggested-action"], [aria-label*="AI" i], ' +
                     '.ytp-popup, .ytp-panel-popup, .ytp-pause-overlay, .ytp-bezel, ' +
-                    '.ytp-chrome-top, .ytp-gradient-top, .ytp-gradient-bottom, .ytp-title, .ytp-title-channel, .ytp-title-channel-logo, .ytp-title-text, .ytp-title-subtext, .ytp-title-link, ' +
+                    '.ytp-chrome-top, .ytp-gradient-top, .ytp-gradient-bottom, .ytp-title, .ytp-title-channel, .ytp-title-channel-logo, .ytp-title-channel-text, .ytp-title-text, .ytp-title-subtext, .ytp-title-link, ' +
                     '.ytp-chrome-bottom, .ytp-progress-bar-container, .ytp-fullscreen-button, ' +
-                    '[class*="title-channel"], [class*="channel-logo"], [class*="channel-name"], [class*="channel-avatar"], [class*="chrome-top"], [class*="cairo-refresh"]'
+                    '[class*="title-channel"], [class*="channel-logo"], [class*="channel-name"], [class*="channel-avatar"], [class*="channel-subscribers"], [class*="chrome-top"], [class*="cairo-refresh"], ' +
+                    '.ytp-cairo-refresh-header, .ytp-cairo-refresh-signature-moments, .ytp-cairo-refresh-channel-avatar, .ytp-cairo-refresh-channel-name'
                 );
                 for (var b = 0; b < badges.length; b++) {
                     badges[b].remove();
@@ -878,8 +890,11 @@ public struct NativePlayerView: NSViewRepresentable {
             } catch(e) {}
         }
         document.addEventListener('loadedmetadata', reportVideoDimensions, true);
+        document.addEventListener('loadeddata', reportVideoDimensions, true);
+        document.addEventListener('playing', reportVideoDimensions, true);
+        document.addEventListener('timeupdate', reportVideoDimensions, true);
         document.addEventListener('resize', reportVideoDimensions, true);
-        setInterval(reportVideoDimensions, 1500);
+        setInterval(reportVideoDimensions, 1200);
 
         function forceQualityChange(targetQuality, retries) {
             retries = retries || 0;
@@ -1121,11 +1136,10 @@ public struct NativePlayerView: NSViewRepresentable {
             
             DispatchQueue.main.async {
                 if let type = body["type"] as? String, type == "videoDimensions" {
-                    if let isVertical = body["isVertical"] as? Bool {
-                        if PlayerManager.shared.isCurrentVideoVertical != isVertical {
-                            PlayerManager.shared.isCurrentVideoVertical = isVertical
-                        }
-                    }
+                    let isVertical = body["isVertical"] as? Bool ?? false
+                    let width = body["width"] as? Double ?? 16
+                    let height = body["height"] as? Double ?? 9
+                    PlayerManager.shared.updateVideoDimensions(isVertical: isVertical, width: width, height: height)
                     return
                 }
                 

@@ -12,6 +12,7 @@ public final class MiniPlayerEngine: NSObject, WKNavigationDelegate, WKScriptMes
     private let observerId = UUID()
     public private(set) var currentLoadedVideoId: String?
     public private(set) var isPopoverVisible: Bool = false
+    private var pendingVideo: (video: Video, startPos: Double)? = nil
     
     public override init() {
         let config = WKWebViewConfiguration()
@@ -126,14 +127,15 @@ public final class MiniPlayerEngine: NSObject, WKNavigationDelegate, WKScriptMes
                             top: -9999px !important;
                             z-index: -9999 !important;
                         }
-                        body, html { margin: 0; padding: 0; background: #000; overflow: hidden; width: 100%; height: 100%; }
-                        iframe { width: 100%; height: 100%; border: none; display: block; }
+                        body, html { margin: 0; padding: 0; background: #000; overflow: hidden; width: 100%; height: 100%; pointer-events: none !important; }
+                        iframe { width: 100%; height: 100%; border: none; display: block; pointer-events: none !important; }
                         .html5-video-player,
                         .html5-video-container {
                             width: 100% !important;
                             height: 100% !important;
                             overflow: hidden !important;
                             background: #000 !important;
+                            pointer-events: none !important;
                         }
                         video.video-stream.html5-main-video,
                         video.html5-main-video,
@@ -145,6 +147,7 @@ public final class MiniPlayerEngine: NSObject, WKNavigationDelegate, WKScriptMes
                             left: 0 !important;
                             border-radius: 0 !important;
                             background: #000 !important;
+                            pointer-events: none !important;
                         }
                     `;
                     (document.head || document.documentElement).appendChild(s);
@@ -342,10 +345,22 @@ public final class MiniPlayerEngine: NSObject, WKNavigationDelegate, WKScriptMes
                     } catch(err) {}
                 }
             }, true);
+
+            window.addEventListener('click', function(e) {
+                e.preventDefault();
+                e.stopPropagation();
+                try {
+                    if (window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.miniPlayerBridge) {
+                        window.webkit.messageHandlers.miniPlayerBridge.postMessage({ type: 'togglePlayPause' });
+                    }
+                } catch(err) {}
+            }, true);
         })();
         """
-        let userScript = WKUserScript(source: cleanScript, injectionTime: .atDocumentEnd, forMainFrameOnly: false)
-        contentController.addUserScript(userScript)
+        let userScriptStart = WKUserScript(source: cleanScript, injectionTime: .atDocumentStart, forMainFrameOnly: false)
+        let userScriptEnd = WKUserScript(source: cleanScript, injectionTime: .atDocumentEnd, forMainFrameOnly: false)
+        contentController.addUserScript(userScriptStart)
+        contentController.addUserScript(userScriptEnd)
         config.userContentController = contentController
         
         self.webView = WKWebView(frame: NSRect(x: 0, y: 0, width: 288, height: 162), configuration: config)
@@ -378,9 +393,9 @@ public final class MiniPlayerEngine: NSObject, WKNavigationDelegate, WKScriptMes
     private func setupPlayerManagerBridge() {
         let pm = PlayerManager.shared
         
-        // 1. Play / Pause observer: instant simultaneous sync & reliable pause (no forced seek!)
+        // 1. Play / Pause observer: instant simultaneous sync (only when popover is visible)
         pm.registerPlayPauseObserver(id: observerId) { [weak self] shouldPlay in
-            guard let self = self else { return }
+            guard let self = self, self.isPopoverVisible else { return }
             let masterTime = PlayerManager.shared.currentTime
             let cmd = shouldPlay ? "playVideo" : "pauseVideo"
             let js = """
@@ -408,9 +423,9 @@ public final class MiniPlayerEngine: NSObject, WKNavigationDelegate, WKScriptMes
             self.webView.evaluateJavaScript(js, completionHandler: nil)
         }
         
-        // 2. Seek observer: instant seek to target frame and hold until master resumes
+        // 2. Seek observer: only when popover is visible
         pm.registerSeekObserver(id: observerId) { [weak self] targetSeconds in
-            guard let self = self else { return }
+            guard let self = self, self.isPopoverVisible else { return }
             let shouldPlayImmediately = !PlayerManager.shared.hasActiveMainPlayer && PlayerManager.shared.isPlaying
             let js = """
             (function() {
@@ -476,14 +491,23 @@ public final class MiniPlayerEngine: NSObject, WKNavigationDelegate, WKScriptMes
             self.webView.evaluateJavaScript(js, completionHandler: nil)
         }
         
-        // 5. Video change observer: loads and starts playing immediately in parallel with main player!
+        // 5. Video change observer: only loads and starts playing if popover is visible!
         pm.registerVideoChangeObserver(id: observerId) { [weak self] newVideo, startTime in
-            self?.loadVideo(video: newVideo, startPos: startTime)
+            guard let self = self else { return }
+            if self.isPopoverVisible {
+                self.loadVideo(video: newVideo, startPos: startTime)
+            } else {
+                self.pendingVideo = (newVideo, startTime)
+            }
         }
         
-        // If a video is already active right now, load it immediately
+        // If a video is already active and popover is visible, load it; otherwise save as pending
         if let current = pm.currentVideo {
-            loadVideo(video: current, startPos: pm.currentTime)
+            if isPopoverVisible {
+                loadVideo(video: current, startPos: pm.currentTime)
+            } else {
+                pendingVideo = (current, pm.currentTime)
+            }
         }
         
         // Handle MenuBar popover notifications:
@@ -521,33 +545,45 @@ public final class MiniPlayerEngine: NSObject, WKNavigationDelegate, WKScriptMes
                 guard let self = self else { return }
                 self.isPopoverVisible = true
                 let pm = PlayerManager.shared
-                let shouldPlay = pm.isPlaying
-                let js = """
-                (function() {
-                    var ifr = document.getElementById('miniYtPlayer');
-                    if (ifr && ifr.contentWindow) {
-                        ifr.contentWindow.postMessage(JSON.stringify({event: "command", func: "mute", args: []}), '*');
-                        ifr.contentWindow.postMessage(JSON.stringify({event: "command", func: "setVolume", args: [0]}), '*');
-                        ifr.contentWindow.postMessage(JSON.stringify({
-                            event: 'auratube_sync',
-                            masterTime: \(pm.currentTime),
-                            isPlaying: \(shouldPlay),
-                            forceSnap: true
-                        }), '*');
-                        if (\(shouldPlay)) {
-                            ifr.contentWindow.postMessage(JSON.stringify({event: "command", func: "playVideo", args: []}), '*');
+                
+                if let current = pm.currentVideo, self.currentLoadedVideoId != current.id {
+                    self.loadVideo(video: current, startPos: pm.currentTime)
+                } else if let pending = self.pendingVideo {
+                    self.loadVideo(video: pending.video, startPos: pending.startPos)
+                } else {
+                    let shouldPlay = pm.isPlaying
+                    let js = """
+                    (function() {
+                        var ifr = document.getElementById('miniYtPlayer');
+                        if (ifr && ifr.contentWindow) {
+                            ifr.contentWindow.postMessage(JSON.stringify({event: "command", func: "mute", args: []}), '*');
+                            ifr.contentWindow.postMessage(JSON.stringify({event: "command", func: "setVolume", args: [0]}), '*');
+                            ifr.contentWindow.postMessage(JSON.stringify({
+                                event: 'auratube_sync',
+                                masterTime: \(pm.currentTime),
+                                isPlaying: \(shouldPlay),
+                                forceSnap: true
+                            }), '*');
+                            if (\(shouldPlay)) {
+                                ifr.contentWindow.postMessage(JSON.stringify({event: "command", func: "playVideo", args: []}), '*');
+                            }
                         }
-                    }
-                })();
-                """
-                self.webView.evaluateJavaScript(js, completionHandler: nil)
+                    })();
+                    """
+                    self.webView.evaluateJavaScript(js, completionHandler: nil)
+                }
             }
         }
     }
     
     public func loadVideo(video: Video, startPos: Double = 0) {
+        if !isPopoverVisible {
+            pendingVideo = (video, startPos)
+            return
+        }
         guard currentLoadedVideoId != video.id else { return }
         currentLoadedVideoId = video.id
+        pendingVideo = nil
         
         let pos = max(0, Int(startPos))
         let html = generateHTML(for: video, startPos: pos)
@@ -610,8 +646,8 @@ public final class MiniPlayerEngine: NSObject, WKNavigationDelegate, WKScriptMes
         <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
         <meta name="referrer" content="origin">
         <style>
-          * { margin: 0; padding: 0; box-sizing: border-box; background: #000; overflow: hidden; }
-          html, body { width: 100%; height: 100%; background: #000; overflow: hidden; }
+          * { margin: 0; padding: 0; box-sizing: border-box; background: #000; overflow: hidden; pointer-events: none !important; }
+          html, body { width: 100%; height: 100%; background: #000; overflow: hidden; pointer-events: none !important; }
           iframe { 
             position: absolute; 
             top: 0; 
@@ -620,8 +656,9 @@ public final class MiniPlayerEngine: NSObject, WKNavigationDelegate, WKScriptMes
             height: 100%; 
             border: none; 
             display: block; 
+            pointer-events: none !important;
           }
-          .ytp-suggested-action-badge, .ytp-popup, .ytp-ai-info-dialog, [class*="ai-disclosure"], .ytp-spinner, .ytp-spinner-container, .ytp-bezel { display: none !important; opacity: 0 !important; visibility: hidden !important; }
+          .ytp-suggested-action-badge, .ytp-popup, .ytp-ai-info-dialog, [class*="ai-disclosure"], .ytp-spinner, .ytp-spinner-container, .ytp-bezel { display: none !important; opacity: 0 !important; visibility: hidden !important; pointer-events: none !important; }
         </style>
         </head>
         <body>
@@ -788,6 +825,11 @@ public final class MiniPlayerEngine: NSObject, WKNavigationDelegate, WKScriptMes
 
 // MARK: - MiniPlayerContainerView: Auto-resizing view ensuring webView fills bounds exactly
 final class MiniPlayerContainerView: NSView {
+    override func hitTest(_ point: NSPoint) -> NSView? {
+        // Must return nil so that all mouse clicks and cursor events pass cleanly to SwiftUI buttons/gestures
+        return nil
+    }
+    
     override func layout() {
         super.layout()
         if let webView = subviews.first as? WKWebView {

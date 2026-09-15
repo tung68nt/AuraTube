@@ -987,6 +987,14 @@ body {
   transition: all 0.25s ease;
 }
 
+.player-wrapper.vertical-video {
+  aspect-ratio: 9 / 16;
+  max-height: 72vh;
+  margin: 0 auto;
+  width: auto;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.6);
+}
+
 /* YOUTUBE OFFICIAL MINIPLAYER (Docked bottom right) */
 .player-wrapper.miniplayer {
   position: fixed !important;

@@ -1,10 +1,10 @@
 {
-  "version": "2.0.25",
-  "build": 26,
-  "title": "AuraTube v2.0.25 (Khắc Phục Triệt Để Lỗi Auto-Play Shorts & Màn Hình Đen)",
-  "releaseNotes": "• Khắc phục triệt để lỗi không tự động phát Shorts: Loại bỏ lệnh tạm dừng ngầm khi chuyển đổi video Shorts trong điều phối viên phát (ShortsPlaybackCoordinator), ngăn chặn việc video mới bị pause ngay khi vừa tải.\n• Cơ chế Autoplay Watchdog tự phục hồi: Tích hợp vòng lặp kiểm tra và tự động tái kích hoạt phát video cùng native mouse event click, đảm bảo 100% video Shorts tự động phát ngay khi cuộn tới.\n• Tuần tự hóa bật âm thanh thông minh: Chuyển sang kích hoạt unmute sau khi khung hình đầu tiên đã chuyển động, loại bỏ hoàn toàn việc YouTube embed chặn phát âm thanh và văng ra màn hình đen kèm biểu tượng tạm dừng (||).\n• Ẩn vĩnh viễn overlay pause (||) mặc định của YouTube embed, mang lại trải nghiệm xem Shorts mượt mà và liền mạch như ứng dụng gốc.",
-  "downloadUrl": "https://github.com/tung68nt/AuraTube/releases/download/v2.0.25/AuraTube-v2.0.25.dmg",
-  "publishedAt": "2026-09-14",
+  "version": "2.0.29",
+  "build": 30,
+  "title": "AuraTube v2.0.29 (Tối Ưu Độ Mượt, Nút Bấm & Trải Nghiệm Video Player)",
+  "releaseNotes": "• Khắc phục triệt để độ tương phản nút bấm: Sửa lỗi chữ đen chìm trên nền nút Đăng ký ở Light Mode; thiết kế lại toàn bộ các nút chức năng (Chia sẻ, Tải xuống, Lưu video) theo chuẩn kính lỏng với nền và viền sắc nét, độ tương phản cao, khắc phục hoàn toàn tình trạng nút mờ nhạt khó nhìn.\n• Tối ưu hóa độ mượt khi bấm chọn video: Loại bỏ vòng lặp nền 180ms tải comment liên tục; chuyển MiniPlayerEngine sang chế độ On-Demand chỉ phát khi người dùng mở Menu Bar popover, giải phóng 100% băng thông mạng và CPU giúp video tải nhanh tức thì không còn giật lag.\n• Tinh chỉnh tốc độ ẩn nút Pause trung tâm: Nút pause/play giữa màn hình nhấp nháy siêu nhạy (0.20s) và tự động biến mất lập tức cùng thanh timeline ngay khi di chuột ra khỏi khung hình.\n• Triệt tiêu hoàn toàn thanh thông tin kênh lặp ở góc trái trên video: Vô hiệu hóa dứt điểm .ytp-chrome-top, avatar và tiêu đề từ iframe YouTube ngay từ thời điểm Document Start, giữ khung hình sạch sẽ và chuyên nghiệp.",
+  "downloadUrl": "https://github.com/tung68nt/AuraTube/releases/download/v2.0.29/AuraTube-v2.0.29.dmg",
+  "publishedAt": "2026-09-16",
   "minOSVersion": "13.0",
-  "fileSize": "3.0 MB"
+  "fileSize": "3.3 MB"
 }

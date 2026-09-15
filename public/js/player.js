@@ -726,7 +726,20 @@ class AdFreePlayer {
       }
     };
 
-    this.video.onloadedmetadata = startPlayback;
+    const checkAspect = () => {
+      if (this.video && this.video.videoWidth > 0 && this.video.videoHeight > 0) {
+        if (this.video.videoHeight > this.video.videoWidth) {
+          this.wrapper.classList.add('vertical-video');
+        } else {
+          this.wrapper.classList.remove('vertical-video');
+        }
+      }
+    };
+
+    this.video.onloadedmetadata = () => {
+      checkAspect();
+      startPlayback();
+    };
     this.video.oncanplay = startPlayback;
 
     this.broadcastState();

@@ -18,6 +18,7 @@ public struct WatchView: View {
     @ObservedObject private var playerManager = PlayerManager.shared
     @ObservedObject private var subManager = ChannelSubscriptionManager.shared
     @StateObject private var vm = WatchViewModel()
+    @Environment(\.colorScheme) private var colorScheme
     
     public init(video: Video, onBack: @escaping () -> Void, onSelectRelated: @escaping (Video) -> Void) {
         self.video = video
@@ -27,6 +28,16 @@ public struct WatchView: View {
     
     private var displayVideo: Video {
         playerManager.currentVideo ?? video
+    }
+    
+    private var videoDescriptionText: String {
+        if let desc = playerManager.currentVideo?.description, !desc.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            return desc
+        }
+        if let desc = video.description, !desc.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            return desc
+        }
+        return "Không có mô tả."
     }
     
     public var body: some View {
@@ -40,25 +51,11 @@ public struct WatchView: View {
                         HStack(alignment: .top, spacing: 24) {
                             // Left Column: Player & Details
                             VStack(alignment: .leading, spacing: 14) {
-                                // Native Video Player with Interactive Scrubber & Controls
-                                ZStack(alignment: .bottom) {
-                                    NativePlayerView()
-                                    
-                                    // Bottom Player Controls (Thanh tua & điều khiển)
-                                    PlayerControlOverlay()
-                                    
-                                    // Autoplay Countdown Overlay
-                                    if playerManager.autoplayCountdown != nil, let next = playerManager.nextVideo {
-                                        AutoplayCountdownOverlay(video: next)
-                                    }
-                                }
-                                .aspectRatio(16/9, contentMode: .fit)
-                                .cornerRadius(12)
-                                .overlay(
-                                    RoundedRectangle(cornerRadius: 12)
-                                        .stroke(Color.white.opacity(0.08), lineWidth: 1)
+                                // Dedicated Watch Player Container with YouTube-grade hover auto-hide & center flash
+                                WatchPlayerContainerView(
+                                    displayVideo: displayVideo,
+                                    playerManager: playerManager
                                 )
-                                .shadow(color: .black.opacity(0.4), radius: 16, y: 6)
                                 
                                 // Switch to Shorts Mode Banner if this video is a Short
                                 if displayVideo.isShort {
@@ -72,7 +69,7 @@ public struct WatchView: View {
                                             
                                             Text("Đây là video Shorts. Bấm để lướt liên tục trên giao diện dọc chuyên biệt")
                                                 .font(.system(size: 12.5, weight: .medium))
-                                                .foregroundColor(Color(white: 0.92))
+                                                .foregroundColor(ThemeColor.textPrimary(for: colorScheme))
                                             
                                             Spacer()
                                             
@@ -90,11 +87,11 @@ public struct WatchView: View {
                                         }
                                         .padding(.horizontal, 14)
                                         .padding(.vertical, 8)
-                                        .background(Color(white: 0.15))
+                                        .background(ThemeColor.cardBackground(for: colorScheme))
                                         .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
                                         .overlay(
                                             RoundedRectangle(cornerRadius: 10, style: .continuous)
-                                                .stroke(Color.white.opacity(0.12), lineWidth: 1)
+                                                .stroke(ThemeColor.cardBorder(for: colorScheme), lineWidth: 1)
                                         )
                                     }
                                     .buttonStyle(.plain)
@@ -103,7 +100,7 @@ public struct WatchView: View {
                                 // Video Title
                                 Text(displayVideo.title)
                                     .font(.system(size: 19, weight: .semibold))
-                                    .foregroundColor(.white)
+                                    .foregroundColor(ThemeColor.textPrimary(for: colorScheme))
                                     .lineLimit(2)
                                     .padding(.top, 4)
                         
@@ -121,30 +118,29 @@ public struct WatchView: View {
                                     }
                                     .frame(width: 42, height: 42)
                                     .clipShape(Circle())
-                                    .overlay(Circle().stroke(Color.white.opacity(0.15), lineWidth: 1))
+                                    .overlay(Circle().stroke(ThemeColor.divider(for: colorScheme), lineWidth: 1))
                                 } else {
                                     ZStack {
                                         Circle()
-                                            .fill(LinearGradient(colors: [Color(white: 0.15), Color(white: 0.25)], startPoint: .topLeading, endPoint: .bottomTrailing))
+                                            .fill(LinearGradient(colors: colorScheme == .dark ? [Color(white: 0.15), Color(white: 0.25)] : [Color(white: 0.82), Color(white: 0.92)], startPoint: .topLeading, endPoint: .bottomTrailing))
                                             .frame(width: 42, height: 42)
-                                            .overlay(Circle().stroke(Color.white.opacity(0.12), lineWidth: 1))
+                                            .overlay(Circle().stroke(ThemeColor.divider(for: colorScheme), lineWidth: 1))
                                         Text(String(displayVideo.uploader.prefix(1)).uppercased())
                                             .font(.system(size: 16, weight: .bold))
-                                            .foregroundColor(.white)
+                                            .foregroundColor(ThemeColor.textPrimary(for: colorScheme))
                                     }
                                 }
                                 
                                 VStack(alignment: .leading, spacing: 2) {
                                     Text(displayVideo.uploader)
                                         .font(.system(size: 15, weight: .semibold))
-                                        .foregroundColor(Color(white: 0.95))
+                                        .foregroundColor(ThemeColor.textPrimary(for: colorScheme))
                                         .lineLimit(1)
                                     Text(displayVideo.metadataFormatted.isEmpty ? "YouTube" : displayVideo.metadataFormatted)
                                         .font(.system(size: 12.5))
-                                        .foregroundColor(Color(white: 0.65))
+                                        .foregroundColor(ThemeColor.textSecondary(for: colorScheme))
                                         .lineLimit(1)
                                 }
-                                .frame(maxWidth: 200, alignment: .leading)
                                 
                                 // Subscribe Button (Persisted via ChannelSubscriptionManager without login)
                                 let isSub = ChannelSubscriptionManager.shared.isSubscribed(displayVideo.uploader)
@@ -168,11 +164,15 @@ public struct WatchView: View {
                                     }
                                     .lineLimit(1)
                                     .fixedSize()
-                                    .padding(.horizontal, 14)
+                                    .padding(.horizontal, 15)
                                     .frame(height: 32)
-                                    .foregroundColor(isSub ? Color.white.opacity(0.85) : Color.black.opacity(0.88))
+                                    .foregroundColor(
+                                        !isSub ?
+                                            (colorScheme == .dark ? Color.black.opacity(0.92) : Color.white) :
+                                            (colorScheme == .dark ? Color.white.opacity(0.90) : Color.black.opacity(0.88))
+                                    )
                                 }
-                                .padding(.leading, 4)
+                                .padding(.leading, 6)
                             }
                             
                             Spacer(minLength: 8)
@@ -191,7 +191,7 @@ public struct WatchView: View {
                                     }
                                     .padding(.horizontal, 13)
                                     .frame(height: 32)
-                                    .foregroundColor(Color.white.opacity(0.90))
+                                    .foregroundColor(ThemeColor.textPrimary(for: colorScheme))
                                 }
                                 
                                 // 2. Download Button
@@ -206,49 +206,66 @@ public struct WatchView: View {
                                     }
                                     .padding(.horizontal, 13)
                                     .frame(height: 32)
-                                    .foregroundColor(Color.white.opacity(0.90))
+                                    .foregroundColor(ThemeColor.textPrimary(for: colorScheme))
                                 }
                                 
                                 // 3. Bookmark Button
-                                let bookmarked = playerManager.isBookmarked(video)
+                                let bookmarked = playerManager.isBookmarked(displayVideo)
                                 LiquidGlassCapsuleButton(
-                                    action: { playerManager.toggleBookmark(video) },
-                                    isProminent: bookmarked
+                                    action: { playerManager.toggleBookmark(displayVideo) },
+                                    isSelected: bookmarked
                                 ) {
                                     HStack(spacing: 5) {
                                         Image(systemName: bookmarked ? "bookmark.fill" : "bookmark")
                                             .font(.system(size: 11.5))
                                         Text(bookmarked ? "Đã lưu" : "Lưu video")
                                             .font(.system(size: 12.5, weight: bookmarked ? .semibold : .medium))
-                                            .lineLimit(1)
-                                            .fixedSize()
                                     }
                                     .padding(.horizontal, 13)
                                     .frame(height: 32)
-                                    .foregroundColor(.white)
+                                    .foregroundColor(
+                                        bookmarked ?
+                                            (colorScheme == .dark ? Color.black.opacity(0.92) : Color.white) :
+                                            ThemeColor.textPrimary(for: colorScheme)
+                                    )
                                 }
                             }
                             .layoutPriority(1)
                         }
                         
-                        // Description Box with Liquid Glass
-                        VStack(alignment: .leading, spacing: 8) {
-                            Text(video.description ?? "Không có mô tả.")
+                        // Description Box with Liquid Glass (Hỗ trợ mở rộng toàn bộ nội dung mô tả)
+                        VStack(alignment: .leading, spacing: 10) {
+                            Text(videoDescriptionText)
                                 .font(.system(size: 13))
-                                .lineSpacing(3.5)
-                                .foregroundColor(Color.white.opacity(0.82))
+                                .lineSpacing(4)
+                                .foregroundColor(ThemeColor.textPrimary(for: colorScheme).opacity(0.9))
                                 .lineLimit(vm.isDescExpanded ? nil : 3)
+                                .textSelection(.enabled)
                             
-                            Button(action: { vm.isDescExpanded.toggle() }) {
-                                Text(vm.isDescExpanded ? "Thu gọn" : "...xem thêm")
-                                    .font(.system(size: 12.5, weight: .semibold))
-                                    .foregroundColor(Color.white.opacity(0.92))
+                            Button(action: {
+                                withAnimation(.easeInOut(duration: 0.2)) {
+                                    vm.isDescExpanded.toggle()
+                                }
+                            }) {
+                                HStack(spacing: 4) {
+                                    Text(vm.isDescExpanded ? "Thu gọn" : "...xem thêm")
+                                        .font(.system(size: 12.5, weight: .semibold))
+                                    Image(systemName: vm.isDescExpanded ? "chevron.up" : "chevron.down")
+                                        .font(.system(size: 10, weight: .semibold))
+                                }
+                                .foregroundColor(ThemeColor.textPrimary(for: colorScheme).opacity(0.85))
                             }
                             .buttonStyle(.plain)
                         }
                         .padding(14)
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .liquidGlass(cornerRadius: 12, elevation: 2.5)
+                        .contentShape(Rectangle())
+                        .onTapGesture {
+                            withAnimation(.easeInOut(duration: 0.2)) {
+                                vm.isDescExpanded.toggle()
+                            }
+                        }
                         
                         // Comments Box (Bình luận của viewer - Hiển thị đầy đủ không ẩn/lược)
                         VStack(alignment: .leading, spacing: 16) {
@@ -256,28 +273,28 @@ public struct WatchView: View {
                                 HStack(spacing: 8) {
                                     Text("Bình luận")
                                         .font(.system(size: 16, weight: .bold))
-                                        .foregroundColor(.white)
+                                        .foregroundColor(ThemeColor.textPrimary(for: colorScheme))
                                     
                                     if !playerManager.comments.isEmpty {
                                         if playerManager.isLoadingMoreComments {
                                             if let total = playerManager.totalCommentsCountText {
                                                 Text("(\(playerManager.comments.count) / \(total))")
                                                     .font(.system(size: 13, weight: .medium))
-                                                    .foregroundColor(Color(white: 0.6))
+                                                    .foregroundColor(ThemeColor.textSecondary(for: colorScheme))
                                             } else {
                                                 Text("(\(playerManager.comments.count))")
                                                     .font(.system(size: 13, weight: .medium))
-                                                    .foregroundColor(Color(white: 0.6))
+                                                    .foregroundColor(ThemeColor.textSecondary(for: colorScheme))
                                             }
                                         } else {
                                             if let total = playerManager.totalCommentsCountText {
                                                 Text("\(playerManager.comments.count) gốc • Tổng \(total)")
                                                     .font(.system(size: 12.5, weight: .medium))
-                                                    .foregroundColor(Color(white: 0.65))
+                                                    .foregroundColor(ThemeColor.textSecondary(for: colorScheme))
                                             } else {
                                                 Text("\(playerManager.comments.count)")
                                                     .font(.system(size: 13, weight: .medium))
-                                                    .foregroundColor(Color(white: 0.6))
+                                                    .foregroundColor(ThemeColor.textSecondary(for: colorScheme))
                                             }
                                         }
                                     }
@@ -298,7 +315,7 @@ public struct WatchView: View {
                                                     .frame(width: 12, height: 12)
                                                 Text("Đang tải...")
                                                     .font(.system(size: 11.5))
-                                                    .foregroundColor(Color(white: 0.6))
+                                                    .foregroundColor(ThemeColor.textSecondary(for: colorScheme))
                                             }
                                         }
                                         
@@ -330,10 +347,10 @@ public struct WatchView: View {
                                                     Image(systemName: "chevron.down")
                                                         .font(.system(size: 8.5))
                                                 }
-                                                .foregroundColor(Color(white: 0.75))
+                                                .foregroundColor(ThemeColor.textSecondary(for: colorScheme))
                                                 .padding(.horizontal, 7)
                                                 .padding(.vertical, 3.5)
-                                                .background(Color(white: 0.16))
+                                                .background(ThemeColor.buttonBackground(for: colorScheme, isHovered: false))
                                                 .cornerRadius(6)
                                             }
                                             .menuStyle(BorderlessButtonMenuStyle())
@@ -346,7 +363,7 @@ public struct WatchView: View {
                                                 Text("Làm mới")
                                                     .font(.system(size: 12))
                                             }
-                                            .foregroundColor(Color(white: 0.6))
+                                            .foregroundColor(ThemeColor.textSecondary(for: colorScheme))
                                         }
                                         .buttonStyle(.plain)
                                     }
@@ -360,13 +377,13 @@ public struct WatchView: View {
                                             .scaleEffect(0.75)
                                         Text("Đang tải bình luận của khán giả...")
                                             .font(.system(size: 13))
-                                            .foregroundColor(Color(white: 0.6))
+                                            .foregroundColor(ThemeColor.textSecondary(for: colorScheme))
                                     }
                                     .padding(.vertical, 8)
                                 } else {
                                     Text("Chưa có bình luận nào hiển thị hoặc video đã tắt tính năng bình luận.")
                                         .font(.system(size: 13))
-                                        .foregroundColor(Color(white: 0.5))
+                                        .foregroundColor(ThemeColor.textTertiary(for: colorScheme))
                                         .padding(.vertical, 6)
                                 }
                             } else {
@@ -379,18 +396,18 @@ public struct WatchView: View {
                                                     if let img = phase.image {
                                                         img.resizable().scaledToFill()
                                                     } else {
-                                                        Circle().fill(Color(white: 0.2))
+                                                        Circle().fill(colorScheme == .dark ? Color(white: 0.2) : Color(white: 0.85))
                                                     }
                                                 }
                                                 .frame(width: 36, height: 36)
                                                 .clipShape(Circle())
-                                                .overlay(Circle().stroke(Color.white.opacity(0.12), lineWidth: 1))
+                                                .overlay(Circle().stroke(ThemeColor.divider(for: colorScheme), lineWidth: 1))
                                             } else {
                                                 ZStack {
-                                                    Circle().fill(Color(white: 0.25))
+                                                    Circle().fill(colorScheme == .dark ? Color(white: 0.25) : Color(white: 0.85))
                                                     Text(String(comment.author.prefix(1)).uppercased())
                                                         .font(.system(size: 14, weight: .semibold))
-                                                        .foregroundColor(.white)
+                                                        .foregroundColor(ThemeColor.textPrimary(for: colorScheme))
                                                 }
                                                 .frame(width: 36, height: 36)
                                             }
@@ -400,12 +417,12 @@ public struct WatchView: View {
                                                 HStack(spacing: 8) {
                                                     Text(comment.author)
                                                         .font(.system(size: 13, weight: .semibold))
-                                                        .foregroundColor(Color(white: 0.95))
+                                                        .foregroundColor(ThemeColor.textPrimary(for: colorScheme))
                                                     
                                                     if !comment.publishedTime.isEmpty {
                                                         Text(comment.publishedTime)
                                                             .font(.system(size: 11.5))
-                                                            .foregroundColor(Color(white: 0.5))
+                                                            .foregroundColor(ThemeColor.textTertiary(for: colorScheme))
                                                     }
                                                 }
                                                 
@@ -413,7 +430,7 @@ public struct WatchView: View {
                                                 Text(comment.text)
                                                     .font(.system(size: 13.5))
                                                     .lineSpacing(3)
-                                                    .foregroundColor(Color(white: 0.88))
+                                                    .foregroundColor(ThemeColor.textPrimary(for: colorScheme).opacity(0.92))
                                                     .fixedSize(horizontal: false, vertical: true)
                                                 
                                                 // Likes & Reply count
@@ -426,7 +443,7 @@ public struct WatchView: View {
                                                                 Text(comment.likeCount)
                                                                     .font(.system(size: 11.5, weight: .medium))
                                                             }
-                                                            .foregroundColor(Color(white: 0.55))
+                                                            .foregroundColor(ThemeColor.textTertiary(for: colorScheme))
                                                         }
                                                         
                                                         if let replies = comment.replyCount, !replies.isEmpty && replies != "0" {
@@ -436,7 +453,7 @@ public struct WatchView: View {
                                                                 Text("\(replies) phản hồi")
                                                                     .font(.system(size: 11.5, weight: .medium))
                                                             }
-                                                            .foregroundColor(Color(white: 0.55))
+                                                            .foregroundColor(ThemeColor.textTertiary(for: colorScheme))
                                                         }
                                                     }
                                                     .padding(.top, 2)
@@ -453,7 +470,7 @@ public struct WatchView: View {
                                                 .scaleEffect(0.7)
                                             Text("Đang tải thêm bình luận...")
                                                 .font(.system(size: 12))
-                                                .foregroundColor(Color(white: 0.6))
+                                                .foregroundColor(ThemeColor.textSecondary(for: colorScheme))
                                         }
                                         .frame(maxWidth: .infinity, alignment: .center)
                                         .padding(.vertical, 10)
@@ -470,7 +487,7 @@ public struct WatchView: View {
                                             .foregroundColor(Color(red: 0.2, green: 0.65, blue: 1.0))
                                             .padding(.horizontal, 16)
                                             .padding(.vertical, 8)
-                                            .background(Color.white.opacity(0.06))
+                                            .background(ThemeColor.buttonBackground(for: colorScheme, isHovered: false))
                                             .cornerRadius(8)
                                         }
                                         .buttonStyle(.plain)
@@ -493,17 +510,21 @@ public struct WatchView: View {
                     VStack(alignment: .leading, spacing: 14) {
                         Text("Video liên quan")
                             .font(.system(size: 16, weight: .bold))
-                            .foregroundColor(.white)
+                            .foregroundColor(ThemeColor.textPrimary(for: colorScheme))
                         
                         ForEach(vm.relatedVideos) { item in
                             Button(action: { onSelectRelated(item) }) {
                                 HStack(spacing: 10) {
                                     ZStack(alignment: .bottomTrailing) {
-                                        AsyncImage(url: URL(string: item.thumbnail)) { phase in
-                                            if let img = phase.image {
-                                                img.resizable().scaledToFill()
-                                            } else {
-                                                Color(white: 0.12)
+                                        ZStack {
+                                            (colorScheme == .dark ? Color(white: 0.08) : Color(white: 0.88))
+                                            AsyncImage(url: URL(string: item.thumbnail)) { phase in
+                                                if let img = phase.image {
+                                                    img.resizable()
+                                                        .aspectRatio(contentMode: item.isShort ? .fit : .fill)
+                                                } else {
+                                                    (colorScheme == .dark ? Color(white: 0.12) : Color(white: 0.82))
+                                                }
                                             }
                                         }
                                         .frame(width: 156, height: 88)
@@ -513,7 +534,9 @@ public struct WatchView: View {
                                             RoundedRectangle(cornerRadius: 10)
                                                 .strokeBorder(
                                                     LinearGradient(
-                                                        colors: [Color.white.opacity(0.24), Color.white.opacity(0.06)],
+                                                        colors: colorScheme == .dark
+                                                            ? [Color.white.opacity(0.24), Color.white.opacity(0.06)]
+                                                            : [Color.black.opacity(0.12), Color.black.opacity(0.04)],
                                                         startPoint: .top,
                                                         endPoint: .bottom
                                                     ),
@@ -521,29 +544,36 @@ public struct WatchView: View {
                                                 )
                                         )
                                         
-                                        Text(item.durationFormatted)
-                                            .font(.system(size: 11, weight: .medium))
-                                            .padding(.horizontal, 4)
-                                            .padding(.vertical, 2)
-                                            .background(Color.black.opacity(0.85))
-                                            .cornerRadius(4)
-                                            .foregroundColor(.white)
-                                            .padding(4)
+                                        HStack(spacing: 3) {
+                                            if item.isShort {
+                                                Image(systemName: "play.square.stack.fill")
+                                                    .font(.system(size: 8.5))
+                                                    .foregroundColor(.red)
+                                            }
+                                            Text(item.durationFormatted)
+                                                .font(.system(size: 11, weight: .medium))
+                                        }
+                                        .padding(.horizontal, 4)
+                                        .padding(.vertical, 2)
+                                        .background(Color.black.opacity(0.85))
+                                        .cornerRadius(4)
+                                        .foregroundColor(.white)
+                                        .padding(4)
                                     }
                                     
                                     VStack(alignment: .leading, spacing: 4) {
                                         Text(item.title)
                                             .font(.system(size: 13, weight: .semibold))
-                                            .foregroundColor(.white)
+                                            .foregroundColor(ThemeColor.textPrimary(for: colorScheme))
                                             .lineLimit(2)
                                             .multilineTextAlignment(.leading)
                                         Text(item.uploader)
                                             .font(.system(size: 12))
-                                            .foregroundColor(Color(white: 0.65))
+                                            .foregroundColor(ThemeColor.textSecondary(for: colorScheme))
                                         if !item.metadataFormatted.isEmpty {
                                             Text(item.metadataFormatted)
                                                 .font(.system(size: 11.5))
-                                                .foregroundColor(Color(white: 0.5))
+                                                .foregroundColor(ThemeColor.textTertiary(for: colorScheme))
                                                 .lineLimit(1)
                                         }
                                     }
@@ -583,3 +613,245 @@ public struct WatchView: View {
         NSPasteboard.general.setString(url, forType: .string)
     }
 }
+
+// MARK: - Dedicated Watch Player Container View with YouTube-Grade Hover & Auto-Hide
+@MainActor
+final class WatchPlayerViewModel: ObservableObject {
+    @Published var isControlsVisible: Bool = true
+    @Published var flashIcon: String? = nil
+    @Published var flashScale: CGFloat = 0.85
+    @Published var flashOpacity: Double = 0
+    var hideTimer: Timer? = nil
+}
+
+@MainActor
+struct WatchPlayerContainerView: View {
+    let displayVideo: Video
+    @ObservedObject var playerManager: PlayerManager
+    @StateObject private var vm = WatchPlayerViewModel()
+    
+    var body: some View {
+        let isVertical = playerManager.isCurrentVideoVertical || displayVideo.isShort
+        
+        Group {
+            if isVertical {
+                verticalPlayer
+            } else {
+                horizontalPlayer
+            }
+        }
+        .onChange(of: playerManager.isPlaying) { isPlaying in
+            triggerPlayPauseFlash(isPlaying: isPlaying)
+        }
+    }
+    
+    // MARK: - Vertical Player with Ambient Glow
+    private var verticalPlayer: some View {
+        ZStack(alignment: .center) {
+            // Ambient Atmosphere
+            ZStack {
+                AsyncImage(url: URL(string: displayVideo.thumbnail)) { phase in
+                    if let img = phase.image {
+                        img.resizable().scaledToFill()
+                    } else {
+                        Color.black
+                    }
+                }
+                .blur(radius: 54)
+                .opacity(0.38)
+                .scaleEffect(1.2)
+                
+                LinearGradient(
+                    colors: [Color.black.opacity(0.5), Color.black.opacity(0.8)],
+                    startPoint: .top,
+                    endPoint: .bottom
+                )
+            }
+            .frame(maxWidth: .infinity, maxHeight: 580)
+            .clipped()
+            .cornerRadius(14)
+            
+            // Centered Video Frame
+            ZStack(alignment: .bottom) {
+                NativePlayerView()
+                
+                // Flash Play/Pause Center Indicator
+                centerFlashOverlay
+                
+                // Bottom Controls with YouTube Auto-Hide
+                PlayerControlOverlay()
+                    .opacity(vm.isControlsVisible ? 1.0 : 0.0)
+                    .animation(.easeInOut(duration: 0.18), value: vm.isControlsVisible)
+                    .allowsHitTesting(vm.isControlsVisible)
+                
+                // Autoplay Countdown Overlay
+                if playerManager.autoplayCountdown != nil, let next = playerManager.nextVideo {
+                    AutoplayCountdownOverlay(video: next)
+                }
+            }
+            .aspectRatio(playerManager.currentVideoAspectRatio < 1.0 ? playerManager.currentVideoAspectRatio : (9.0 / 16.0), contentMode: .fit)
+            .frame(maxHeight: 580)
+            .cornerRadius(12)
+            .overlay(
+                RoundedRectangle(cornerRadius: 12)
+                    .strokeBorder(
+                        LinearGradient(
+                            colors: [Color.white.opacity(0.3), Color.white.opacity(0.08)],
+                            startPoint: .top,
+                            endPoint: .bottom
+                        ),
+                        lineWidth: 1
+                    )
+            )
+            .shadow(color: .black.opacity(0.7), radius: 24, y: 8)
+            
+            // Top Corner Badge for Vertical Video
+            VStack {
+                HStack {
+                    HStack(spacing: 5) {
+                        Image(systemName: "rectangle.portrait.fill")
+                            .font(.system(size: 10.5))
+                        Text("Khổ dọc 9:16")
+                            .font(.system(size: 11, weight: .semibold))
+                    }
+                    .foregroundColor(Color.white.opacity(0.92))
+                    .padding(.horizontal, 9)
+                    .padding(.vertical, 4.5)
+                    .background(Color.black.opacity(0.65))
+                    .clipShape(Capsule())
+                    .overlay(
+                        Capsule().stroke(Color.white.opacity(0.18), lineWidth: 0.8)
+                    )
+                    .padding(12)
+                    
+                    Spacer()
+                }
+                Spacer()
+            }
+        }
+        .frame(maxWidth: .infinity)
+        .frame(height: 580)
+        .cornerRadius(14)
+        .overlay(RoundedRectangle(cornerRadius: 14).stroke(Color.white.opacity(0.08), lineWidth: 1))
+        .onHover { isHovered in
+            handleHover(isHovered)
+        }
+    }
+    
+    // MARK: - Horizontal 16:9 Player
+    private var horizontalPlayer: some View {
+        ZStack(alignment: .bottom) {
+            NativePlayerView()
+            
+            // Flash Play/Pause Center Indicator
+            centerFlashOverlay
+            
+            // Bottom Controls with YouTube Auto-Hide
+            PlayerControlOverlay()
+                .opacity(vm.isControlsVisible ? 1.0 : 0.0)
+                .animation(.easeInOut(duration: 0.18), value: vm.isControlsVisible)
+                .allowsHitTesting(vm.isControlsVisible)
+            
+            // Autoplay Countdown Overlay
+            if playerManager.autoplayCountdown != nil, let next = playerManager.nextVideo {
+                AutoplayCountdownOverlay(video: next)
+            }
+        }
+        .aspectRatio(16/9, contentMode: .fit)
+        .cornerRadius(12)
+        .overlay(
+            RoundedRectangle(cornerRadius: 12)
+                .stroke(Color.white.opacity(0.08), lineWidth: 1)
+        )
+        .shadow(color: .black.opacity(0.4), radius: 16, y: 6)
+        .onHover { isHovered in
+            handleHover(isHovered)
+        }
+    }
+    
+    // MARK: - Flash Center Indicator
+    private var centerFlashOverlay: some View {
+        ZStack {
+            if let icon = vm.flashIcon {
+                Circle()
+                    .fill(Color.black.opacity(0.65))
+                    .frame(width: 72, height: 72)
+                    .overlay(
+                        Image(systemName: icon)
+                            .font(.system(size: 28, weight: .bold))
+                            .foregroundColor(.white)
+                    )
+                    .scaleEffect(vm.flashScale)
+                    .opacity(vm.flashOpacity)
+            }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .allowsHitTesting(false)
+    }
+    
+    // MARK: - Hover & Auto-hide Logic (YouTube Style)
+    private func handleHover(_ isHovered: Bool) {
+        if isHovered {
+            withAnimation(.easeInOut(duration: 0.15)) {
+                vm.isControlsVisible = true
+            }
+            scheduleAutoHide(delay: 2.0)
+        } else {
+            vm.hideTimer?.invalidate()
+            vm.hideTimer = nil
+            
+            // Immediately clear center flash indicator when mouse leaves
+            withAnimation(.easeOut(duration: 0.12)) {
+                vm.flashOpacity = 0.0
+            }
+            vm.flashIcon = nil
+            
+            // When moving mouse OUT of the player, hide controls instantly & smoothly
+            if playerManager.isPlaying {
+                withAnimation(.easeOut(duration: 0.18)) {
+                    vm.isControlsVisible = false
+                }
+            }
+        }
+    }
+    
+    private func scheduleAutoHide(delay: Double) {
+        vm.hideTimer?.invalidate()
+        vm.hideTimer = Timer.scheduledTimer(withTimeInterval: delay, repeats: false) { _ in
+            Task { @MainActor in
+                if self.playerManager.isPlaying {
+                    withAnimation(.easeOut(duration: 0.28)) {
+                        self.vm.isControlsVisible = false
+                    }
+                }
+            }
+        }
+    }
+    
+    private func triggerPlayPauseFlash(isPlaying: Bool) {
+        vm.flashIcon = isPlaying ? "play.fill" : "pause.fill"
+        vm.flashScale = 0.90
+        vm.flashOpacity = 0.95
+        
+        withAnimation(.easeOut(duration: 0.20)) {
+            self.vm.flashScale = 1.20
+            self.vm.flashOpacity = 0.0
+        }
+        
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.22) { [weak vm] in
+            if vm?.flashOpacity == 0.0 {
+                vm?.flashIcon = nil
+            }
+        }
+        
+        if isPlaying {
+            // Hide controls quickly after playing starts
+            scheduleAutoHide(delay: 0.75)
+        } else {
+            withAnimation(.easeInOut(duration: 0.15)) {
+                self.vm.isControlsVisible = true
+            }
+        }
+    }
+}
+

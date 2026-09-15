@@ -25,10 +25,33 @@ public struct FullscreenVideoOverlay: View {
             Color.black
                 .ignoresSafeArea()
             
-            // Video Player centered with 16:9 aspect fit
-            NativePlayerView()
-                .aspectRatio(16/9, contentMode: .fit)
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
+            // Video Player centered with adaptive aspect ratio
+            if playerManager.isCurrentVideoVertical {
+                ZStack {
+                    // Ambient glow backdrop for vertical video in fullscreen
+                    AsyncImage(url: URL(string: video.thumbnail)) { phase in
+                        if let img = phase.image {
+                            img.resizable()
+                                .scaledToFill()
+                        } else {
+                            Color.black
+                        }
+                    }
+                    .blur(radius: 60)
+                    .opacity(0.32)
+                    .scaleEffect(1.2)
+                    .ignoresSafeArea()
+                    
+                    NativePlayerView()
+                        .aspectRatio(playerManager.currentVideoAspectRatio < 1.0 ? playerManager.currentVideoAspectRatio : (9.0 / 16.0), contentMode: .fit)
+                        .frame(maxHeight: .infinity)
+                        .shadow(color: .black.opacity(0.85), radius: 30)
+                }
+            } else {
+                NativePlayerView()
+                    .aspectRatio(16/9, contentMode: .fit)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+            }
             
             // Autoplay Countdown Overlay in Fullscreen
             if playerManager.autoplayCountdown != nil, let next = playerManager.nextVideo {

@@ -66,9 +66,6 @@ public final class MenuBarController: NSObject, NSPopoverDelegate {
                 self?.updatePopoverSize(isVertical: isVertical)
             }
             .store(in: &cancellables)
-        
-        // Pre-initialize persistent background MiniPlayerEngine so both players run simultaneously from launch
-        _ = MiniPlayerEngine.shared
     }
     
     public func updatePopoverSize(isVertical: Bool) {

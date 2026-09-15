@@ -2,17 +2,24 @@
 set -e
 
 APP_NAME="AuraTube"
-VERSION="2.0.25"
-BUILD="26"
 SOURCE_DIR="/Users/tungnguyen/Code/Youtube/AuraTubeNative"
 ASSETS_DIR="/Users/tungnguyen/Code/Youtube/assets"
 OUTPUT_DIR="/Users/tungnguyen/Code/Youtube"
+
+if [ -f "${OUTPUT_DIR}/version.json" ]; then
+    VERSION=$(grep '"version":' "${OUTPUT_DIR}/version.json" | head -n1 | sed -E 's/.*"version": "([^"]+)".*/\1/')
+    BUILD=$(grep '"build":' "${OUTPUT_DIR}/version.json" | head -n1 | sed -E 's/.*"build": ([0-9]+).*/\1/')
+fi
+VERSION="${VERSION:-2.0.28}"
+BUILD="${BUILD:-29}"
+
 FINAL_DMG="${OUTPUT_DIR}/${APP_NAME}-v${VERSION}.dmg"
 LATEST_DMG="${OUTPUT_DIR}/${APP_NAME}.dmg"
 APP_BUNDLE="/Applications/${APP_NAME}.app"
+TOOL_NAME="Mo Khoa App (xattr -cr).command"
 
-echo "==> 1. Building release bundle for AuraTube v${VERSION}..."
-swift build --package-path "${SOURCE_DIR}" -c release && bash "${SOURCE_DIR}/bundle.sh"
+echo "==> 1. Building release bundle for AuraTube v${VERSION} (Build ${BUILD})..."
+DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer swift build --package-path "${SOURCE_DIR}" -c release && bash "${SOURCE_DIR}/bundle.sh"
 
 # Prepare staging temporary directory
 STAGING_DIR="/tmp/auratube_dmg_staging_$$"
@@ -35,27 +42,31 @@ mkdir -p "${STAGING_DIR}"
 echo "==> 3. Copying ${APP_NAME}.app into staging..."
 cp -R "${APP_BUNDLE}" "${STAGING_DIR}/${APP_NAME}.app"
 
-echo "==> 4. Creating Applications symlink..."
+echo "==> 4. Adding Gatekeeper unlock tool into staging..."
+cp "${ASSETS_DIR}/fix_gatekeeper.command" "${STAGING_DIR}/${TOOL_NAME}"
+chmod +x "${STAGING_DIR}/${TOOL_NAME}"
+
+echo "==> 5. Creating Applications symlink..."
 ln -s /Applications "${STAGING_DIR}/Applications"
 
-echo "==> 5. Creating temporary read/write disk image..."
+echo "==> 6. Creating temporary read/write disk image..."
 rm -f "${TMP_DMG}"
 hdiutil create -srcfolder "${STAGING_DIR}" -volname "${APP_NAME}" -fs HFS+ \
     -fsargs "-c c=64,a=16,e=16" -format UDRW -size 300m "${TMP_DMG}"
 
-echo "==> 6. Mounting temporary disk image for Finder styling..."
+echo "==> 7. Mounting temporary disk image for Finder styling..."
 DEVICE=$(hdiutil attach -readwrite -noverify -noautoopen "${TMP_DMG}" | egrep '^/dev/' | sed 1q | awk '{print $1}')
 sleep 2
 
 # Apply custom volume icon if available
 if [ -f "${ASSETS_DIR}/icon.icns" ]; then
-    echo "==> 7. Setting custom Volume Icon..."
+    echo "==> 8. Setting custom Volume Icon..."
     cp "${ASSETS_DIR}/icon.icns" "/Volumes/${APP_NAME}/.VolumeIcon.icns" 2>/dev/null || true
     SetFile -c icnC "/Volumes/${APP_NAME}/.VolumeIcon.icns" 2>/dev/null || true
     SetFile -a C "/Volumes/${APP_NAME}" 2>/dev/null || true
 fi
 
-echo "==> 8. Configuring Finder presentation layout via AppleScript..."
+echo "==> 9. Configuring Finder presentation layout via AppleScript..."
 osascript -e "
 tell application \"Finder\"
     tell disk \"${APP_NAME}\"
@@ -63,16 +74,17 @@ tell application \"Finder\"
         set current view of container window to icon view
         set toolbar visible of container window to false
         set statusbar visible of container window to false
-        set the bounds of container window to {350, 150, 950, 550}
+        set the bounds of container window to {260, 150, 960, 540}
         
         set viewOptions to the icon view options of container window
-        set icon size of viewOptions to 110
-        set text size of viewOptions to 13
+        set icon size of viewOptions to 105
+        set text size of viewOptions to 12
         set arrangement of viewOptions to not arranged
         
-        -- Position app on the left, Applications folder on the right
-        set position of item \"${APP_NAME}.app\" of container window to {160, 200}
-        set position of item \"Applications\" of container window to {440, 200}
+        -- Position app on the left, Applications in the middle, Gatekeeper unlock tool on the right
+        set position of item \"${APP_NAME}.app\" of container window to {145, 195}
+        set position of item \"Applications\" of container window to {360, 195}
+        set position of item \"${TOOL_NAME}\" of container window to {565, 195}
         
         close
         open

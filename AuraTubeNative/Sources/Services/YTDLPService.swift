@@ -685,6 +685,11 @@ public final class YTDLPService: @unchecked Sendable {
                    let http = resp as? HTTPURLResponse, http.statusCode == 200,
                    let root = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
                     extractedChapters = self.parseChaptersFromNextAPI(root: root, totalDuration: totalDur)
+                    if desc.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                        if let nextDesc = self.parseDescriptionFromNextAPI(root: root), !nextDesc.isEmpty {
+                            desc = nextDesc
+                        }
+                    }
                 }
             }
         }
@@ -741,6 +746,36 @@ public final class YTDLPService: @unchecked Sendable {
             }
         }
         return chapters
+    }
+    
+    private func parseDescriptionFromNextAPI(root: [String: Any]) -> String? {
+        var foundDesc: String? = nil
+        
+        func scan(obj: Any) {
+            if foundDesc != nil { return }
+            if let d = obj as? [String: Any] {
+                if let renderer = d["expandableVideoDescriptionBodyRenderer"] as? [String: Any],
+                   let descObj = renderer["description"] as? [String: Any],
+                   let runs = descObj["runs"] as? [[String: Any]] {
+                    let text = runs.compactMap { $0["text"] as? String }.joined()
+                    if !text.isEmpty {
+                        foundDesc = text
+                        return
+                    }
+                }
+                if let attr = d["attributedDescription"] as? [String: Any],
+                   let content = attr["content"] as? String, !content.isEmpty {
+                    foundDesc = content
+                    return
+                }
+                for v in d.values { scan(obj: v) }
+            } else if let arr = obj as? [Any] {
+                for item in arr { scan(obj: item) }
+            }
+        }
+        
+        scan(obj: root)
+        return foundDesc
     }
     
     private func parseChaptersFromDescription(_ text: String, totalDuration: Double) -> [VideoChapter] {

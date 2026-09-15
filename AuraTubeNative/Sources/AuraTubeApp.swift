@@ -10,7 +10,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
     
     func applicationDidFinishLaunching(_ notification: Notification) {
-        NSApp.appearance = NSAppearance(named: .darkAqua)
+        ThemeManager.shared.applyTheme()
         MenuBarController.shared.setup()
         
         for window in NSApp.windows {
@@ -75,7 +75,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         window.titlebarSeparatorStyle = .none
         window.styleMask.insert(.fullSizeContentView)
         window.isOpaque = true
-        window.backgroundColor = NSColor(calibratedWhite: 0.11, alpha: 1.0)
+        
+        let isDark = (window.effectiveAppearance.name == .darkAqua || window.effectiveAppearance.name == .vibrantDark)
+        window.backgroundColor = isDark ? NSColor(calibratedWhite: 0.11, alpha: 1.0) : NSColor(calibratedWhite: 0.96, alpha: 1.0)
         
         // Hide opaque titlebar background views so SwiftUI liquid glass renders without cutoff
         if let closeButton = window.standardWindowButton(.closeButton),
@@ -105,12 +107,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 struct AuraTubeApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
     @ObservedObject private var playerManager = PlayerManager.shared
+    @ObservedObject private var themeManager = ThemeManager.shared
     
     var body: some Scene {
         WindowGroup {
             ContentView()
-                .preferredColorScheme(.dark)
-                .background(Color(red: 0.10, green: 0.10, blue: 0.11))
+                .preferredColorScheme(themeManager.colorScheme)
         }
         .windowStyle(.hiddenTitleBar)
         .defaultSize(width: 1240, height: 800)
@@ -125,6 +127,30 @@ struct AuraTubeApp: App {
                 }
                 .keyboardShortcut("u", modifiers: .command)
                 Divider()
+            }
+            
+            CommandMenu("Giao diện") {
+                Button("Tự động (Theo hệ thống)") {
+                    themeManager.setTheme(.system)
+                }
+                .keyboardShortcut("0", modifiers: [.command, .shift])
+                
+                Button("Giao diện sáng (Light)") {
+                    themeManager.setTheme(.light)
+                }
+                .keyboardShortcut("1", modifiers: [.command, .shift])
+                
+                Button("Giao diện tối (Dark)") {
+                    themeManager.setTheme(.dark)
+                }
+                .keyboardShortcut("2", modifiers: [.command, .shift])
+                
+                Divider()
+                
+                Button("Chuyển đổi giao diện (Light/Dark)") {
+                    themeManager.cycleTheme()
+                }
+                .keyboardShortcut("t", modifiers: .command)
             }
             
             CommandMenu("Điều khiển Media") {

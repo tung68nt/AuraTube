@@ -157,22 +157,28 @@ struct WindowAccessor: NSViewRepresentable {
 
 
 struct SidebarNavButton: View {
+    @Environment(\.colorScheme) private var colorScheme
     let section: NavigationSection
     let isSelected: Bool
     let action: () -> Void
     @StateObject private var hoverVm = LiquidHoverViewModel()
     
     var body: some View {
+        let isDark = (colorScheme == .dark)
+        let activeColor = isDark ? Color.white : Color(red: 15/255, green: 15/255, blue: 15/255)
+        let inactiveColor = isDark ? Color.white.opacity(0.68) : Color(red: 96/255, green: 96/255, blue: 96/255)
+        let hoverColor = isDark ? Color.white : Color(red: 15/255, green: 15/255, blue: 15/255)
+        
         Button(action: action) {
             HStack(spacing: 12) {
                 Image(systemName: section.iconName)
                     .font(.system(size: 16, weight: isSelected ? .semibold : .regular))
-                    .foregroundColor(isSelected ? .white : (hoverVm.isHovered ? .white : Color.white.opacity(0.68)))
+                    .foregroundColor(isSelected ? (isDark ? .white : Color(red: 0.95, green: 0.20, blue: 0.20)) : (hoverVm.isHovered ? hoverColor : inactiveColor))
                     .frame(width: 26)
                 
                 Text(section.rawValue)
                     .font(.system(size: 13.5, weight: isSelected ? .semibold : .medium))
-                    .foregroundColor(isSelected ? .white : (hoverVm.isHovered ? .white : Color.white.opacity(0.72)))
+                    .foregroundColor(isSelected ? activeColor : (hoverVm.isHovered ? hoverColor : inactiveColor))
                 
                 Spacer()
             }
@@ -182,21 +188,27 @@ struct SidebarNavButton: View {
                 Group {
                     if isSelected {
                         RoundedRectangle(cornerRadius: 10, style: .continuous)
-                            .fill(Color.white.opacity(0.14))
+                            .fill(isDark ? Color.white.opacity(0.14) : Color.black.opacity(0.06))
                             .overlay(
                                 RoundedRectangle(cornerRadius: 10, style: .continuous)
                                     .strokeBorder(
-                                        LinearGradient(
-                                            colors: [Color.white.opacity(0.24), Color.white.opacity(0.06)],
-                                            startPoint: .top,
-                                            endPoint: .bottom
-                                        ),
+                                        isDark ?
+                                            LinearGradient(
+                                                colors: [Color.white.opacity(0.24), Color.white.opacity(0.06)],
+                                                startPoint: .top,
+                                                endPoint: .bottom
+                                            ) :
+                                            LinearGradient(
+                                                colors: [Color.black.opacity(0.12), Color.black.opacity(0.04)],
+                                                startPoint: .top,
+                                                endPoint: .bottom
+                                            ),
                                         lineWidth: 0.75
                                     )
                             )
                     } else if hoverVm.isHovered {
                         RoundedRectangle(cornerRadius: 10, style: .continuous)
-                            .fill(Color.white.opacity(0.07))
+                            .fill(isDark ? Color.white.opacity(0.07) : Color.black.opacity(0.04))
                     } else {
                         Color.clear
                     }
@@ -213,6 +225,8 @@ struct SidebarNavButton: View {
 }
 
 public struct ContentView: View {
+    @Environment(\.colorScheme) private var colorScheme
+    @ObservedObject private var themeManager = ThemeManager.shared
     @ObservedObject private var playerManager = PlayerManager.shared
     @ObservedObject private var downloadManager = DownloadManager.shared
     @ObservedObject private var updateService = UpdateService.shared
@@ -225,28 +239,31 @@ public struct ContentView: View {
             if !playerManager.isVideoFullscreen {
                 // MARK: - 1. Unified Window Header (Height: 52)
                 ZStack {
-                    // Solid dark header base to completely prevent background apps from showing through
-                    Color(red: 0.12, green: 0.12, blue: 0.13)
-                    VisualEffectBackground(material: .headerView, blendingMode: .withinWindow)
-                        .overlay(Color.white.opacity(0.02))
+                    if colorScheme == .dark {
+                        ThemeColor.headerBackground(for: colorScheme)
+                        VisualEffectBackground(material: .headerView, blendingMode: .withinWindow)
+                            .overlay(Color.white.opacity(0.02))
+                    } else {
+                        Color.white
+                    }
                     
                     // Centered Search Box with macOS HIG styling & high contrast
                     HStack(spacing: 8) {
                         Image(systemName: "magnifyingglass")
-                            .foregroundColor(Color.white.opacity(0.68))
+                            .foregroundColor(ThemeColor.textSecondary(for: colorScheme))
                             .font(.system(size: 13, weight: .medium))
                         
                         ZStack(alignment: .leading) {
                             if vm.searchQuery.isEmpty {
                                 Text("Tìm kiếm trên YouTube...")
-                                    .foregroundColor(Color.white.opacity(0.48))
+                                    .foregroundColor(ThemeColor.textSecondary(for: colorScheme))
                                     .font(.system(size: 13))
                                     .allowsHitTesting(false)
                             }
                             
                             TextField("", text: $vm.searchQuery)
                                 .textFieldStyle(.plain)
-                                .foregroundColor(.white)
+                                .foregroundColor(ThemeColor.textPrimary(for: colorScheme))
                                 .font(.system(size: 13))
                                 .onChange(of: vm.searchQuery) { newQuery in
                                     vm.updateSearchSuggestions(for: newQuery)
@@ -266,7 +283,7 @@ public struct ContentView: View {
                                 }
                             }) {
                                 Image(systemName: "xmark.circle.fill")
-                                    .foregroundColor(Color.white.opacity(0.65))
+                                    .foregroundColor(ThemeColor.textSecondary(for: colorScheme))
                                     .font(.system(size: 13))
                             }
                             .buttonStyle(.plain)
@@ -286,14 +303,14 @@ public struct ContentView: View {
                             HStack(alignment: .center, spacing: 3.5) {
                                 Text("AuraTube")
                                     .font(.system(size: 15, weight: .bold))
-                                    .foregroundColor(.white)
+                                    .foregroundColor(ThemeColor.textPrimary(for: colorScheme))
                                     .tracking(-0.35)
                                     .lineLimit(1)
                                     .fixedSize()
                                 
                                 Text("VN")
                                     .font(.system(size: 8.5, weight: .bold))
-                                    .foregroundColor(Color.white.opacity(0.60))
+                                    .foregroundColor(ThemeColor.textSecondary(for: colorScheme))
                                     .offset(y: -4.5)
                                     .lineLimit(1)
                                     .fixedSize()
@@ -305,7 +322,7 @@ public struct ContentView: View {
                         
                         // Vertical Column Separator aligned with Sidebar boundary below
                         Rectangle()
-                            .fill(Color.white.opacity(0.06))
+                            .fill(ThemeColor.divider(for: colorScheme))
                             .frame(width: 0.75, height: 24)
                         
                         // Navigation Controls (Back / Forward) cleanly inside Main Content toolbar
@@ -322,12 +339,23 @@ public struct ContentView: View {
                                 }
                             }) {
                                 Image(systemName: "chevron.left")
-                                    .font(.system(size: 11, weight: .semibold))
-                                    .foregroundColor(canGoBack ? .white : Color.white.opacity(0.28))
+                                    .font(.system(size: 11, weight: .bold))
+                                    .foregroundColor(canGoBack ? ThemeColor.textPrimary(for: colorScheme) : (colorScheme == .dark ? Color.white.opacity(0.25) : Color.black.opacity(0.22)))
                                     .frame(width: 28, height: 28)
-                                    .background(Color.white.opacity(canGoBack ? 0.08 : 0.03))
+                                    .background(
+                                        canGoBack ?
+                                            ThemeColor.buttonBackground(for: colorScheme, isHovered: false) :
+                                            (colorScheme == .dark ? Color.white.opacity(0.04) : Color.black.opacity(0.02))
+                                    )
                                     .clipShape(Circle())
-                                    .overlay(Circle().strokeBorder(Color.white.opacity(canGoBack ? 0.20 : 0.06), lineWidth: 0.75))
+                                    .overlay(
+                                        Circle().strokeBorder(
+                                            canGoBack ?
+                                                ThemeColor.buttonBorder(for: colorScheme, isHovered: false) :
+                                                (colorScheme == .dark ? Color.white.opacity(0.08) : Color.black.opacity(0.06)),
+                                            lineWidth: 0.75
+                                        )
+                                    )
                             }
                             .buttonStyle(.plain)
                             .disabled(!canGoBack)
@@ -335,12 +363,12 @@ public struct ContentView: View {
                             
                             Button(action: {}) {
                                 Image(systemName: "chevron.right")
-                                    .font(.system(size: 11, weight: .semibold))
-                                    .foregroundColor(Color.white.opacity(0.20))
+                                    .font(.system(size: 11, weight: .bold))
+                                    .foregroundColor(colorScheme == .dark ? Color.white.opacity(0.20) : Color.black.opacity(0.18))
                                     .frame(width: 28, height: 28)
-                                    .background(Color.white.opacity(0.02))
+                                    .background(colorScheme == .dark ? Color.white.opacity(0.04) : Color.black.opacity(0.02))
                                     .clipShape(Circle())
-                                    .overlay(Circle().strokeBorder(Color.white.opacity(0.05), lineWidth: 0.75))
+                                    .overlay(Circle().strokeBorder(colorScheme == .dark ? Color.white.opacity(0.08) : Color.black.opacity(0.06), lineWidth: 0.75))
                             }
                             .buttonStyle(.plain)
                             .disabled(true)
@@ -353,6 +381,24 @@ public struct ContentView: View {
                     // Right Controls: Quick Actions & Update Status
                     HStack(spacing: 8) {
                         Spacer()
+                        
+                        // Theme Toggle Button (Light / Dark / Auto System)
+                        Button(action: {
+                            themeManager.cycleTheme()
+                        }) {
+                            ZStack {
+                                Circle()
+                                    .fill(ThemeColor.buttonBackground(for: colorScheme, isHovered: false))
+                                Circle()
+                                    .strokeBorder(ThemeColor.buttonBorder(for: colorScheme, isHovered: false), lineWidth: 0.75)
+                                Image(systemName: themeManager.currentTheme.iconName)
+                                    .font(.system(size: 12))
+                                    .foregroundColor(ThemeColor.textPrimary(for: colorScheme).opacity(0.85))
+                            }
+                            .frame(width: 28, height: 28)
+                        }
+                        .buttonStyle(.plain)
+                        .help("Giao diện: \(themeManager.currentTheme.title) (Bấm để đổi)")
                         
                         if updateService.isUpdateAvailable, let update = updateService.latestUpdate {
                             LiquidGlassButton(action: {
@@ -376,11 +422,11 @@ public struct ContentView: View {
                             }) {
                                 ZStack {
                                     Circle()
-                                        .fill(Color.white.opacity(0.06))
+                                        .fill(ThemeColor.buttonBackground(for: colorScheme, isHovered: false))
                                     Circle()
-                                        .strokeBorder(Color.white.opacity(0.12), lineWidth: 0.75)
+                                        .strokeBorder(ThemeColor.buttonBorder(for: colorScheme, isHovered: false), lineWidth: 0.75)
                                     SpinningRefreshIcon(isSpinning: updateService.isScanning, size: 11)
-                                        .foregroundColor(Color.white.opacity(0.85))
+                                        .foregroundColor(ThemeColor.textPrimary(for: colorScheme).opacity(0.85))
                                 }
                                 .frame(width: 28, height: 28)
                             }
@@ -393,12 +439,12 @@ public struct ContentView: View {
                             }) {
                                 ZStack {
                                     Circle()
-                                        .fill(Color.white.opacity(0.06))
+                                        .fill(ThemeColor.buttonBackground(for: colorScheme, isHovered: false))
                                     Circle()
-                                        .strokeBorder(Color.white.opacity(0.12), lineWidth: 0.75)
+                                        .strokeBorder(ThemeColor.buttonBorder(for: colorScheme, isHovered: false), lineWidth: 0.75)
                                     Image(systemName: "info.circle")
                                         .font(.system(size: 12.5))
-                                        .foregroundColor(Color.white.opacity(0.85))
+                                        .foregroundColor(ThemeColor.textPrimary(for: colorScheme).opacity(0.85))
                                 }
                                 .frame(width: 28, height: 28)
                             }
@@ -412,7 +458,7 @@ public struct ContentView: View {
             
             // Continuous Top Divider Line with specular highlight
             Rectangle()
-                .fill(Color.white.opacity(0.08))
+                .fill(ThemeColor.divider(for: colorScheme))
                 .frame(height: 0.75)
         }
         
@@ -435,65 +481,25 @@ public struct ContentView: View {
                     }
                     
                     Spacer()
-                    
-                    // Sidebar Footer: Version & Scan Card with Liquid Glass
-                    VStack(alignment: .leading, spacing: 8) {
-                        Button(action: { AppDelegate.showStandardAboutPanel() }) {
-                            HStack(spacing: 6) {
-                                Text("AuraTube v\(updateService.currentVersion)")
-                                    .font(.system(size: 11, weight: .semibold))
-                                    .foregroundColor(Color.white.opacity(0.75))
-                                
-                                Image(systemName: "info.circle")
-                                    .font(.system(size: 10))
-                                    .foregroundColor(Color.white.opacity(0.40))
-                                
-                                if updateService.isUpdateAvailable {
-                                    Circle()
-                                        .fill(Color.cyan)
-                                        .frame(width: 5.5, height: 5.5)
-                                }
-                            }
-                        }
-                        .buttonStyle(.plain)
-                        .help("Xem thông tin ứng dụng AuraTube")
-                        
-                        LiquidGlassButton(
-                            action: { updateService.scanForUpdates(isUserInitiated: true) },
-                            cornerRadius: 7,
-                            isProminent: updateService.isUpdateAvailable
-                        ) {
-                            HStack(spacing: 5) {
-                                SpinningRefreshIcon(isSpinning: updateService.isScanning, size: 10)
-                                Text(updateService.isScanning ? "Đang quét..." : (updateService.isUpdateAvailable ? "Có bản mới!" : "Quét cập nhật"))
-                                    .font(.system(size: 11, weight: .semibold))
-                            }
-                            .foregroundColor(updateService.isUpdateAvailable ? .white : Color.white.opacity(0.85))
-                            .frame(maxWidth: .infinity)
-                            .padding(.vertical, 5)
-                        }
-                        
-                        Text("© 2026 AuraTube • macOS")
-                            .font(.system(size: 9.5))
-                            .foregroundColor(Color.white.opacity(0.35))
-                    }
-                    .padding(10)
-                    .liquidGlass(cornerRadius: 10, elevation: 2)
-                    .padding(.horizontal, 10)
-                    .padding(.bottom, 16)
                 }
                 .padding(.top, 14)
                 .frame(width: 220)
                 .background(
-                    ZStack {
-                        Color(red: 0.13, green: 0.13, blue: 0.14)
-                        VisualEffectBackground(material: .sidebar, blendingMode: .withinWindow)
+                    Group {
+                        if colorScheme == .dark {
+                            ZStack {
+                                ThemeColor.headerBackground(for: colorScheme)
+                                VisualEffectBackground(material: .sidebar, blendingMode: .withinWindow)
+                            }
+                        } else {
+                            Color(red: 250/255, green: 250/255, blue: 250/255)
+                        }
                     }
                 )
                 
                 // Vertical Content Divider with subtle specular reflection
                 Rectangle()
-                    .fill(Color.white.opacity(0.06))
+                    .fill(ThemeColor.divider(for: colorScheme))
                     .frame(width: 0.75)
             }
             
@@ -513,7 +519,7 @@ public struct ContentView: View {
                     if playerManager.isVideoFullscreen {
                         Color.black.ignoresSafeArea()
                     } else {
-                        Color(red: 0.09, green: 0.09, blue: 0.10).ignoresSafeArea()
+                        (colorScheme == .dark ? Color(red: 15/255, green: 15/255, blue: 15/255) : Color.white).ignoresSafeArea()
                     }
                 
                 if let currentWatch = vm.watchingVideo {
@@ -585,7 +591,7 @@ public struct ContentView: View {
             if playerManager.isVideoFullscreen {
                 Color.black
             } else {
-                Color(red: 0.09, green: 0.09, blue: 0.10)
+                colorScheme == .dark ? Color(red: 0.09, green: 0.09, blue: 0.10) : Color.white
             }
         }
     )
@@ -733,6 +739,7 @@ public struct ContentView: View {
 
 // MARK: - Bookmarks List View
 struct BookmarkListView: View {
+    @Environment(\.colorScheme) private var colorScheme
     @ObservedObject private var playerManager = PlayerManager.shared
     let onSelectVideo: (Video) -> Void
     
@@ -741,7 +748,7 @@ struct BookmarkListView: View {
             VStack(alignment: .leading, spacing: 20) {
                 Text("Danh sách Xem sau (Bookmarks)")
                     .font(.system(size: 20, weight: .bold))
-                    .foregroundColor(.white)
+                    .foregroundColor(ThemeColor.textPrimary(for: colorScheme))
                     .padding(.horizontal, 24)
                     .padding(.top, 20)
                 
@@ -749,9 +756,9 @@ struct BookmarkListView: View {
                     VStack(spacing: 8) {
                         Image(systemName: "bookmark")
                             .font(.system(size: 32))
-                            .foregroundColor(Color(white: 0.4))
+                            .foregroundColor(ThemeColor.textSecondary(for: colorScheme).opacity(0.6))
                         Text("Chưa có video nào trong danh sách Xem sau")
-                            .foregroundColor(Color(white: 0.6))
+                            .foregroundColor(ThemeColor.textSecondary(for: colorScheme))
                     }
                     .frame(maxWidth: .infinity, minHeight: 250)
                 } else {
@@ -769,6 +776,7 @@ struct BookmarkListView: View {
 
 // MARK: - History List View
 struct HistoryListView: View {
+    @Environment(\.colorScheme) private var colorScheme
     @ObservedObject private var playerManager = PlayerManager.shared
     let onSelectVideo: (Video) -> Void
     
@@ -777,7 +785,7 @@ struct HistoryListView: View {
             VStack(alignment: .leading, spacing: 20) {
                 Text("Video đã xem gần đây")
                     .font(.system(size: 20, weight: .bold))
-                    .foregroundColor(.white)
+                    .foregroundColor(ThemeColor.textPrimary(for: colorScheme))
                     .padding(.horizontal, 24)
                     .padding(.top, 20)
                 
@@ -785,9 +793,9 @@ struct HistoryListView: View {
                     VStack(spacing: 8) {
                         Image(systemName: "clock")
                             .font(.system(size: 32))
-                            .foregroundColor(Color(white: 0.4))
+                            .foregroundColor(ThemeColor.textSecondary(for: colorScheme).opacity(0.6))
                         Text("Lịch sử xem đang trống")
-                            .foregroundColor(Color(white: 0.6))
+                            .foregroundColor(ThemeColor.textSecondary(for: colorScheme))
                     }
                     .frame(maxWidth: .infinity, minHeight: 250)
                 } else {
@@ -805,6 +813,7 @@ struct HistoryListView: View {
 
 // MARK: - Download List View
 struct DownloadListView: View {
+    @Environment(\.colorScheme) private var colorScheme
     @ObservedObject private var downloadManager = DownloadManager.shared
     
     var body: some View {
@@ -812,7 +821,7 @@ struct DownloadListView: View {
             HStack {
                 Text("Tệp tải về")
                     .font(.system(size: 20, weight: .bold))
-                    .foregroundColor(.white)
+                    .foregroundColor(ThemeColor.textPrimary(for: colorScheme))
                 Spacer()
                 Button(action: { downloadManager.openDownloadFolder() }) {
                     HStack(spacing: 6) {
@@ -822,9 +831,10 @@ struct DownloadListView: View {
                     .font(.system(size: 13, weight: .medium))
                     .padding(.horizontal, 14)
                     .padding(.vertical, 6)
-                    .background(Color.white.opacity(0.08))
+                    .background(ThemeColor.buttonBackground(for: colorScheme, isHovered: false))
                     .cornerRadius(8)
-                    .foregroundColor(.white)
+                    .overlay(RoundedRectangle(cornerRadius: 8).strokeBorder(ThemeColor.buttonBorder(for: colorScheme, isHovered: false), lineWidth: 0.75))
+                    .foregroundColor(ThemeColor.textPrimary(for: colorScheme))
                 }
                 .buttonStyle(.plain)
             }
@@ -835,33 +845,33 @@ struct DownloadListView: View {
                 VStack(spacing: 8) {
                     Image(systemName: "arrow.down.circle")
                         .font(.system(size: 32))
-                        .foregroundColor(Color(white: 0.4))
+                        .foregroundColor(ThemeColor.textSecondary(for: colorScheme).opacity(0.6))
                     Text("Chưa có tác vụ tải về nào")
-                        .foregroundColor(Color(white: 0.6))
+                        .foregroundColor(ThemeColor.textSecondary(for: colorScheme))
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
                 List(downloadManager.downloads) { item in
                     HStack(spacing: 14) {
                         Image(systemName: item.isComplete ? "checkmark.circle.fill" : "arrow.down.circle")
-                            .foregroundColor(item.isComplete ? .green : .white)
+                            .foregroundColor(item.isComplete ? .green : ThemeColor.textPrimary(for: colorScheme))
                             .font(.system(size: 18))
                         
                         VStack(alignment: .leading, spacing: 4) {
                             Text(item.title)
                                 .font(.system(size: 13.5, weight: .semibold))
-                                .foregroundColor(.white)
+                                .foregroundColor(ThemeColor.textPrimary(for: colorScheme))
                                 .lineLimit(1)
                             
                             HStack {
                                 Text(item.quality)
                                     .font(.system(size: 12))
-                                    .foregroundColor(Color(white: 0.6))
+                                    .foregroundColor(ThemeColor.textSecondary(for: colorScheme))
                                 Text("•")
-                                    .foregroundColor(Color(white: 0.4))
+                                    .foregroundColor(ThemeColor.textTertiary(for: colorScheme))
                                 Text(item.statusText)
                                     .font(.system(size: 12))
-                                    .foregroundColor(Color(white: 0.7))
+                                    .foregroundColor(ThemeColor.textSecondary(for: colorScheme))
                             }
                             
                             if !item.isComplete && item.progress > 0 {
@@ -1101,6 +1111,7 @@ struct UpdateNotificationBanner: View {
 // MARK: - Scan Feedback Toast HUD
 struct ScanFeedbackToast: View {
     let message: String
+    @Environment(\.colorScheme) private var colorScheme
     
     var body: some View {
         HStack(spacing: 8) {
@@ -1108,12 +1119,20 @@ struct ScanFeedbackToast: View {
                 .foregroundColor(.green)
                 .font(.system(size: 13, weight: .bold))
             Text(message)
-                .font(.system(size: 12, weight: .medium))
-                .foregroundColor(.white)
+                .font(.system(size: 12.5, weight: .semibold))
+                .foregroundColor(colorScheme == .dark ? Color(red: 241/255, green: 241/255, blue: 241/255) : Color(red: 15/255, green: 15/255, blue: 15/255))
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 9)
-        .liquidGlassCapsule(elevation: 8)
+        .background(
+            Capsule()
+                .fill(colorScheme == .dark ? Color(red: 30/255, green: 30/255, blue: 30/255) : Color.white)
+                .overlay(
+                    Capsule()
+                        .strokeBorder(colorScheme == .dark ? Color.white.opacity(0.20) : Color.black.opacity(0.12), lineWidth: 0.75)
+                )
+                .shadow(color: Color.black.opacity(colorScheme == .dark ? 0.35 : 0.12), radius: 10, y: 4)
+        )
     }
 }
 
@@ -1143,6 +1162,7 @@ struct SpinningRefreshIcon: View {
 
 // MARK: - Search Suggestions Dropdown (Liquid Glass with Backdrop Blur)
 struct SearchSuggestionsDropdown: View {
+    @Environment(\.colorScheme) private var colorScheme
     let suggestions: [String]
     let onSelect: (String) -> Void
     
@@ -1156,55 +1176,42 @@ struct SearchSuggestionsDropdown: View {
         }
         .padding(.vertical, 6)
         .frame(width: 440)
-        .background(
-            RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .fill(Color(red: 0.13, green: 0.13, blue: 0.15).opacity(0.96))
-                .overlay(
-                    RoundedRectangle(cornerRadius: 12, style: .continuous)
-                        .strokeBorder(
-                            LinearGradient(
-                                colors: [Color.white.opacity(0.18), Color.white.opacity(0.06)],
-                                startPoint: .top,
-                                endPoint: .bottom
-                            ),
-                            lineWidth: 1
-                        )
-                )
-                .shadow(color: Color.black.opacity(0.55), radius: 20, x: 0, y: 10)
-        )
-        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .liquidGlass(cornerRadius: 12, elevation: 10)
     }
 }
 
 struct SearchSuggestionRow: View {
+    @Environment(\.colorScheme) private var colorScheme
     let text: String
     let action: () -> Void
     @StateObject private var hoverVm = LiquidHoverViewModel()
     
     var body: some View {
+        let isDark = (colorScheme == .dark)
+        
         Button(action: action) {
             HStack(spacing: 12) {
                 Image(systemName: "magnifyingglass")
-                    .foregroundColor(Color.white.opacity(hoverVm.isHovered ? 0.9 : 0.5))
+                    .foregroundColor(ThemeColor.textSecondary(for: colorScheme).opacity(hoverVm.isHovered ? 1.0 : 0.6))
                     .font(.system(size: 12, weight: .medium))
                     .frame(width: 16)
                 
                 Text(text)
                     .font(.system(size: 13, weight: hoverVm.isHovered ? .semibold : .regular))
-                    .foregroundColor(hoverVm.isHovered ? .white : Color.white.opacity(0.88))
+                    .foregroundColor(ThemeColor.textPrimary(for: colorScheme))
                     .lineLimit(1)
                 
                 Spacer()
                 
                 Image(systemName: "arrow.up.left")
-                    .foregroundColor(Color.white.opacity(hoverVm.isHovered ? 0.6 : 0.25))
+                    .foregroundColor(ThemeColor.textSecondary(for: colorScheme).opacity(hoverVm.isHovered ? 0.7 : 0.3))
                     .font(.system(size: 10.5, weight: .medium))
             }
             .padding(.horizontal, 14)
             .padding(.vertical, 7.5)
             .background(
                 RoundedRectangle(cornerRadius: 8, style: .continuous)
-                    .fill(hoverVm.isHovered ? Color.white.opacity(0.09) : Color.clear)
+                    .fill(hoverVm.isHovered ? (isDark ? Color.white.opacity(0.09) : Color.black.opacity(0.06)) : Color.clear)
             )
             .contentShape(Rectangle())
         }
@@ -1218,6 +1225,7 @@ struct SearchSuggestionRow: View {
 
 // MARK: - Search Results View (Authentic YouTube Search Architecture)
 struct SearchResultsView: View {
+    @Environment(\.colorScheme) private var colorScheme
     @ObservedObject var vm: ContentViewModel
     let onSelectVideo: (Video) -> Void
     let onLoadMore: () -> Void
@@ -1236,7 +1244,11 @@ struct SearchResultsView: View {
                         ) {
                             Text(option)
                                 .font(.system(size: 12.5, weight: vm.searchFilter == option ? .semibold : .medium))
-                                .foregroundColor(vm.searchFilter == option ? Color.black.opacity(0.88) : Color.white.opacity(0.82))
+                                .foregroundColor(
+                                    vm.searchFilter == option ?
+                                        (colorScheme == .dark ? Color(red: 15/255, green: 15/255, blue: 15/255) : Color.white) :
+                                        (colorScheme == .dark ? Color(red: 241/255, green: 241/255, blue: 241/255) : Color(red: 15/255, green: 15/255, blue: 15/255))
+                                )
                                 .padding(.horizontal, 14)
                                 .frame(height: 28)
                         }
@@ -1247,7 +1259,7 @@ struct SearchResultsView: View {
                     if !vm.searchResults.isEmpty {
                         Text("\(vm.searchVideos.count) video • \(vm.searchShorts.count) Shorts")
                             .font(.system(size: 12, weight: .medium))
-                            .foregroundColor(Color.white.opacity(0.55))
+                            .foregroundColor(ThemeColor.textSecondary(for: colorScheme))
                     }
                 }
                 .padding(.horizontal, 28)
@@ -1259,20 +1271,20 @@ struct SearchResultsView: View {
                             .controlSize(.large)
                         Text("Đang tìm kiếm video và kênh...")
                             .font(.system(size: 13))
-                            .foregroundColor(Color(white: 0.6))
+                            .foregroundColor(ThemeColor.textSecondary(for: colorScheme))
                     }
                     .frame(maxWidth: .infinity, minHeight: 350)
                 } else if vm.searchResults.isEmpty && vm.searchChannel == nil {
                     VStack(spacing: 14) {
                         Image(systemName: "magnifyingglass")
                             .font(.system(size: 38))
-                            .foregroundColor(Color(white: 0.4))
+                            .foregroundColor(ThemeColor.textSecondary(for: colorScheme).opacity(0.6))
                         Text("Không tìm thấy kết quả nào cho \"\(vm.searchQuery)\"")
                             .font(.system(size: 14.5, weight: .medium))
-                            .foregroundColor(Color(white: 0.75))
+                            .foregroundColor(ThemeColor.textPrimary(for: colorScheme))
                         Text("Hãy thử kiểm tra lại chính tả hoặc tìm kiếm từ khoá khác")
                             .font(.system(size: 12))
-                            .foregroundColor(Color(white: 0.5))
+                            .foregroundColor(ThemeColor.textSecondary(for: colorScheme))
                     }
                     .frame(maxWidth: .infinity, minHeight: 350)
                 } else {
@@ -1283,7 +1295,7 @@ struct SearchResultsView: View {
                             .padding(.vertical, 6)
                         
                         Divider()
-                            .background(Color.white.opacity(0.08))
+                            .background(ThemeColor.divider(for: colorScheme))
                             .padding(.horizontal, 28)
                     }
                     
@@ -1365,18 +1377,18 @@ struct SearchResultsView: View {
                                 .controlSize(.small)
                             Text("Đang tải thêm kết quả từ YouTube...")
                                 .font(.system(size: 12.5))
-                                .foregroundColor(Color.white.opacity(0.65))
+                                .foregroundColor(ThemeColor.textSecondary(for: colorScheme))
                         }
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 24)
                     } else if !vm.canLoadMoreSearch && !vm.searchResults.isEmpty {
                         HStack(spacing: 8) {
                             Image(systemName: "checkmark.circle.fill")
-                                .foregroundColor(Color.white.opacity(0.35))
+                                .foregroundColor(ThemeColor.textTertiary(for: colorScheme))
                                 .font(.system(size: 12))
                             Text("Đã hiển thị hết kết quả tìm kiếm")
                                 .font(.system(size: 12))
-                                .foregroundColor(Color.white.opacity(0.45))
+                                .foregroundColor(ThemeColor.textTertiary(for: colorScheme))
                         }
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 24)
@@ -1390,6 +1402,7 @@ struct SearchResultsView: View {
 
 // MARK: - Search Channel Card View (Top of Search Results)
 struct SearchChannelCardView: View {
+    @Environment(\.colorScheme) private var colorScheme
     let channel: ChannelInfo
     @StateObject private var hoverVm = LiquidHoverViewModel()
     
@@ -1405,18 +1418,18 @@ struct SearchChannelCardView: View {
             }
             .frame(width: 82, height: 82)
             .clipShape(Circle())
-            .overlay(Circle().strokeBorder(Color.white.opacity(0.18), lineWidth: 1.5))
-            .shadow(color: Color.black.opacity(0.35), radius: 8, x: 0, y: 4)
+            .overlay(Circle().strokeBorder(ThemeColor.divider(for: colorScheme), lineWidth: 1.5))
+            .shadow(color: Color.black.opacity(colorScheme == .dark ? 0.35 : 0.10), radius: 8, x: 0, y: 4)
             
             // Channel Info
             VStack(alignment: .leading, spacing: 4) {
                 HStack(spacing: 6) {
                     Text(channel.title)
                         .font(.system(size: 18, weight: .bold))
-                        .foregroundColor(.white)
+                        .foregroundColor(ThemeColor.textPrimary(for: colorScheme))
                     
                     Image(systemName: "checkmark.seal.fill")
-                        .foregroundColor(Color.white.opacity(0.7))
+                        .foregroundColor(Color.cyan)
                         .font(.system(size: 13))
                 }
                 
@@ -1424,21 +1437,21 @@ struct SearchChannelCardView: View {
                     if let handle = channel.handle, !handle.isEmpty {
                         Text(handle)
                             .font(.system(size: 13, weight: .medium))
-                            .foregroundColor(Color.white.opacity(0.68))
+                            .foregroundColor(ThemeColor.textSecondary(for: colorScheme))
                     }
                     if let subs = channel.subscriberCount, !subs.isEmpty {
                         Text("•")
-                            .foregroundColor(Color.white.opacity(0.4))
+                            .foregroundColor(ThemeColor.textTertiary(for: colorScheme))
                         Text(subs)
                             .font(.system(size: 13))
-                            .foregroundColor(Color.white.opacity(0.68))
+                            .foregroundColor(ThemeColor.textSecondary(for: colorScheme))
                     }
                 }
                 
                 if let desc = channel.description, !desc.isEmpty {
                     Text(desc)
                         .font(.system(size: 12))
-                        .foregroundColor(Color.white.opacity(0.55))
+                        .foregroundColor(ThemeColor.textTertiary(for: colorScheme))
                         .lineLimit(2)
                         .padding(.top, 2)
                 }
@@ -1462,12 +1475,13 @@ struct SearchChannelCardView: View {
                     Text(isSub ? "Đã đăng ký" : "Đăng ký")
                         .font(.system(size: 12.5, weight: .semibold))
                 }
-                .foregroundColor(isSub ? Color.white.opacity(0.85) : Color.black)
+                .foregroundColor(isSub ? ThemeColor.textPrimary(for: colorScheme) : (colorScheme == .dark ? Color.black : Color.white))
                 .padding(.horizontal, 16)
                 .padding(.vertical, 8)
                 .background(
                     Capsule()
-                        .fill(isSub ? Color.white.opacity(0.20) : Color.white)
+                        .fill(isSub ? ThemeColor.buttonBackground(for: colorScheme, isHovered: false) : (colorScheme == .dark ? Color.white : Color(red: 15/255, green: 15/255, blue: 15/255)))
+                        .overlay(Capsule().strokeBorder(ThemeColor.buttonBorder(for: colorScheme, isHovered: false), lineWidth: 0.75))
                 )
             }
             .buttonStyle(.plain)
@@ -1476,7 +1490,7 @@ struct SearchChannelCardView: View {
         .padding(.vertical, 14)
         .background(
             RoundedRectangle(cornerRadius: 14, style: .continuous)
-                .fill(Color.white.opacity(hoverVm.isHovered ? 0.04 : 0.015))
+                .fill(hoverVm.isHovered ? ThemeColor.sidebarHover(for: colorScheme) : Color.clear)
         )
         .onHover { hovering in
             hoverVm.isHovered = hovering
@@ -1486,6 +1500,7 @@ struct SearchChannelCardView: View {
 
 // MARK: - Search Video Row View (Authentic Horizontal Search Card)
 struct SearchVideoRowView: View {
+    @Environment(\.colorScheme) private var colorScheme
     let video: Video
     let onSelect: () -> Void
     @StateObject private var hoverVm = LiquidHoverViewModel()
@@ -1499,7 +1514,7 @@ struct SearchVideoRowView: View {
                         if let img = phase.image {
                             img.resizable().scaledToFill()
                         } else {
-                            Color(white: 0.12)
+                            (colorScheme == .dark ? Color(white: 0.12) : Color(white: 0.88))
                         }
                     }
                     .frame(width: 320, height: 180)
@@ -1510,8 +1525,8 @@ struct SearchVideoRowView: View {
                             .strokeBorder(
                                 LinearGradient(
                                     colors: [
-                                        Color.white.opacity(hoverVm.isHovered ? 0.28 : 0.12),
-                                        Color.white.opacity(hoverVm.isHovered ? 0.10 : 0.02)
+                                        (colorScheme == .dark ? Color.white : Color.black).opacity(hoverVm.isHovered ? 0.28 : 0.10),
+                                        (colorScheme == .dark ? Color.white : Color.black).opacity(hoverVm.isHovered ? 0.10 : 0.02)
                                     ],
                                     startPoint: .top,
                                     endPoint: .bottom
@@ -1536,7 +1551,7 @@ struct SearchVideoRowView: View {
                     // Title
                     Text(video.title)
                         .font(.system(size: 15.5, weight: .semibold))
-                        .foregroundColor(.white)
+                        .foregroundColor(ThemeColor.textPrimary(for: colorScheme))
                         .lineLimit(2)
                         .multilineTextAlignment(.leading)
                         .lineSpacing(3)
@@ -1544,7 +1559,7 @@ struct SearchVideoRowView: View {
                     // Metadata: Views & Date
                     Text(video.metadataFormatted)
                         .font(.system(size: 12))
-                        .foregroundColor(Color.white.opacity(0.6))
+                        .foregroundColor(ThemeColor.textSecondary(for: colorScheme))
                     
                     // Channel
                     HStack(spacing: 8) {
@@ -1553,25 +1568,25 @@ struct SearchVideoRowView: View {
                                 if let img = phase.image {
                                     img.resizable().scaledToFill()
                                 } else {
-                                    Circle().fill(Color(white: 0.2))
+                                    Circle().fill(colorScheme == .dark ? Color(white: 0.2) : Color(white: 0.85))
                                 }
                             }
                             .frame(width: 24, height: 24)
                             .clipShape(Circle())
                         } else {
                             Circle()
-                                .fill(Color(white: 0.22))
+                                .fill(colorScheme == .dark ? Color(white: 0.22) : Color(white: 0.85))
                                 .frame(width: 24, height: 24)
                                 .overlay(
                                     Text(video.uploader.prefix(1).uppercased())
                                         .font(.system(size: 11, weight: .bold))
-                                        .foregroundColor(.white)
+                                        .foregroundColor(ThemeColor.textPrimary(for: colorScheme))
                                 )
                         }
                         
                         Text(video.uploader)
                             .font(.system(size: 12.5, weight: .medium))
-                            .foregroundColor(Color.white.opacity(0.82))
+                            .foregroundColor(ThemeColor.textPrimary(for: colorScheme).opacity(0.88))
                     }
                     .padding(.vertical, 4)
                     
@@ -1579,7 +1594,7 @@ struct SearchVideoRowView: View {
                     if let desc = video.description, !desc.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                         Text(desc)
                             .font(.system(size: 12))
-                            .foregroundColor(Color.white.opacity(0.52))
+                            .foregroundColor(ThemeColor.textSecondary(for: colorScheme))
                             .lineLimit(2)
                             .multilineTextAlignment(.leading)
                             .lineSpacing(2)
@@ -1593,7 +1608,7 @@ struct SearchVideoRowView: View {
             .padding(10)
             .background(
                 RoundedRectangle(cornerRadius: 12, style: .continuous)
-                    .fill(hoverVm.isHovered ? Color.white.opacity(0.05) : Color.clear)
+                    .fill(hoverVm.isHovered ? ThemeColor.sidebarHover(for: colorScheme) : Color.clear)
             )
             .contentShape(Rectangle())
         }
@@ -1606,6 +1621,7 @@ struct SearchVideoRowView: View {
 
 // MARK: - Search Shorts Shelf View (Horizontal Scrollable Shorts)
 struct SearchShortsShelfView: View {
+    @Environment(\.colorScheme) private var colorScheme
     let title: String
     let shorts: [Video]
     let onSelectShort: (Video) -> Void
@@ -1620,7 +1636,7 @@ struct SearchShortsShelfView: View {
                 
                 Text(title)
                     .font(.system(size: 18, weight: .bold))
-                    .foregroundColor(.white)
+                    .foregroundColor(ThemeColor.textPrimary(for: colorScheme))
             }
             .padding(.top, 6)
             
@@ -1642,6 +1658,7 @@ struct SearchShortsShelfView: View {
 
 // MARK: - Search Short Card View (9:16 Vertical Card)
 struct SearchShortCardView: View {
+    @Environment(\.colorScheme) private var colorScheme
     let video: Video
     let onSelect: () -> Void
     @StateObject private var hoverVm = LiquidHoverViewModel()
@@ -1655,7 +1672,7 @@ struct SearchShortCardView: View {
                         if let img = phase.image {
                             img.resizable().scaledToFill()
                         } else {
-                            Color(white: 0.14)
+                            (colorScheme == .dark ? Color(white: 0.14) : Color(white: 0.85))
                         }
                     }
                     .frame(width: 170, height: 285)
@@ -1666,8 +1683,8 @@ struct SearchShortCardView: View {
                             .strokeBorder(
                                 LinearGradient(
                                     colors: [
-                                        Color.white.opacity(hoverVm.isHovered ? 0.35 : 0.12),
-                                        Color.white.opacity(hoverVm.isHovered ? 0.12 : 0.03)
+                                        (colorScheme == .dark ? Color.white : Color.black).opacity(hoverVm.isHovered ? 0.35 : 0.12),
+                                        (colorScheme == .dark ? Color.white : Color.black).opacity(hoverVm.isHovered ? 0.12 : 0.03)
                                     ],
                                     startPoint: .top,
                                     endPoint: .bottom
@@ -1696,7 +1713,7 @@ struct SearchShortCardView: View {
                 // Short Title
                 Text(video.title)
                     .font(.system(size: 13, weight: .semibold))
-                    .foregroundColor(hoverVm.isHovered ? .white : Color.white.opacity(0.9))
+                    .foregroundColor(hoverVm.isHovered ? ThemeColor.textPrimary(for: colorScheme) : ThemeColor.textPrimary(for: colorScheme).opacity(0.88))
                     .lineLimit(2)
                     .frame(width: 170, alignment: .leading)
                     .multilineTextAlignment(.leading)
