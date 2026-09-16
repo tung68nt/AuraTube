@@ -86,9 +86,7 @@ public final class RecommendationService: ObservableObject {
         self.topKeywords = Array(sortedTopics.prefix(6))
         
         let subCount = ChannelSubscriptionManager.shared.subscribedChannels.count
-        let historyCount = PlayerManager.shared.historyVideos.count
-        
-        self.hasPersonalizedProfile = !topChannels.isEmpty || subCount > 0 || historyCount > 0
+        self.hasPersonalizedProfile = !topChannels.isEmpty || !topKeywords.isEmpty || subCount > 0
     }
     
     // MARK: - Keyword Extraction

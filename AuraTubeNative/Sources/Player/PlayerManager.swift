@@ -849,7 +849,9 @@ public final class PlayerManager: ObservableObject {
         if let data = UserDefaults.standard.data(forKey: "auratube_history"),
            let list = try? JSONDecoder().decode([Video].self, from: data) {
             self.historyVideos = list
-            RecommendationService.shared.syncFromExistingHistory(list)
+            DispatchQueue.main.async {
+                RecommendationService.shared.syncFromExistingHistory(list)
+            }
         }
     }
     
