@@ -1,9 +1,9 @@
 {
-  "version": "2.0.33",
-  "build": 34,
-  "title": "AuraTube v2.0.33 (Fix Triệt Để Lỗi Màn Hình Đen Khi Xem Shorts)",
-  "releaseNotes": "• Sửa triệt để lỗi Shorts có tiếng nhưng đen sì hình: Loại bỏ các bộ lọc CSS và hàm xóa DOM quá mức (từng vô tình ẩn và xóa mất thẻ container phát video '#movie_player' do trùng khớp từ khóa 'Play/Phát' trong nhãn phụ trợ).\n• Tối ưu hiển thị video Shorts dọc: Đảm bảo khung video và phần tử video HTML5 luôn được đặt ở trạng thái hiển thị 100% với 'object-fit: cover', hình ảnh sắc nét, mượt mà và âm thanh đồng bộ chuẩn xác.\n• Bảo vệ toàn vẹn bộ phát: Bổ sung lớp bảo vệ ngăn không cho bất kỳ script dọn dẹp nào tác động hay xóa phần tử video thực thụ.",
-  "downloadUrl": "https://github.com/tung68nt/AuraTube/releases/download/v2.0.33/AuraTube-v2.0.33.dmg",
+  "version": "2.0.34",
+  "build": 35,
+  "title": "AuraTube v2.0.34 (Căn Thẳng Hàng Lưới Video & Đồng Bộ Chiều Cao Thẻ)",
+  "releaseNotes": "• Căn thẳng hàng lề 100% cho lưới video: Chuyển cấu hình lưới LazyVGrid sang canh lề đỉnh (alignment: .top) kết hợp cố định chiều cao khối tiêu đề (38pt chuẩn 2 dòng) và chuẩn hóa thông tin kênh, thời gian.\n• Triệt tiêu hoàn toàn tình trạng thẻ video cao thấp so le: Mọi thẻ video trong cùng một hàng và giữa các hàng giờ đây đều bắt đầu ở cùng một tọa độ thẳng tắp, không còn bị xô lệch hay thụt thò khi tiêu đề dài ngắn khác nhau.",
+  "downloadUrl": "https://github.com/tung68nt/AuraTube/releases/download/v2.0.34/AuraTube-v2.0.34.dmg",
   "publishedAt": "2026-09-16",
   "minOSVersion": "13.0",
   "fileSize": "3.3 MB"

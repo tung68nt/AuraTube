@@ -48,7 +48,7 @@ public struct HomeView: View {
     ]
     
     private let columns = [
-        GridItem(.adaptive(minimum: 300, maximum: 380), spacing: 20)
+        GridItem(.adaptive(minimum: 300, maximum: 380), spacing: 20, alignment: .top)
     ]
     
     public init(onSelectVideo: @escaping (Video) -> Void) {
@@ -320,7 +320,7 @@ public struct HomeView: View {
                                 .foregroundColor(ThemeColor.textPrimary(for: colorScheme))
                                 .padding(.horizontal, 24)
                             
-                            LazyVGrid(columns: [GridItem(.adaptive(minimum: 280, maximum: 380), spacing: 14)], spacing: 14) {
+                            LazyVGrid(columns: [GridItem(.adaptive(minimum: 280, maximum: 380), spacing: 14, alignment: .top)], alignment: .leading, spacing: 14) {
                                 ForEach(vm.recommendedChannels) { rec in
                                     let isSub = subManager.isSubscribed(rec.title)
                                     HStack(spacing: 12) {
@@ -423,7 +423,7 @@ public struct HomeView: View {
                         }
                         .frame(maxWidth: .infinity, minHeight: 240)
                     } else {
-                        LazyVGrid(columns: columns, spacing: 28) {
+                        LazyVGrid(columns: columns, alignment: .leading, spacing: 28) {
                             ForEach(currentList) { video in
                                 VideoCardView(video: video) {
                                     onSelectVideo(video)
@@ -579,23 +579,24 @@ public struct VideoCardView: View {
                     
                     VStack(alignment: .leading, spacing: 3) {
                         Text(video.title)
-                            .font(.system(size: 14.5, weight: .semibold))
+                            .font(.system(size: 14, weight: .semibold))
                             .foregroundColor(ThemeColor.textPrimary(for: colorScheme))
                             .lineLimit(2)
                             .multilineTextAlignment(.leading)
                             .lineSpacing(2)
+                            .frame(height: 38, alignment: .topLeading)
                         
                         Text(video.uploader)
                             .font(.system(size: 12.5))
                             .foregroundColor(ThemeColor.textSecondary(for: colorScheme))
+                            .lineLimit(1)
                         
-                        if !video.metadataFormatted.isEmpty {
-                            Text(video.metadataFormatted)
-                                .font(.system(size: 12))
-                                .foregroundColor(ThemeColor.textTertiary(for: colorScheme))
-                                .lineLimit(1)
-                        }
+                        Text(!video.metadataFormatted.isEmpty ? video.metadataFormatted : " ")
+                            .font(.system(size: 12))
+                            .foregroundColor(video.metadataFormatted.isEmpty ? .clear : ThemeColor.textTertiary(for: colorScheme))
+                            .lineLimit(1)
                     }
+                    .frame(maxWidth: .infinity, alignment: .topLeading)
                     Spacer(minLength: 0)
                 }
             }

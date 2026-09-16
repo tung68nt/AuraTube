@@ -763,7 +763,7 @@ struct BookmarkListView: View {
                     }
                     .frame(maxWidth: .infinity, minHeight: 250)
                 } else {
-                    LazyVGrid(columns: [GridItem(.adaptive(minimum: 300, maximum: 380), spacing: 20)], spacing: 28) {
+                    LazyVGrid(columns: [GridItem(.adaptive(minimum: 300, maximum: 380), spacing: 20, alignment: .top)], alignment: .leading, spacing: 28) {
                         ForEach(playerManager.bookmarkedVideos) { v in
                             VideoCardView(video: v) { onSelectVideo(v) }
                         }
@@ -800,7 +800,7 @@ struct HistoryListView: View {
                     }
                     .frame(maxWidth: .infinity, minHeight: 250)
                 } else {
-                    LazyVGrid(columns: [GridItem(.adaptive(minimum: 300, maximum: 380), spacing: 20)], spacing: 28) {
+                    LazyVGrid(columns: [GridItem(.adaptive(minimum: 300, maximum: 380), spacing: 20, alignment: .top)], alignment: .leading, spacing: 28) {
                         ForEach(playerManager.historyVideos) { v in
                             VideoCardView(video: v) { onSelectVideo(v) }
                         }
@@ -1303,7 +1303,7 @@ struct SearchResultsView: View {
                     // 3. Content Display based on Filter
                     if vm.searchFilter == "Shorts" {
                         // Shorts Grid View
-                        LazyVGrid(columns: [GridItem(.adaptive(minimum: 160, maximum: 200), spacing: 16)], spacing: 22) {
+                        LazyVGrid(columns: [GridItem(.adaptive(minimum: 160, maximum: 200), spacing: 16, alignment: .top)], alignment: .leading, spacing: 22) {
                             ForEach(Array(vm.searchShorts.enumerated()), id: \.element.id) { index, short in
                                 SearchShortCardView(video: short) {
                                     onSelectVideo(short)
