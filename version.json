@@ -1,9 +1,9 @@
 {
-  "version": "2.0.31",
-  "build": 32,
-  "title": "AuraTube v2.0.31 (Hệ Thống Đề Xuất Thông Minh Dành Riêng Cho Bạn)",
-  "releaseNotes": "• Triệt tiêu hoàn toàn tình trạng mặc định chỉ có video nhạc: Loại bỏ chuỗi truy vấn cứng 'nhạc việt hot trending' trước đây; xây dựng RecommendationService độc lập để phân tích thị hiếu và sở thích của từng người dùng.\n• Đề xuất thông minh theo dữ liệu xem & đăng ký kênh: Tự động tổng hợp và học từ các kênh bạn đã xem, kênh bạn bấm 'Đăng ký' và chủ đề tìm kiếm (như Công nghệ, Review, Đời sống, Tin tức...) để đưa ra feed trang chủ 'Đề xuất cho bạn' đúng gu 100%, không bị lặp lại các video vừa xem xong.\n• Feed đa dạng 4 trụ cột cho người dùng mới (Cold-Start): Khi chưa có lịch sử, trang chủ tự động đan xen cân bằng 1:1:1:1 giữa Công nghệ & Đập hộp (ThinkView, Schannel), Tin tức thời sự 24h (VTV24), Du lịch & Khám phá (Khoai Lang Thang), và Phim ảnh & Podcast (Phê Phim, Vietcetera).\n• Bổ sung các thẻ chủ đề 'Công nghệ' và 'Giải trí': Dễ dàng lọc nhanh các video công nghệ, thiết bị mới nhất trực tiếp trên thanh chip phân loại.",
-  "downloadUrl": "https://github.com/tung68nt/AuraTube/releases/download/v2.0.31/AuraTube-v2.0.31.dmg",
+  "version": "2.0.32",
+  "build": 33,
+  "title": "AuraTube v2.0.32 (Fix Triệt Để Tự Động Phát & Double Icon & Dải Đen Player)",
+  "releaseNotes": "• Tự động phát tức thì khi mở video mới (100% Autoplay): Tối ưu cơ chế autoplay kết hợp kích hoạt un-mute mượt mà, video bắt đầu phát ngay lập tức khi người dùng bấm vào mà không còn bị dừng chờ click.\n• Loại bỏ hoàn toàn lỗi Double Icon giữa Player: Dọn dẹp nút play gốc của YouTube khỏi DOM/CSS và tinh chỉnh nút trung tâm SwiftUI chỉ hiển thị khi video đang Pause. Khi video đang phát hoặc đang tải, trung tâm màn hình hoàn toàn sạch bóng, không bao giờ bị đè trùng icon Play/Pause nữa.\n• Xóa bỏ dải đen ở đáy Player: Loại bỏ triệt để định vị lệch âm (-56px) cũ trong iframe, căn chỉnh khung hình chuẩn tỷ lệ 16:9 khít 100% khung hiển thị, không còn bất kỳ vệt đen hay khoảng trống nào ở đáy video.",
+  "downloadUrl": "https://github.com/tung68nt/AuraTube/releases/download/v2.0.32/AuraTube-v2.0.32.dmg",
   "publishedAt": "2026-09-16",
   "minOSVersion": "13.0",
   "fileSize": "3.3 MB"

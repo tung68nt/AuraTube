@@ -704,7 +704,7 @@ struct WatchPlayerContainerView: View {
                     AutoplayCountdownOverlay(video: next)
                 }
             }
-            .aspectRatio(playerManager.currentVideoAspectRatio < 1.0 ? playerManager.currentVideoAspectRatio : (9.0 / 16.0), contentMode: .fit)
+            .aspectRatio(playerManager.currentVideoAspectRatio, contentMode: .fit)
             .frame(maxHeight: 580)
             .cornerRadius(12)
             .overlay(
@@ -868,37 +868,41 @@ struct WatchPlayerContainerView: View {
     
     // MARK: - Center Play / Pause Indicator (Synchronized with Timeline)
     private var centerPlayPauseOverlay: some View {
-        Button(action: {
-            playerManager.togglePlayPause()
-        }) {
-            ZStack {
-                Circle()
-                    .fill(Color.black.opacity(0.62))
-                    .frame(width: 68, height: 68)
-                    .overlay(
+        Group {
+            if !playerManager.isPlaying {
+                Button(action: {
+                    playerManager.togglePlayPause()
+                }) {
+                    ZStack {
                         Circle()
-                            .strokeBorder(
-                                LinearGradient(
-                                    colors: [Color.white.opacity(0.4), Color.white.opacity(0.12)],
-                                    startPoint: .topLeading,
-                                    endPoint: .bottomTrailing
-                                ),
-                                lineWidth: 1.2
+                            .fill(Color.black.opacity(0.62))
+                            .frame(width: 68, height: 68)
+                            .overlay(
+                                Circle()
+                                    .strokeBorder(
+                                        LinearGradient(
+                                            colors: [Color.white.opacity(0.4), Color.white.opacity(0.12)],
+                                            startPoint: .topLeading,
+                                            endPoint: .bottomTrailing
+                                        ),
+                                        lineWidth: 1.2
+                                    )
                             )
-                    )
-                    .shadow(color: .black.opacity(0.5), radius: 12, x: 0, y: 4)
-                
-                Image(systemName: playerManager.isPlaying ? "pause.fill" : "play.fill")
-                    .font(.system(size: 26, weight: .bold))
-                    .foregroundColor(.white)
-                    .offset(x: playerManager.isPlaying ? 0 : 2)
+                            .shadow(color: .black.opacity(0.5), radius: 12, x: 0, y: 4)
+                        
+                        Image(systemName: "play.fill")
+                            .font(.system(size: 26, weight: .bold))
+                            .foregroundColor(.white)
+                            .offset(x: 2)
+                    }
+                }
+                .buttonStyle(.plain)
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
+                .opacity(vm.isControlsVisible ? 1.0 : 0.0)
+                .animation(.easeInOut(duration: 0.18), value: vm.isControlsVisible)
+                .allowsHitTesting(vm.isControlsVisible)
             }
         }
-        .buttonStyle(.plain)
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
-        .opacity(vm.isControlsVisible ? 1.0 : 0.0)
-        .animation(.easeInOut(duration: 0.18), value: vm.isControlsVisible)
-        .allowsHitTesting(vm.isControlsVisible)
     }
     
     // MARK: - Hover & Auto-hide Logic (Synchronized with Timeline)

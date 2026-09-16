@@ -43,7 +43,7 @@ public struct FullscreenVideoOverlay: View {
                     .ignoresSafeArea()
                     
                     NativePlayerView()
-                        .aspectRatio(playerManager.currentVideoAspectRatio < 1.0 ? playerManager.currentVideoAspectRatio : (9.0 / 16.0), contentMode: .fit)
+                        .aspectRatio(playerManager.currentVideoAspectRatio, contentMode: .fit)
                         .frame(maxHeight: .infinity)
                         .shadow(color: .black.opacity(0.85), radius: 30)
                 }

@@ -232,7 +232,6 @@ public struct NativePlayerView: NSViewRepresentable {
     public static func generateHTML(for video: Video, playerManager: PlayerManager) -> String {
         let startPos = max(0, Int(playerManager.currentTime))
         let qParam = (playerManager.selectedQuality != "auto") ? "hd\(playerManager.selectedQuality)" : "hd1080"
-        let muteParam = playerManager.isMuted ? "1" : "0"
         
         return """
         <!DOCTYPE html>
@@ -253,22 +252,43 @@ public struct NativePlayerView: NSViewRepresentable {
           }
           #ytPlayer, iframe {
             position: absolute;
-            top: -56px;
+            top: 0;
             left: 0;
             width: 100% !important;
-            height: calc(100% + 56px) !important;
+            height: 100% !important;
             border: none;
             display: block;
+          }
+          .ytp-large-play-button,
+          .ytp-large-play-button-bg,
+          .ytp-button.ytp-large-play-button,
+          button.ytp-large-play-button,
+          .ytp-cairo-refresh-signature-moments,
+          .ytp-suggested-action-badge,
+          .ytp-popup,
+          .ytp-ai-info-dialog,
+          [class*="ai-disclosure"],
+          .ytp-paid-content-overlay,
+          [class*="paid-content"],
+          [class*="paid-promotion"],
+          .ytp-chrome-top,
+          .ytp-chrome-bottom,
+          .ytp-gradient-top,
+          .ytp-gradient-bottom,
+          [class*="title-channel"],
+          .ytp-bezel {
+            display: none !important;
+            opacity: 0 !important;
+            visibility: hidden !important;
             pointer-events: none !important;
           }
-          .ytp-suggested-action-badge, .ytp-popup, .ytp-ai-info-dialog, [class*="ai-disclosure"], .ytp-paid-content-overlay, [class*="paid-content"], [class*="paid-promotion"], .ytp-chrome-top, [class*="title-channel"], .ytp-bezel { display: none !important; opacity: 0 !important; visibility: hidden !important; }
         </style>
         </head>
         <body>
         <div class="player-wrapper">
         <iframe 
             id="ytPlayer"
-            src="https://www.youtube.com/embed/\(video.id)?autoplay=1&mute=\(muteParam)&playsinline=1&controls=0&enablejsapi=1&rel=0&modestbranding=1&fs=1&origin=https://auratube.app&widget_referrer=https://auratube.app&start=\(startPos)&vq=\(qParam)" 
+            src="https://www.youtube.com/embed/\(video.id)?autoplay=1&mute=1&playsinline=1&controls=0&enablejsapi=1&rel=0&modestbranding=1&fs=1&origin=https://auratube.app&widget_referrer=https://auratube.app&start=\(startPos)&vq=\(qParam)" 
             allow="autoplay; encrypted-media; picture-in-picture; fullscreen" 
             allowfullscreen="true">
         </iframe>
@@ -276,7 +296,21 @@ public struct NativePlayerView: NSViewRepresentable {
         <script>
           var isPlaying = true;
           var isMuted = \(playerManager.isMuted ? "true" : "false");
+          var currentVolume = \(max(0, min(100, Int(playerManager.volume * 100))));
           var currentVideoId = '\(video.id)';
+
+          function ensureAudioPlayback() {
+            var ifr = document.getElementById('ytPlayer');
+            if (ifr && ifr.contentWindow) {
+              try {
+                ifr.contentWindow.postMessage(JSON.stringify({event: "command", func: "playVideo", args: []}), '*');
+                if (!isMuted) {
+                  ifr.contentWindow.postMessage(JSON.stringify({event: "command", func: "unMute", args: []}), '*');
+                  ifr.contentWindow.postMessage(JSON.stringify({event: "command", func: "setVolume", args: [currentVolume]}), '*');
+                }
+              } catch(e) {}
+            }
+          }
 
           window.loadNewVideo = function(newId, startSec, targetQuality) {
             isPlaying = true;
@@ -285,7 +319,8 @@ public struct NativePlayerView: NSViewRepresentable {
             var q = targetQuality ? ('hd' + targetQuality) : 'hd1080';
             var ifr = document.getElementById('ytPlayer');
             
-            // 1. Direct loadVideoById to active player (instant switch without destroying iframe)
+            clearTimeout(window._loadFallbackTimer);
+
             if (ifr && ifr.contentWindow) {
               try {
                 ifr.contentWindow.postMessage(JSON.stringify({
@@ -302,20 +337,13 @@ public struct NativePlayerView: NSViewRepresentable {
                   func: "loadVideoById",
                   args: [newId, start, q]
                 }), '*');
-                ifr.contentWindow.postMessage(JSON.stringify({event: "command", func: "unMute", args: []}), '*');
-                ifr.contentWindow.postMessage(JSON.stringify({event: "command", func: "setVolume", args: [100]}), '*');
                 ifr.contentWindow.postMessage(JSON.stringify({event: "command", func: "playVideo", args: []}), '*');
+                
+                setTimeout(ensureAudioPlayback, 80);
+                setTimeout(ensureAudioPlayback, 200);
+                setTimeout(ensureAudioPlayback, 500);
               } catch(e) {}
             }
-            
-            // 2. Fallback update only if iframe didn't switch after 1.2 seconds
-            clearTimeout(window._loadFallbackTimer);
-            window._loadFallbackTimer = setTimeout(function() {
-              if (currentVideoId === newId && (!ifr.src || ifr.src.indexOf(newId) === -1)) {
-                var targetSrc = 'https://www.youtube.com/embed/' + newId + '?autoplay=1&mute=0&playsinline=1&controls=0&enablejsapi=1&rel=0&modestbranding=1&fs=1&origin=https://auratube.app&widget_referrer=https://auratube.app&start=' + start + '&vq=' + q;
-                ifr.src = targetSrc;
-              }
-            }, 1200);
             postStateSync();
           };
 
@@ -360,16 +388,10 @@ public struct NativePlayerView: NSViewRepresentable {
                 if (window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.playerBridge) {
                   window.webkit.messageHandlers.playerBridge.postMessage({ type: 'playerReady' });
                 }
+                ensureAudioPlayback();
+                setTimeout(ensureAudioPlayback, 120);
+                setTimeout(ensureAudioPlayback, 350);
                 if (ifr && ifr.contentWindow) {
-                  ifr.contentWindow.postMessage(JSON.stringify({event: "command", func: "playVideo", args: []}), '*');
-                  if (!isMuted) {
-                    setTimeout(function() {
-                      if (ifr && ifr.contentWindow) {
-                        ifr.contentWindow.postMessage(JSON.stringify({event: "command", func: "unMute", args: []}), '*');
-                        ifr.contentWindow.postMessage(JSON.stringify({event: "command", func: "setVolume", args: [100]}), '*');
-                      }
-                    }, 120);
-                  }
                   ifr.contentWindow.postMessage(JSON.stringify({event: "listening"}), '*');
                 }
                 postStateSync();
@@ -379,10 +401,7 @@ public struct NativePlayerView: NSViewRepresentable {
                 var state = data.info;
                 if (state === 1) {
                   isPlaying = true;
-                  if (!isMuted && ifr && ifr.contentWindow) {
-                    ifr.contentWindow.postMessage(JSON.stringify({event: "command", func: "unMute", args: []}), '*');
-                    ifr.contentWindow.postMessage(JSON.stringify({event: "command", func: "setVolume", args: [100]}), '*');
-                  }
+                  ensureAudioPlayback();
                 } else if (state === 2 || state === 0) {
                   isPlaying = false;
                   if (state === 0) {
@@ -634,7 +653,11 @@ public struct NativePlayerView: NSViewRepresentable {
                     .ytp-bezel,
                     .ytp-bezel-text,
                     .ytp-bezel-icon,
-                    .ytp-gradient-bottom {
+                    .ytp-gradient-bottom,
+                    .ytp-large-play-button,
+                    .ytp-large-play-button-bg,
+                    button.ytp-large-play-button,
+                    .ytp-button.ytp-large-play-button {
                         display: none !important;
                         opacity: 0 !important;
                         visibility: hidden !important;
@@ -653,7 +676,7 @@ public struct NativePlayerView: NSViewRepresentable {
                     'a[href*="support.google.com/youtube?p=ppp"], a[href*="support.google.com/youtube/answer/154235"], ' +
                     '.ytp-suggested-action-badge, .ytp-suggested-action, .ytp-ai-info-dialog, .ytp-content-disclosure, ' +
                     '[class*="ai-disclosure"], [class*="content-disclosure"], [class*="suggested-action"], [aria-label*="AI" i], ' +
-                    '.ytp-popup, .ytp-panel-popup, .ytp-pause-overlay, .ytp-bezel, ' +
+                    '.ytp-popup, .ytp-panel-popup, .ytp-pause-overlay, .ytp-bezel, .ytp-large-play-button, .ytp-large-play-button-bg, ' +
                     '.ytp-chrome-top, .ytp-gradient-top, .ytp-gradient-bottom, .ytp-title, .ytp-title-channel, .ytp-title-channel-logo, .ytp-title-channel-text, .ytp-title-text, .ytp-title-subtext, .ytp-title-link, ' +
                     '.ytp-chrome-bottom, .ytp-progress-bar-container, .ytp-fullscreen-button, ' +
                     '[class*="title-channel"], [class*="channel-logo"], [class*="channel-name"], [class*="channel-avatar"], [class*="channel-subscribers"], [class*="chrome-top"], [class*="cairo-refresh"], ' +
