@@ -153,6 +153,13 @@ struct AuraTubeApp: App {
                 .keyboardShortcut("t", modifiers: .command)
             }
             
+            CommandMenu("Hiển thị") {
+                Button("Hiện / Ẩn Sidebar") {
+                    NotificationCenter.default.post(name: .toggleSidebarNotification, object: nil)
+                }
+                .keyboardShortcut("s", modifiers: [.command, .option])
+            }
+            
             CommandMenu("Điều khiển Media") {
                 Button("Bật Mini Player (Menu Bar)") {
                     MenuBarController.shared.togglePopover()
@@ -204,4 +211,8 @@ struct AuraTubeApp: App {
             }
         }
     }
+}
+
+extension Notification.Name {
+    static let toggleSidebarNotification = Notification.Name("AuraTubeToggleSidebarNotification")
 }

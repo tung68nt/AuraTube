@@ -232,7 +232,39 @@ public struct ContentView: View {
     @ObservedObject private var updateService = UpdateService.shared
     @StateObject private var vm = ContentViewModel()
     
+    @AppStorage("isSidebarCollapsedByUser") private var isSidebarCollapsedByUser: Bool = false
+    @State private var isSidebarDrawerOpen: Bool = false
+    
     public init() {}
+    
+    private var isSidebarVisible: Bool {
+        // Auto-hide sidebar when watching video to maximize player width
+        if vm.watchingVideo != nil {
+            return false
+        }
+        return !isSidebarCollapsedByUser
+    }
+    
+    private var sidebarToggleTooltip: String {
+        if vm.watchingVideo != nil {
+            return isSidebarDrawerOpen ? "Đóng danh mục" : "Mở danh mục (Sidebar)"
+        } else {
+            return isSidebarCollapsedByUser ? "Hiện thanh điều hướng (Sidebar)" : "Ẩn thanh điều hướng (Sidebar)"
+        }
+    }
+    
+    private func toggleSidebar() {
+        withAnimation(.spring(response: 0.28, dampingFraction: 0.85)) {
+            if vm.watchingVideo != nil {
+                isSidebarDrawerOpen.toggle()
+            } else {
+                isSidebarCollapsedByUser.toggle()
+                if !isSidebarCollapsedByUser {
+                    isSidebarDrawerOpen = false
+                }
+            }
+        }
+    }
     
     public var body: some View {
         VStack(spacing: 0) {
@@ -256,7 +288,7 @@ public struct ContentView: View {
                         ZStack(alignment: .leading) {
                             if vm.searchQuery.isEmpty {
                                 Text("Tìm kiếm trên YouTube...")
-                                    .foregroundColor(ThemeColor.textSecondary(for: colorScheme))
+                                     .foregroundColor(ThemeColor.textSecondary(for: colorScheme))
                                     .font(.system(size: 13))
                                     .allowsHitTesting(false)
                             }
@@ -293,39 +325,72 @@ public struct ContentView: View {
                     .frame(width: 400, height: 32)
                     .liquidGlassSearchBar()
                     
-                    // Left Controls: Brand (Sidebar Column) + Navigation (Main Content Column)
+                    // Left Controls: Sidebar Toggle + Brand + Navigation
                     HStack(spacing: 0) {
-                        // Sidebar Header Area: Brand Logo & Title (Width: 220, matches sidebar below)
-                        HStack(spacing: 9) {
-                            YouTubeBrandBadge(width: 26)
-                                .padding(.leading, 16)
-                            
-                            HStack(alignment: .center, spacing: 3.5) {
-                                Text("AuraTube")
-                                    .font(.system(size: 15, weight: .bold))
-                                    .foregroundColor(ThemeColor.textPrimary(for: colorScheme))
-                                    .tracking(-0.35)
-                                    .lineLimit(1)
-                                    .fixedSize()
-                                
-                                Text("VN")
-                                    .font(.system(size: 8.5, weight: .bold))
-                                    .foregroundColor(ThemeColor.textSecondary(for: colorScheme))
-                                    .offset(y: -4.5)
-                                    .lineLimit(1)
-                                    .fixedSize()
+                        HStack(spacing: 8) {
+                            // Hamburger Toggle Button (Sidebar / Drawer)
+                            Button(action: toggleSidebar) {
+                                ZStack {
+                                    Circle()
+                                        .fill(ThemeColor.buttonBackground(for: colorScheme, isHovered: false))
+                                    Circle()
+                                        .strokeBorder(ThemeColor.buttonBorder(for: colorScheme, isHovered: false), lineWidth: 0.75)
+                                    Image(systemName: "line.3.horizontal")
+                                        .font(.system(size: 12.5, weight: .semibold))
+                                        .foregroundColor(ThemeColor.textPrimary(for: colorScheme).opacity(0.9))
+                                }
+                                .frame(width: 28, height: 28)
                             }
+                            .buttonStyle(.plain)
+                            .help(sidebarToggleTooltip)
                             
-                            Spacer()
+                            // Brand Logo & Title (Clickable to return Home)
+                            Button(action: {
+                                withAnimation(.easeInOut(duration: 0.18)) {
+                                    vm.watchingVideo = nil
+                                    vm.selectedSection = .home
+                                    vm.isSearching = false
+                                    vm.searchQuery = ""
+                                    isSidebarDrawerOpen = false
+                                }
+                            }) {
+                                HStack(spacing: 7) {
+                                    YouTubeBrandBadge(width: 24)
+                                    
+                                    HStack(alignment: .center, spacing: 3) {
+                                        Text("AuraTube")
+                                            .font(.system(size: 15, weight: .bold))
+                                            .foregroundColor(ThemeColor.textPrimary(for: colorScheme))
+                                            .tracking(-0.35)
+                                            .lineLimit(1)
+                                            .fixedSize()
+                                        
+                                        Text("VN")
+                                            .font(.system(size: 8.5, weight: .bold))
+                                            .foregroundColor(ThemeColor.textSecondary(for: colorScheme))
+                                            .offset(y: -4.5)
+                                            .lineLimit(1)
+                                            .fixedSize()
+                                    }
+                                }
+                            }
+                            .buttonStyle(.plain)
+                            .help("Về Trang chủ")
+                            
+                            if isSidebarVisible {
+                                Spacer()
+                            }
                         }
-                        .frame(width: 220, height: 52, alignment: .leading)
+                        .padding(.leading, 14)
+                        .frame(width: isSidebarVisible ? 220 : nil, height: 52, alignment: .leading)
                         
-                        // Vertical Column Separator aligned with Sidebar boundary below
+                        // Vertical Column Separator
                         Rectangle()
                             .fill(ThemeColor.divider(for: colorScheme))
-                            .frame(width: 0.75, height: 24)
+                            .frame(width: 0.75, height: 22)
+                            .padding(.horizontal, isSidebarVisible ? 0 : 10)
                         
-                        // Navigation Controls (Back / Forward) cleanly inside Main Content toolbar
+                        // Navigation Controls (Back / Forward)
                         HStack(spacing: 6) {
                             let canGoBack = vm.watchingVideo != nil || vm.isSearching
                             Button(action: {
@@ -336,6 +401,7 @@ public struct ContentView: View {
                                         vm.isSearching = false
                                         vm.searchQuery = ""
                                     }
+                                    isSidebarDrawerOpen = false
                                 }
                             }) {
                                 Image(systemName: "chevron.left")
@@ -373,7 +439,7 @@ public struct ContentView: View {
                             .buttonStyle(.plain)
                             .disabled(true)
                         }
-                        .padding(.leading, 12)
+                        .padding(.leading, isSidebarVisible ? 12 : 0)
                         
                         Spacer()
                     }
@@ -463,45 +529,21 @@ public struct ContentView: View {
         }
         
         // MARK: - 2. Body Area (Sidebar + Content)
-        HStack(spacing: 0) {
-            if !playerManager.isVideoFullscreen {
-                // Left Sidebar Items with Native macOS Styling
-                VStack(alignment: .leading, spacing: 8) {
-                    ForEach(NavigationSection.allCases) { section in
-                        SidebarNavButton(
-                            section: section,
-                            isSelected: vm.selectedSection == section && vm.watchingVideo == nil
-                        ) {
-                            vm.selectedSection = section
-                            vm.watchingVideo = nil
-                            if section == .shorts {
-                                playerManager.stop()
-                            }
-                        }
-                    }
+        ZStack(alignment: .topLeading) {
+            HStack(spacing: 0) {
+                if !playerManager.isVideoFullscreen && isSidebarVisible {
+                    // Left Sidebar Items with Native macOS Styling
+                    sidebarView(isDrawer: false)
+                        .transition(.asymmetric(
+                            insertion: .move(edge: .leading).combined(with: .opacity),
+                            removal: .move(edge: .leading).combined(with: .opacity)
+                        ))
                     
-                    Spacer()
+                    // Vertical Content Divider with subtle specular reflection
+                    Rectangle()
+                        .fill(ThemeColor.divider(for: colorScheme))
+                        .frame(width: 0.75)
                 }
-                .padding(.top, 14)
-                .frame(width: 220)
-                .background(
-                    Group {
-                        if colorScheme == .dark {
-                            ZStack {
-                                ThemeColor.headerBackground(for: colorScheme)
-                                VisualEffectBackground(material: .sidebar, blendingMode: .withinWindow)
-                            }
-                        } else {
-                            Color(red: 250/255, green: 250/255, blue: 250/255)
-                        }
-                    }
-                )
-                
-                // Vertical Content Divider with subtle specular reflection
-                Rectangle()
-                    .fill(ThemeColor.divider(for: colorScheme))
-                    .frame(width: 0.75)
-            }
             
             // Main Content Area (Banner + Content Switcher)
             VStack(spacing: 0) {
@@ -580,6 +622,38 @@ public struct ContentView: View {
                 }
             }
         }
+            }
+            
+            // Slide-out Drawer Panel when triggered
+            if !playerManager.isVideoFullscreen && isSidebarDrawerOpen {
+                Color.black.opacity(colorScheme == .dark ? 0.45 : 0.25)
+                    .ignoresSafeArea()
+                    .onTapGesture {
+                        withAnimation(.spring(response: 0.28, dampingFraction: 0.85)) {
+                            isSidebarDrawerOpen = false
+                        }
+                    }
+                    .transition(.opacity)
+                    .zIndex(200)
+                
+                HStack(spacing: 0) {
+                    sidebarView(isDrawer: true)
+                        .overlay(
+                            Rectangle()
+                                .fill(ThemeColor.divider(for: colorScheme))
+                                .frame(width: 0.75),
+                            alignment: .trailing
+                        )
+                        .shadow(color: Color.black.opacity(colorScheme == .dark ? 0.6 : 0.25), radius: 24, x: 8, y: 0)
+                        .transition(.asymmetric(
+                            insertion: .move(edge: .leading),
+                            removal: .move(edge: .leading)
+                        ))
+                    
+                    Spacer()
+                }
+                .zIndex(201)
+            }
         }
     }
     .frame(
@@ -652,10 +726,62 @@ public struct ContentView: View {
     .sheet(isPresented: $updateService.showUpdateSheet) {
         UpdateSheetView()
     }
+    .onReceive(NotificationCenter.default.publisher(for: .toggleSidebarNotification)) { _ in
+        toggleSidebar()
+    }
+    .onExitCommand {
+        if isSidebarDrawerOpen {
+            withAnimation(.spring(response: 0.28, dampingFraction: 0.85)) {
+                isSidebarDrawerOpen = false
+            }
+        } else if vm.showSuggestions {
+            vm.dismissSuggestions()
+        }
+    }
 }
+    
+    @ViewBuilder
+    private func sidebarView(isDrawer: Bool) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            ForEach(NavigationSection.allCases) { section in
+                SidebarNavButton(
+                    section: section,
+                    isSelected: vm.selectedSection == section && vm.watchingVideo == nil
+                ) {
+                    withAnimation(.spring(response: 0.28, dampingFraction: 0.85)) {
+                        if isDrawer {
+                            isSidebarDrawerOpen = false
+                        }
+                        vm.selectedSection = section
+                        vm.watchingVideo = nil
+                        if section == .shorts {
+                            playerManager.stop()
+                        }
+                    }
+                }
+            }
+            
+            Spacer()
+        }
+        .padding(.top, 14)
+        .frame(width: isDrawer ? 230 : 220)
+        .background(
+            Group {
+                if colorScheme == .dark {
+                    ZStack {
+                        ThemeColor.headerBackground(for: colorScheme)
+                        VisualEffectBackground(material: .sidebar, blendingMode: .withinWindow)
+                    }
+                } else {
+                    Color(red: 250/255, green: 250/255, blue: 250/255)
+                }
+            }
+        )
+    }
     
     private func playVideo(_ video: Video) {
         vm.dismissSuggestions()
+        isSidebarDrawerOpen = false
         if video.isShort {
             vm.watchingVideo = nil
             vm.isSearching = false
@@ -671,6 +797,7 @@ public struct ContentView: View {
     
     private func forcePlayLongVideo(_ video: Video) {
         vm.dismissSuggestions()
+        isSidebarDrawerOpen = false
         vm.selectedShortVideo = nil
         vm.watchingVideo = video
         playerManager.loadAndPlay(video: video)
@@ -685,6 +812,7 @@ public struct ContentView: View {
         RecommendationService.shared.recordSearch(query: query)
         
         vm.dismissSuggestions()
+        isSidebarDrawerOpen = false
         vm.isSearching = true
         vm.watchingVideo = nil
         vm.isLoadingSearch = true

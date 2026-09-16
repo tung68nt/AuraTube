@@ -1,9 +1,9 @@
 {
-  "version": "2.0.37",
-  "build": 38,
-  "title": "AuraTube v2.0.37 (Khắc Phục Lỗi Tự Động Ẩn Tên Kênh & Timeline)",
-  "releaseNotes": "• Khắc phục triệt để lỗi không tự ẩn tên kênh và timeline: Tích hợp bộ theo dõi chuột toàn cục (Mouse Movement Monitor) và bộ đếm thời gian chế độ Common RunLoop, đảm bảo thanh điều khiển và nhãn tên kênh luôn tự động ẩn mượt mà sau 1.8 giây khi đang phát video.\n• Đánh thức và ẩn giao diện tức thì: Khi di chuyển chuột qua khung phát, giao diện đánh thức ngay lập tức; khi chuột rời khỏi khung hình hoặc dừng thao tác, giao diện tự động ẩn chuẩn xác như YouTube chính thức.\n• Đồng bộ hóa hoàn hảo: Tên kênh, timeline tua, các nút điều hướng và phù hiệu video dọc đều ẩn/hiện đồng tốc 100%, không còn bị đứng hình hay kẹt giao diện.",
-  "downloadUrl": "https://github.com/tung68nt/AuraTube/releases/download/v2.0.37/AuraTube-v2.0.37.dmg",
+  "version": "2.0.38",
+  "build": 39,
+  "title": "AuraTube v2.0.38 (Tự Động Ẩn Sidebar & Mở Rộng Không Gian Video)",
+  "releaseNotes": "• Tự động ẩn Sidebar khi xem video: Khi vào chế độ xem video (Watch page), Sidebar tự động ẩn hoàn toàn để nhường trọn vẹn 100% chiều ngang cửa sổ cho trình phát video và danh sách liên quan. Kích thước video tăng hơn 40%, mang lại trải nghiệm xem điện ảnh rộng rãi và đã mắt.\n• Nút Menu 3 sọc (Hamburger Button ☰): Thêm nút mở/đóng danh mục chuẩn YouTube ở góc trên cùng bên trái. Khi đang xem video, bấm ☰ sẽ mở Drawer Sidebar mượt mà nổi trên màn hình để bạn chuyển nhanh mục (Shorts, Xem sau, Tải về...) mà không làm gián đoạn trang.\n• Tùy chọn thu gọn Sidebar ở Trang chủ: Cho phép bấm ☰ để ẩn/hiện Sidebar ở Trang chủ hoặc dùng phím tắt ⌘⌥S, giúp người dùng ít thao tác có thể mở rộng tối đa không gian lưới video.",
+  "downloadUrl": "https://github.com/tung68nt/AuraTube/releases/download/v2.0.38/AuraTube-v2.0.38.dmg",
   "publishedAt": "2026-09-16",
   "minOSVersion": "13.0",
   "fileSize": "3.3 MB"
