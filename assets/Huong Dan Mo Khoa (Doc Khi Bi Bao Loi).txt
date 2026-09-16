@@ -1,0 +1,34 @@
+========================================================================
+            HƯỚNG DẪN MỞ KHÓA AURATUBE (KHI BỊ BÁO LỖI BẢO MẬT)
+========================================================================
+
+Do AuraTube là ứng dụng mã nguồn mở chưa đăng ký chứng chỉ Apple trả phí,
+trên macOS (Sonoma, Sequoia...) có thể xuất hiện thông báo:
+"App bị hỏng" (Damaged) hoặc "Không thể xác minh nhà phát triển".
+
+Bạn có thể mở khóa app cực kỳ dễ dàng bằng 1 trong 2 cách sau:
+
+------------------------------------------------------------------------
+CÁCH 1: KHÔNG CẦN DÙNG LỆNH (TIỆN NHẤT & CHUẨN MAC)
+------------------------------------------------------------------------
+1. Kéo AuraTube.app vào thư mục Applications.
+2. Mở thư mục Applications trong Finder.
+3. Nhấp CHUỘT PHẢI (hoặc giữ phím Control rồi bấm) vào AuraTube.
+4. Chọn "Open" (Mở) -> Chọn "Open" ở hộp thoại xác nhận.
+   (macOS sẽ nhớ quyền vĩnh viễn, từ lần sau bạn chỉ cần bấm mở bình thường)
+
+* Mẹo riêng trên macOS Sequoia (15+):
+  Nếu không thấy nút Open, bạn vào:
+  Cài đặt hệ thống (System Settings) -> Quyền riêng tư & Bảo mật (Privacy & Security)
+  -> Cuộn xuống dưới cùng và bấm nút "Vẫn mở" (Open Anyway).
+
+------------------------------------------------------------------------
+CÁCH 2: DÙNG 1 DÒNG LỆNH TERMINAL (1 GIÂY LÀ XONG)
+------------------------------------------------------------------------
+1. Nhấn tổ hợp phím Command + Space, gõ "Terminal" và nhấn Enter để mở Terminal.
+2. Sao chép và dán dòng lệnh sau rồi nhấn Enter:
+
+   xattr -cr /Applications/AuraTube.app
+
+3. Mở AuraTube và thưởng thức!
+========================================================================
