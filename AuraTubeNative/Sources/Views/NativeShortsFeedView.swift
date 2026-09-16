@@ -641,7 +641,22 @@ struct ShortsCardPlayerView: NSViewRepresentable {
             .ytp-shorts-dislike-button,
             .ytp-shorts-share-button,
             .ytp-modern-title,
-            .ytp-modern-title-channel,
+            .ytPlayerOverlayVideoDetailsRendererHost,
+            .ytPlayerOverlayVideoDetailsRendererTitle,
+            .ytPlayerOverlayVideoDetailsRendererSubtitle,
+            .ytPlayerOverlayVideoDetailsRendererChannelAvatarContainer,
+            .ytPlayerOverlayVideoDetailsRendererTextContainer,
+            .ytPlayerOverlayVideoDetailsRendererFrostedGlass,
+            [class*="ytPlayerOverlayVideoDetailsRenderer"],
+            [class*="ytwPlayerTopControls"],
+            [class*="ytmWatchPlayerControls"],
+            [class*="ytmVideoInfo"],
+            [class*="VideoDetailsRenderer"],
+            ytw-player-top-controls,
+            yt-player-overlay-video-details-renderer,
+            ytm-video-info-flyout,
+            .ytwPlayerTopControlsHost,
+            .ytmWatchPlayerControlsHost,
             .ytp-chrome-top,
             .ytp-chrome-bottom,
             .ytp-gradient-top,
@@ -847,7 +862,7 @@ struct ShortsCardPlayerView: NSViewRepresentable {
           * { margin: 0; padding: 0; box-sizing: border-box; overflow: hidden; }
           html, body { width: 100%; height: 100%; background: #000 !important; }
           #ytPlayer, iframe { width: 100% !important; height: 100% !important; border: none; display: block; }
-          .ytp-shorts-title, .ytp-shorts-channel-name, .ytp-modern-title, .ytp-suggested-action-badge, .ytp-popup, .ytp-ai-info-dialog, [class*="ai-disclosure"], .ytp-paid-content-overlay, [class*="paid-content"], [class*="paid-promotion"], .ytp-chrome-top, [class*="title-channel"], .ytp-bezel, .ytp-bezel-container, .ytp-pause-overlay, .ytp-pause-overlay-container, .ytp-large-play-button, .ytp-large-play-button-bg, .ytp-large-play-button-red-bg, button.ytp-large-play-button, svg.ytp-large-play-button-svg, .ytp-impression-link, .ytp-title, .ytp-title-text, .ytp-title-channel, .ytp-title-channel-logo, .ytp-cairo-refresh-signature-moments, .ytp-cairo-refresh-signature-moments-title { display: none !important; opacity: 0 !important; visibility: hidden !important; pointer-events: none !important; width: 0 !important; height: 0 !important; }
+          .ytPlayerOverlayVideoDetailsRendererHost, .ytPlayerOverlayVideoDetailsRendererTitle, .ytPlayerOverlayVideoDetailsRendererSubtitle, .ytPlayerOverlayVideoDetailsRendererChannelAvatarContainer, .ytPlayerOverlayVideoDetailsRendererTextContainer, .ytPlayerOverlayVideoDetailsRendererFrostedGlass, [class*="ytPlayerOverlayVideoDetailsRenderer"], [class*="ytwPlayerTopControls"], [class*="ytmWatchPlayerControls"], [class*="ytmVideoInfo"], [class*="VideoDetailsRenderer"], ytw-player-top-controls, yt-player-overlay-video-details-renderer, ytm-video-info-flyout, .ytwPlayerTopControlsHost, .ytmWatchPlayerControlsHost, .ytp-shorts-title, .ytp-shorts-channel-name, .ytp-modern-title, .ytp-suggested-action-badge, .ytp-popup, .ytp-ai-info-dialog, [class*="ai-disclosure"], .ytp-paid-content-overlay, [class*="paid-content"], [class*="paid-promotion"], .ytp-chrome-top, [class*="title-channel"], .ytp-bezel, .ytp-bezel-container, .ytp-pause-overlay, .ytp-pause-overlay-container, .ytp-large-play-button, .ytp-large-play-button-bg, .ytp-large-play-button-red-bg, button.ytp-large-play-button, svg.ytp-large-play-button-svg, .ytp-impression-link, .ytp-title, .ytp-title-text, .ytp-title-channel, .ytp-title-channel-logo, .ytp-cairo-refresh-signature-moments, .ytp-cairo-refresh-signature-moments-title { display: none !important; opacity: 0 !important; visibility: hidden !important; pointer-events: none !important; width: 0 !important; height: 0 !important; }
         </style>
         </head>
         <body>

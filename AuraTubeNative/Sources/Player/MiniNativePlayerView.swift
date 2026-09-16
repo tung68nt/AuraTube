@@ -39,6 +39,22 @@ public final class MiniPlayerEngine: NSObject, WKNavigationDelegate, WKScriptMes
                     var s = document.createElement('style');
                     s.id = 'auratube-mini-clean-style';
                     s.innerHTML = `
+                        .ytPlayerOverlayVideoDetailsRendererHost,
+                        .ytPlayerOverlayVideoDetailsRendererTitle,
+                        .ytPlayerOverlayVideoDetailsRendererSubtitle,
+                        .ytPlayerOverlayVideoDetailsRendererChannelAvatarContainer,
+                        .ytPlayerOverlayVideoDetailsRendererTextContainer,
+                        .ytPlayerOverlayVideoDetailsRendererFrostedGlass,
+                        [class*="ytPlayerOverlayVideoDetailsRenderer"],
+                        [class*="ytwPlayerTopControls"],
+                        [class*="ytmWatchPlayerControls"],
+                        [class*="ytmVideoInfo"],
+                        [class*="VideoDetailsRenderer"],
+                        ytw-player-top-controls,
+                        yt-player-overlay-video-details-renderer,
+                        ytm-video-info-flyout,
+                        .ytwPlayerTopControlsHost,
+                        .ytmWatchPlayerControlsHost,
                         .ytp-chrome-bottom,
                         .ytp-chrome-top,
                         .ytp-gradient-top,
@@ -155,6 +171,7 @@ public final class MiniPlayerEngine: NSObject, WKNavigationDelegate, WKScriptMes
 
                 try {
                     var badges = document.querySelectorAll(
+                        '.ytPlayerOverlayVideoDetailsRendererHost, [class*="ytPlayerOverlayVideoDetailsRenderer"], [class*="ytwPlayerTopControls"], [class*="ytmWatchPlayerControls"], [class*="ytmVideoInfo"], [class*="VideoDetailsRenderer"], ytw-player-top-controls, yt-player-overlay-video-details-renderer, ytm-video-info-flyout, .ytwPlayerTopControlsHost, .ytmWatchPlayerControlsHost, ' +
                         '.ytp-paid-content-overlay, .ytp-paid-content-overlay-link, [class*="paid-content"], [class*="paid-promotion"], ' +
                         'a[href*="support.google.com/youtube?p=ppp"], .ytp-suggested-action-badge, .ytp-suggested-action, .ytp-ai-info-dialog, ' +
                         '[class*="ai-disclosure"], [aria-label*="AI" i], .ytp-popup, .ytp-chrome-top, .ytp-gradient-top, ' +

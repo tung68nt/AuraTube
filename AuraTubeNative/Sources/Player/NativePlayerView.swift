@@ -273,8 +273,22 @@ public struct NativePlayerView: NSViewRepresentable {
           .ytp-ai-info-dialog,
           [class*="ai-disclosure"],
           .ytp-paid-content-overlay,
-          [class*="paid-content"],
-          [class*="paid-promotion"],
+          .ytPlayerOverlayVideoDetailsRendererHost,
+          .ytPlayerOverlayVideoDetailsRendererTitle,
+          .ytPlayerOverlayVideoDetailsRendererSubtitle,
+          .ytPlayerOverlayVideoDetailsRendererChannelAvatarContainer,
+          .ytPlayerOverlayVideoDetailsRendererTextContainer,
+          .ytPlayerOverlayVideoDetailsRendererFrostedGlass,
+          [class*="ytPlayerOverlayVideoDetailsRenderer"],
+          [class*="ytwPlayerTopControls"],
+          [class*="ytmWatchPlayerControls"],
+          [class*="ytmVideoInfo"],
+          [class*="VideoDetailsRenderer"],
+          ytw-player-top-controls,
+          yt-player-overlay-video-details-renderer,
+          ytm-video-info-flyout,
+          .ytwPlayerTopControlsHost,
+          .ytmWatchPlayerControlsHost,
           .ytp-chrome-top,
           .ytp-chrome-bottom,
           .ytp-gradient-top,
@@ -541,7 +555,27 @@ public struct NativePlayerView: NSViewRepresentable {
                         height: 0 !important;
                     }
                     
-                    /* 4. Clean top chrome, channel info, avatar, title and top gradient */
+                    /* 4. Clean top chrome, channel info, avatar, title, top details renderer and top gradient */
+                    .ytPlayerOverlayVideoDetailsRendererHost,
+                    .ytPlayerOverlayVideoDetailsRendererTitle,
+                    .ytPlayerOverlayVideoDetailsRendererSubtitle,
+                    .ytPlayerOverlayVideoDetailsRendererChannelAvatarContainer,
+                    .ytPlayerOverlayVideoDetailsRendererTextContainer,
+                    .ytPlayerOverlayVideoDetailsRendererFrostedGlass,
+                    [class*="ytPlayerOverlayVideoDetailsRenderer"],
+                    [class*="ytwPlayerTopControls"],
+                    [class*="ytmWatchPlayerControls"],
+                    [class*="ytmVideoInfo"],
+                    [class*="VideoDetailsRenderer"],
+                    ytw-player-top-controls,
+                    yt-player-overlay-video-details-renderer,
+                    ytm-video-info-flyout,
+                    .ytwPlayerTopControlsHost,
+                    .ytwPlayerTopControlsContainerWithLeftContent,
+                    .ytwPlayerTopControlsPlayerControlsTopRight,
+                    .ytmWatchPlayerControlsHost,
+                    .ytmVideoInfoFlyoutChannelTitle,
+                    .ytmVideoInfoFlyoutChannelSubtitle,
                     .ytp-chrome-top,
                     .ytp-gradient-top,
                     .ytp-title,
@@ -679,6 +713,7 @@ public struct NativePlayerView: NSViewRepresentable {
             // Fast targeted cleanup of badges, top channel branding, pause cards and native controls
             try {
                 var badges = document.querySelectorAll(
+                    '.ytPlayerOverlayVideoDetailsRendererHost, .ytPlayerOverlayVideoDetailsRendererTitle, .ytPlayerOverlayVideoDetailsRendererSubtitle, .ytPlayerOverlayVideoDetailsRendererChannelAvatarContainer, .ytPlayerOverlayVideoDetailsRendererTextContainer, .ytPlayerOverlayVideoDetailsRendererFrostedGlass, [class*="ytPlayerOverlayVideoDetailsRenderer"], [class*="ytwPlayerTopControls"], [class*="ytmWatchPlayerControls"], [class*="ytmVideoInfo"], [class*="VideoDetailsRenderer"], ytw-player-top-controls, yt-player-overlay-video-details-renderer, ytm-video-info-flyout, .ytwPlayerTopControlsHost, .ytmWatchPlayerControlsHost, ' +
                     '.ytp-paid-content-overlay, .ytp-paid-content-overlay-link, [class*="paid-content"], [class*="paid-promotion"], ' +
                     'a[href*="support.google.com/youtube?p=ppp"], a[href*="support.google.com/youtube/answer/154235"], ' +
                     '.ytp-suggested-action-badge, .ytp-suggested-action, .ytp-ai-info-dialog, .ytp-content-disclosure, ' +

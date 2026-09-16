@@ -1,9 +1,9 @@
 {
-  "version": "2.0.40",
-  "build": 41,
-  "title": "AuraTube v2.0.40 (Chuẩn Hóa Font Chữ YouTube Sans Chính Hãng)",
-  "releaseNotes": "• Tích hợp bộ font chính thức YouTube Sans: Thay thế hoàn toàn font chữ bo tròn/bẹt cũ bằng bộ typography chuẩn nhận diện thương hiệu YouTube Sans (Bold, SemiBold, Dark, Medium).\n• Căn chỉnh tỷ lệ Logo AuraTube hoàn mỹ: Kích thước biểu tượng nút Play đỏ và chữ AuraTube cùng nhãn VN được thiết kế theo đúng tỷ lệ chuẩn của YouTube, đem lại cảm giác thanh thoát, cao cấp và chuẩn từng điểm ảnh.",
-  "downloadUrl": "https://github.com/tung68nt/AuraTube/releases/download/v2.0.40/AuraTube-v2.0.40.dmg",
+  "version": "2.0.41",
+  "build": 42,
+  "title": "AuraTube v2.0.41 (Xóa Triệt Để ytPlayerOverlayVideoDetailsRenderer)",
+  "releaseNotes": "• Triệt tiêu hoàn toàn thành phần tiêu đề mới của YouTube Embed: YouTube mới nâng cấp sang cấu trúc ytPlayerOverlayVideoDetailsRendererHost và ytwPlayerTopControlsHost khiến tên kênh xuất hiện sát viền trên video. Bản vá này đã triệt tiêu dứt điểm 100% component này qua CSS và DOM purger.\n• Khung phát video sạch bóng, không còn bất kỳ chữ thừa nào sát viền.",
+  "downloadUrl": "https://github.com/tung68nt/AuraTube/releases/download/v2.0.41/AuraTube-v2.0.41.dmg",
   "publishedAt": "2026-09-16",
   "minOSVersion": "13.0",
   "fileSize": "3.3 MB"
