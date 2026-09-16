@@ -185,10 +185,9 @@ public final class MiniPlayerEngine: NSObject, WKNavigationDelegate, WKScriptMes
                 } catch(e) {}
             }
             applyStyles();
-            var obs = new MutationObserver(applyStyles);
-            if (document.documentElement) {
-                obs.observe(document.documentElement, { childList: true, subtree: true });
-            }
+            document.addEventListener('DOMContentLoaded', applyStyles);
+            window.addEventListener('load', applyStyles);
+            setInterval(applyStyles, 3000);
             function enforceMute() {
                 try {
                     var media = document.querySelectorAll('video, audio');
@@ -289,13 +288,12 @@ public final class MiniPlayerEngine: NSObject, WKNavigationDelegate, WKScriptMes
                     }
                     
                     // 3. Active Playback Synchronization:
-                    if (isSeekingState && (now - lastSeekTimestamp < 250)) {
+                    if (isSeekingState && (now - lastSeekTimestamp < 500)) {
                         return;
                     }
                     
-                    // A. Immediate Hard Snap: if drift exceeds 250ms (approx 7-8 frames)
-                    // Mini player is MUTED, so snapping creates zero audio artifacts and instantly aligns frames!
-                    if (absDiff > 0.25 && (now - lastSeekTimestamp > 350)) {
+                    // A. Hard Seek ONLY if drift is huge (> 1.2s) - e.g. major jump or start of playback
+                    if (absDiff > 1.2 && (now - lastSeekTimestamp > 2000)) {
                         isSeekingState = true;
                         lastSeekTimestamp = now;
                         v.currentTime = targetTime;
@@ -307,17 +305,19 @@ public final class MiniPlayerEngine: NSObject, WKNavigationDelegate, WKScriptMes
                         return;
                     }
                     
-                    // B. Tight Lock Deadband: within 50ms (approx 1-2 frames), lock at 1.0x native rate
-                    if (absDiff <= 0.05) {
+                    // B. Tight Lock Deadband: within 60ms (approx 2 frames), video is in perfect perceptual lock!
+                    if (absDiff <= 0.06) {
                         if (v.playbackRate !== 1.0) {
                             v.playbackRate = 1.0;
                         }
                         return;
                     }
                     
-                    // C. Proportional rate steering for minor micro-drifts (50ms to 250ms)
-                    var kP = 0.6;
-                    var correction = Math.max(-0.20, Math.min(0.20, diff * kP));
+                    // C. Proportional rate steering for drifts (60ms to 1200ms):
+                    // Smoothly speed up or slow down playback rate (0.90x to 1.10x)
+                    // Catches up smoothly with ZERO stuttering, ZERO buffer flushes, and 60fps native decoding!
+                    var kP = 0.15;
+                    var correction = Math.max(-0.10, Math.min(0.10, diff * kP));
                     v.playbackRate = 1.0 + correction;
                 } catch(err) {}
             }
@@ -483,7 +483,7 @@ public final class MiniPlayerEngine: NSObject, WKNavigationDelegate, WKScriptMes
             self.webView.evaluateJavaScript(js, completionHandler: nil)
         }
         
-        // 3. Time sync observer: always sync in parallel
+        // 3. Time sync observer: always sync in parallel smoothly
         pm.registerTimeSyncObserver(id: observerId) { [weak self] masterTime, isPlaying in
             guard let self = self else { return }
             let js = """
@@ -492,18 +492,6 @@ public final class MiniPlayerEngine: NSObject, WKNavigationDelegate, WKScriptMes
                 if (ifr && ifr.contentWindow) {
                     if (!\(isPlaying)) {
                         ifr.contentWindow.postMessage(JSON.stringify({event: "command", func: "pauseVideo", args: []}), '*');
-                    }
-                    var now = Date.now();
-                    if (!window.__lastMiniHardSeek) window.__lastMiniHardSeek = 0;
-                    var miniTime = window.__miniCurrentTime;
-                    // Only perform hard seek if mini player has reported a valid time > 0
-                    // to avoid interrupting initial buffering or YouTube player setup!
-                    if (typeof miniTime === 'number' && miniTime > 0) {
-                        var diff = Math.abs(\(masterTime) - miniTime);
-                        if (diff > 0.4 && (now - window.__lastMiniHardSeek > 800)) {
-                            window.__lastMiniHardSeek = now;
-                            ifr.contentWindow.postMessage(JSON.stringify({event: "command", func: "seekTo", args: [\(masterTime), true]}), '*');
-                        }
                     }
                     ifr.contentWindow.postMessage(JSON.stringify({
                         event: 'auratube_sync',

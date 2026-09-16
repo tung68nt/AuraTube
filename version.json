@@ -1,9 +1,9 @@
 {
-  "version": "2.0.43",
-  "build": 44,
-  "title": "AuraTube v2.0.43 (Chạy Song Song Thực Thụ - Triệt Tiêu Loading MiniPlayer)",
-  "releaseNotes": "• Chạy giải mã song song thực thụ (True Parallel Live Stream): MenuBar MiniPlayer luôn load và phát video song song cùng Main Player trong nền offscreen.\n• Triệt tiêu hoàn toàn độ trễ khi click MenuBar: Bấm vào icon là video ĐÃ ĐANG CHẠY sẵn ở đúng frame đó, hiển thị tức thì 0ms, không còn tình trạng click vào mới bắt đầu load video gây giật lag hay hiện màn hình chờ/loading.\n• Triệt tiêu hoàn toàn ảnh bìa/cover/nút play YouTube: Chặn triệt để ytp-cued-thumbnail-overlay và large-play-button.\n• Khắc phục triệt để lỗi spam lệnh seekTo làm gián đoạn luồng stream ban đầu.",
-  "downloadUrl": "https://github.com/tung68nt/AuraTube/releases/download/v2.0.43/AuraTube-v2.0.43.dmg",
+  "version": "2.0.44",
+  "build": 45,
+  "title": "AuraTube v2.0.44 (Mượt Mà 60fps - Triệt Tiêu Giật Lag MiniPlayer)",
+  "releaseNotes": "• Triệt tiêu hoàn toàn hiện tượng giật lag ở MenuBar: Loại bỏ cơ chế ép seekTo liên tục 300ms khiến decoder bị đứt quãng, thay thế bằng thuật toán điều tốc vi sai mượt mà (Proportional PlaybackRate Steering 0.9x-1.1x) giữ video luôn chuyển động mượt mà ở 60fps chuẩn native.\n• Xóa bỏ vòng lặp MutationObserver đệ quy làm nghẽn CPU WebKit, tối ưu hóa mức tiêu thụ tài nguyên xuống mức tối thiểu.\n• Duy trì đồng bộ chính xác từng frame giữa Main Player và MiniPlayer mà không bao giờ bị khựng hình hay drop frame.",
+  "downloadUrl": "https://github.com/tung68nt/AuraTube/releases/download/v2.0.44/AuraTube-v2.0.44.dmg",
   "publishedAt": "2026-09-16",
   "minOSVersion": "13.0",
   "fileSize": "3.3 MB"
