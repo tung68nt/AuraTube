@@ -842,12 +842,14 @@ public final class PlayerManager: ObservableObject {
         if let data = try? JSONEncoder().encode(historyVideos) {
             UserDefaults.standard.set(data, forKey: "auratube_history")
         }
+        RecommendationService.shared.recordWatch(video: video)
     }
     
     private func loadHistory() {
         if let data = UserDefaults.standard.data(forKey: "auratube_history"),
            let list = try? JSONDecoder().decode([Video].self, from: data) {
             self.historyVideos = list
+            RecommendationService.shared.syncFromExistingHistory(list)
         }
     }
     

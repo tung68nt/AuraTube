@@ -40,10 +40,11 @@ public struct HomeView: View {
     @Environment(\.colorScheme) private var colorScheme
     @StateObject private var vm = HomeViewModel()
     @ObservedObject private var subManager = ChannelSubscriptionManager.shared
+    @ObservedObject private var recService = RecommendationService.shared
     
     private let tags = [
-        "Tất cả", "🔔 Đang theo dõi", "Âm nhạc", "Trực tiếp", "Trò chơi",
-        "Tin tức", "Podcast", "Khoa học", "Bóng đá"
+        "Tất cả", "🔔 Đang theo dõi", "Công nghệ", "Tin tức", "Giải trí", "Âm nhạc", "Trò chơi",
+        "Podcast", "Khoa học", "Bóng đá"
     ]
     
     private let columns = [
@@ -250,9 +251,25 @@ public struct HomeView: View {
                                 .foregroundColor(ThemeColor.textPrimary(for: colorScheme))
                         }
                     } else if vm.selectedTag == "Tất cả" {
-                        Text("Thịnh hành")
-                            .font(.system(size: 20, weight: .bold))
-                            .foregroundColor(ThemeColor.textPrimary(for: colorScheme))
+                        VStack(alignment: .leading, spacing: 3) {
+                            Text(recService.hasPersonalizedProfile ? "Đề xuất cho bạn" : "Khám phá & Nổi bật")
+                                .font(.system(size: 20, weight: .bold))
+                                .foregroundColor(ThemeColor.textPrimary(for: colorScheme))
+                            
+                            let subtitleText: String = {
+                                if !recService.topChannels.isEmpty {
+                                    return "Dựa trên sở thích: " + recService.topChannels.prefix(3).joined(separator: ", ")
+                                } else if recService.hasPersonalizedProfile {
+                                    return "Được cá nhân hóa theo các kênh và nội dung bạn quan tâm"
+                                } else {
+                                    return "Video đa dạng từ công nghệ, đời sống, tin tức và giải trí"
+                                }
+                            }()
+                            
+                            Text(subtitleText)
+                                .font(.system(size: 12))
+                                .foregroundColor(ThemeColor.textSecondary(for: colorScheme))
+                        }
                     } else {
                         Text("Chủ đề: \(vm.selectedTag)")
                             .font(.system(size: 20, weight: .bold))
@@ -438,7 +455,11 @@ public struct HomeView: View {
         Task {
             vm.isLoading = true
             if tag == "Tất cả" {
-                vm.videos = await YTDLPService.shared.fetchTrendingVideos()
+                vm.videos = await RecommendationService.shared.fetchRecommendations()
+            } else if tag == "Công nghệ" {
+                vm.videos = await YTDLPService.shared.searchVideos(query: "công nghệ review sản phẩm mới nhất")
+            } else if tag == "Giải trí" {
+                vm.videos = await YTDLPService.shared.searchVideos(query: "video giải trí hay thú vị triệu view")
             } else {
                 vm.videos = await YTDLPService.shared.searchVideos(query: tag)
             }
@@ -459,7 +480,7 @@ public struct HomeView: View {
     
     private func loadInitial() async {
         vm.isLoading = true
-        vm.videos = await YTDLPService.shared.fetchTrendingVideos()
+        vm.videos = await RecommendationService.shared.fetchRecommendations()
         vm.isLoading = false
         
         // Background pre-fetch followed channels feed if user has subscriptions

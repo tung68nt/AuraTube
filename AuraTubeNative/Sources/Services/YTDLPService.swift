@@ -84,11 +84,12 @@ public final class YTDLPService: @unchecked Sendable {
     }
     
     public func fetchTrendingVideos(region: String = "VN") async -> [Video] {
-        return await searchVideos(query: "nhạc việt hot trending")
+        return await RecommendationService.shared.fetchRecommendations()
     }
     
     public func fetchTrendingVideosWithContinuation(region: String = "VN", continuationToken: String? = nil) async -> SearchResultPage {
-        return await searchVideosWithContinuation(query: "nhạc việt hot trending", continuationToken: continuationToken)
+        let recs = await RecommendationService.shared.fetchRecommendations()
+        return SearchResultPage(channel: nil, videos: recs, shorts: [], continuationToken: nil)
     }
     
     public func searchVideos(query: String, limit: Int = 24) async -> [Video] {

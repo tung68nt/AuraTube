@@ -682,6 +682,7 @@ public struct ContentView: View {
         }
         let query = vm.searchQuery.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !query.isEmpty else { return }
+        RecommendationService.shared.recordSearch(query: query)
         
         vm.dismissSuggestions()
         vm.isSearching = true

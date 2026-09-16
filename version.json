@@ -1,9 +1,9 @@
 {
-  "version": "2.0.30",
-  "build": 31,
-  "title": "AuraTube v2.0.30 (Tái Thiết Kế Header Kênh & Đồng Tốc Nút Pause Với Timeline)",
-  "releaseNotes": "• Tái thiết kế bố cục Logo kênh & Tên kênh: Loại bỏ hoàn toàn thanh tiêu đề iframe YouTube bị cắt nửa và card gợi ý chồng chéo; thay thế bằng thanh header kính lỏng native bo cong (Capsule) đặt tại góc trên bên trái với khoảng cách viền tiêu chuẩn, hiển thị avatar sắc nét, tên kênh đậm và tên video tinh tế, tự động ẩn hiện đồng bộ cùng controls.\n• Đồng tốc ẩn nút Pause/Play trung tâm với Timeline: Nút Pause/Play giữa player được đồng bộ tuyệt đối về thời gian (0.18s), tốc độ và đường cong chuyển động cùng với thanh timeline scrubber, đồng thời loại bỏ triệt để hiện tượng bezel mặc định của YouTube iframe nán lại gây lệch pha khi bấm phát/tạm dừng.\n• Hỗ trợ chạm để Play/Pause và nhấp đúp Fullscreen: Thao tác click trực tiếp trên khung hình video chuyển đổi Play/Pause tức thì, nhấp đúp để bật/tắt toàn màn hình mượt mà.",
-  "downloadUrl": "https://github.com/tung68nt/AuraTube/releases/download/v2.0.30/AuraTube-v2.0.30.dmg",
+  "version": "2.0.31",
+  "build": 32,
+  "title": "AuraTube v2.0.31 (Hệ Thống Đề Xuất Thông Minh Dành Riêng Cho Bạn)",
+  "releaseNotes": "• Triệt tiêu hoàn toàn tình trạng mặc định chỉ có video nhạc: Loại bỏ chuỗi truy vấn cứng 'nhạc việt hot trending' trước đây; xây dựng RecommendationService độc lập để phân tích thị hiếu và sở thích của từng người dùng.\n• Đề xuất thông minh theo dữ liệu xem & đăng ký kênh: Tự động tổng hợp và học từ các kênh bạn đã xem, kênh bạn bấm 'Đăng ký' và chủ đề tìm kiếm (như Công nghệ, Review, Đời sống, Tin tức...) để đưa ra feed trang chủ 'Đề xuất cho bạn' đúng gu 100%, không bị lặp lại các video vừa xem xong.\n• Feed đa dạng 4 trụ cột cho người dùng mới (Cold-Start): Khi chưa có lịch sử, trang chủ tự động đan xen cân bằng 1:1:1:1 giữa Công nghệ & Đập hộp (ThinkView, Schannel), Tin tức thời sự 24h (VTV24), Du lịch & Khám phá (Khoai Lang Thang), và Phim ảnh & Podcast (Phê Phim, Vietcetera).\n• Bổ sung các thẻ chủ đề 'Công nghệ' và 'Giải trí': Dễ dàng lọc nhanh các video công nghệ, thiết bị mới nhất trực tiếp trên thanh chip phân loại.",
+  "downloadUrl": "https://github.com/tung68nt/AuraTube/releases/download/v2.0.31/AuraTube-v2.0.31.dmg",
   "publishedAt": "2026-09-16",
   "minOSVersion": "13.0",
   "fileSize": "3.3 MB"

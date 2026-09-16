@@ -275,14 +275,14 @@ async function getTrendingVideos(cookie = null) {
     // Use InnerTube search for trending topics when not logged in
     if (!cookie) {
       try {
-        const innerTubeRes = await searchInnerTube('nhạc việt hot trending hôm nay');
+        const innerTubeRes = await searchInnerTube('video nổi bật khám phá tin tức công nghệ');
         if (innerTubeRes.videos && innerTubeRes.videos.length > 0) {
           return innerTubeRes.videos;
         }
       } catch (e) {}
     }
 
-    const url = cookie ? 'https://www.youtube.com' : `https://www.youtube.com/results?search_query=${encodeURIComponent('nhạc việt hot trending hôm nay')}`;
+    const url = cookie ? 'https://www.youtube.com' : `https://www.youtube.com/results?search_query=${encodeURIComponent('video nổi bật khám phá tin tức công nghệ')}`;
     const res = await fetch(url, { headers, signal: AbortSignal.timeout(7000) });
 
     const html = await res.text();
