@@ -904,11 +904,15 @@ struct MiniPlayerPiPOverlay: View {
     @StateObject private var hoverVm = PiPHoverViewModel()
     
     var body: some View {
+        let isVertical = video.isShort || playerManager.isCurrentVideoVertical
+        let pipWidth: CGFloat = isVertical ? 220 : 340
+        let videoHeight: CGFloat = isVertical ? (220 * 16.0 / 9.0) : (340 * 9.0 / 16.0)
+        
         VStack(spacing: 0) {
-            // 1. Video Frame (16:9)
+            // 1. Video Frame (Dynamic 16:9 or 9:16)
             ZStack(alignment: .center) {
                 NativePlayerView()
-                    .frame(width: 340, height: 191.25)
+                    .frame(width: pipWidth, height: videoHeight)
                     .background(Color.black)
                 
                 // Overlay on hover: Expand hint & close button
@@ -928,7 +932,7 @@ struct MiniPlayerPiPOverlay: View {
                                 .foregroundColor(.white)
                                 .padding(.horizontal, 8)
                                 .padding(.vertical, 4)
-                                .background(Color.black.opacity(0.65))
+                                .background(Color.black.opacity(0.75))
                                 .cornerRadius(6)
                             }
                             .buttonStyle(.plain)
@@ -941,17 +945,17 @@ struct MiniPlayerPiPOverlay: View {
                                     .font(.system(size: 11, weight: .bold))
                                     .foregroundColor(.white)
                                     .frame(width: 24, height: 24)
-                                    .background(Color.black.opacity(0.65))
+                                    .background(Color.black.opacity(0.75))
                                     .clipShape(Circle())
                             }
                             .buttonStyle(.plain)
                             .padding(8)
                         }
                     }
-                    .frame(width: 340, height: 191.25)
+                    .frame(width: pipWidth, height: videoHeight)
                 }
             }
-            .frame(width: 340, height: 191.25)
+            .frame(width: pipWidth, height: videoHeight)
             
             // 2. YouTube Red Progress Line
             GeometryReader { geo in
@@ -967,8 +971,8 @@ struct MiniPlayerPiPOverlay: View {
             }
             .frame(height: 2.5)
             
-            // 3. Bottom Controls & Metadata Bar (Height 50)
-            HStack(spacing: 12) {
+            // 3. Bottom Controls & Metadata Bar (Solid Dark, High Contrast in all modes)
+            HStack(spacing: 8) {
                 // Video Info (Clicking title expands video)
                 VStack(alignment: .leading, spacing: 2) {
                     Text(video.title)
@@ -977,47 +981,84 @@ struct MiniPlayerPiPOverlay: View {
                         .lineLimit(1)
                     Text(video.uploader)
                         .font(.system(size: 11))
-                        .foregroundColor(Color(white: 0.6))
+                        .foregroundColor(Color(white: 0.72))
                         .lineLimit(1)
                 }
+                .frame(maxWidth: .infinity, alignment: .leading)
                 .contentShape(Rectangle())
                 .onTapGesture {
                     onExpand()
                 }
                 
-                Spacer(minLength: 4)
-                
-                // Play / Pause Button with Liquid Glass
-                LiquidGlassCircleButton(action: {
+                // Play / Pause Button with Dark Glass Circle
+                Button(action: {
                     playerManager.togglePlayPause()
-                }, size: 30) {
-                    Image(systemName: playerManager.isPlaying ? "pause.fill" : "play.fill")
-                        .font(.system(size: 13, weight: .bold))
-                        .foregroundColor(.white)
+                }) {
+                    ZStack {
+                        Circle()
+                            .fill(Color.white.opacity(0.18))
+                        Image(systemName: playerManager.isPlaying ? "pause.fill" : "play.fill")
+                            .font(.system(size: 12, weight: .bold))
+                            .foregroundColor(.white)
+                    }
+                    .frame(width: 30, height: 30)
                 }
+                .buttonStyle(.plain)
                 
-                // Expand Button with Liquid Glass
-                LiquidGlassCircleButton(action: onExpand, size: 28) {
-                    Image(systemName: "arrow.up.left.and.arrow.down.right")
-                        .font(.system(size: 11, weight: .semibold))
-                        .foregroundColor(Color(white: 0.88))
+                // Expand Button
+                Button(action: onExpand) {
+                    ZStack {
+                        Circle()
+                            .fill(Color.white.opacity(0.12))
+                        Image(systemName: "arrow.up.left.and.arrow.down.right")
+                            .font(.system(size: 10.5, weight: .semibold))
+                            .foregroundColor(Color.white.opacity(0.92))
+                    }
+                    .frame(width: 28, height: 28)
                 }
+                .buttonStyle(.plain)
                 .help("Mở rộng toàn màn hình")
                 
-                // Close Button with Liquid Glass
-                LiquidGlassCircleButton(action: onClose, size: 28) {
-                    Image(systemName: "xmark")
-                        .font(.system(size: 11, weight: .semibold))
-                        .foregroundColor(Color(white: 0.88))
+                // Close Button
+                Button(action: onClose) {
+                    ZStack {
+                        Circle()
+                            .fill(Color.white.opacity(0.12))
+                        Image(systemName: "xmark")
+                            .font(.system(size: 10.5, weight: .semibold))
+                            .foregroundColor(Color.white.opacity(0.92))
+                    }
+                    .frame(width: 28, height: 28)
                 }
+                .buttonStyle(.plain)
                 .help("Đóng phát")
             }
             .padding(.horizontal, 12)
-            .frame(width: 340, height: 50)
+            .frame(width: pipWidth, height: 52)
+            .background(Color(red: 0.11, green: 0.11, blue: 0.13))
         }
-        .frame(width: 340)
-        .liquidGlass(cornerRadius: 14, isHovered: hoverVm.isHovered, elevation: 14)
-        .shadow(color: Color.black.opacity(0.65), radius: 20, x: 0, y: 10)
+        .frame(width: pipWidth)
+        .background(
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .fill(Color(red: 0.10, green: 0.10, blue: 0.12))
+        )
+        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .strokeBorder(
+                    LinearGradient(
+                        colors: [
+                            Color.white.opacity(hoverVm.isHovered ? 0.32 : 0.18),
+                            Color.white.opacity(hoverVm.isHovered ? 0.12 : 0.06)
+                        ],
+                        startPoint: .top,
+                        endPoint: .bottom
+                    ),
+                    lineWidth: 1
+                )
+        )
+        .shadow(color: Color.black.opacity(0.55), radius: hoverVm.isHovered ? 24 : 16, x: 0, y: 10)
+        .animation(.spring(response: 0.35, dampingFraction: 0.8), value: isVertical)
         .onHover { hovering in
             withAnimation(.easeInOut(duration: 0.15)) {
                 hoverVm.isHovered = hovering
