@@ -1,9 +1,9 @@
 {
-  "version": "2.0.32",
-  "build": 33,
-  "title": "AuraTube v2.0.32 (Fix Triệt Để Tự Động Phát & Double Icon & Dải Đen Player)",
-  "releaseNotes": "• Tự động phát tức thì khi mở video mới (100% Autoplay): Tối ưu cơ chế autoplay kết hợp kích hoạt un-mute mượt mà, video bắt đầu phát ngay lập tức khi người dùng bấm vào mà không còn bị dừng chờ click.\n• Loại bỏ hoàn toàn lỗi Double Icon giữa Player: Dọn dẹp nút play gốc của YouTube khỏi DOM/CSS và tinh chỉnh nút trung tâm SwiftUI chỉ hiển thị khi video đang Pause. Khi video đang phát hoặc đang tải, trung tâm màn hình hoàn toàn sạch bóng, không bao giờ bị đè trùng icon Play/Pause nữa.\n• Xóa bỏ dải đen ở đáy Player: Loại bỏ triệt để định vị lệch âm (-56px) cũ trong iframe, căn chỉnh khung hình chuẩn tỷ lệ 16:9 khít 100% khung hiển thị, không còn bất kỳ vệt đen hay khoảng trống nào ở đáy video.",
-  "downloadUrl": "https://github.com/tung68nt/AuraTube/releases/download/v2.0.32/AuraTube-v2.0.32.dmg",
+  "version": "2.0.33",
+  "build": 34,
+  "title": "AuraTube v2.0.33 (Fix Triệt Để Lỗi Màn Hình Đen Khi Xem Shorts)",
+  "releaseNotes": "• Sửa triệt để lỗi Shorts có tiếng nhưng đen sì hình: Loại bỏ các bộ lọc CSS và hàm xóa DOM quá mức (từng vô tình ẩn và xóa mất thẻ container phát video '#movie_player' do trùng khớp từ khóa 'Play/Phát' trong nhãn phụ trợ).\n• Tối ưu hiển thị video Shorts dọc: Đảm bảo khung video và phần tử video HTML5 luôn được đặt ở trạng thái hiển thị 100% với 'object-fit: cover', hình ảnh sắc nét, mượt mà và âm thanh đồng bộ chuẩn xác.\n• Bảo vệ toàn vẹn bộ phát: Bổ sung lớp bảo vệ ngăn không cho bất kỳ script dọn dẹp nào tác động hay xóa phần tử video thực thụ.",
+  "downloadUrl": "https://github.com/tung68nt/AuraTube/releases/download/v2.0.33/AuraTube-v2.0.33.dmg",
   "publishedAt": "2026-09-16",
   "minOSVersion": "13.0",
   "fileSize": "3.3 MB"

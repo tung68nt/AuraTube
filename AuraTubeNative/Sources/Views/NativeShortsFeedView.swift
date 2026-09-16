@@ -610,7 +610,29 @@ struct ShortsCardPlayerView: NSViewRepresentable {
     static let cleanShortsScriptSource: String = """
     (function() {
         var css = `
-            .ytp-shorts-player-overlay,
+            html, body {
+                width: 100% !important;
+                height: 100% !important;
+                margin: 0 !important;
+                padding: 0 !important;
+                overflow: hidden !important;
+                background: #000 !important;
+            }
+            #movie_player, .html5-video-player, .html5-video-container {
+                display: block !important;
+                visibility: visible !important;
+                opacity: 1 !important;
+                width: 100% !important;
+                height: 100% !important;
+            }
+            video, .html5-main-video {
+                display: block !important;
+                visibility: visible !important;
+                opacity: 1 !important;
+                width: 100% !important;
+                height: 100% !important;
+                object-fit: cover !important;
+            }
             .ytp-shorts-title,
             .ytp-shorts-channel-name,
             .ytp-shorts-channel-avatar,
@@ -638,20 +660,10 @@ struct ShortsCardPlayerView: NSViewRepresentable {
             .ytp-large-play-button-bg,
             .ytp-large-play-button-red-bg,
             button.ytp-large-play-button,
-            .ytp-play-button,
-            button.ytp-play-button,
-            .ytp-mobile-play-button,
             .ytp-bezel,
             .ytp-bezel-container,
             .ytp-bezel-icon,
             .ytp-bezel-text,
-            [class*="bezel"],
-            [class*="pause-overlay"],
-            [class*="play-button"],
-            [aria-label*="Play" i],
-            [aria-label*="Phát" i],
-            [title*="Play" i],
-            [title*="Phát" i],
             svg.ytp-large-play-button-svg,
             .ytp-button.ytp-large-play-button-bg,
             .ytp-cairo-refresh-signature-moments,
@@ -660,15 +672,7 @@ struct ShortsCardPlayerView: NSViewRepresentable {
             .ytp-volume-control,
             .annotation,
             .iv-branding,
-            [class*="shorts-player"],
-            [class*="shorts-overlay"],
-            [class*="shorts-title"],
-            [class*="shorts-channel"],
-            [class*="shorts-metadata"],
-            [class*="channel-name"],
-            [class*="channel-avatar"],
-            [class*="channel-logo"],
-            [class*="title-channel"],
+            .ytp-paid-content-overlay,
             [class*="paid-content"],
             [class*="paid-promotion"] {
                 display: none !important;
@@ -677,11 +681,6 @@ struct ShortsCardPlayerView: NSViewRepresentable {
                 pointer-events: none !important;
                 width: 0 !important;
                 height: 0 !important;
-                max-width: 0 !important;
-                max-height: 0 !important;
-                position: absolute !important;
-                left: -9999px !important;
-                top: -9999px !important;
             }
         `;
 
@@ -695,15 +694,16 @@ struct ShortsCardPlayerView: NSViewRepresentable {
                 }
                 var targets = document.querySelectorAll(
                     '.ytp-large-play-button, .ytp-large-play-button-bg, .ytp-large-play-button-red-bg, button.ytp-large-play-button, ' +
-                    '.ytp-play-button, button.ytp-play-button, .ytp-mobile-play-button, .ytp-bezel, .ytp-bezel-container, ' +
-                    '.ytp-bezel-icon, .ytp-bezel-text, .ytp-pause-overlay, [class*="bezel"], [class*="play-button"], ' +
-                    '[class*="pause-overlay"], [aria-label*="Play" i], [aria-label*="Phát" i], [title*="Play" i], ' +
-                    '.ytp-cairo-refresh-signature-moments, .ytp-shorts-player-overlay, .ytp-shorts-title, ' +
+                    '.ytp-bezel, .ytp-bezel-container, .ytp-pause-overlay, ' +
+                    '.ytp-cairo-refresh-signature-moments, .ytp-shorts-title, ' +
                     '.ytp-shorts-channel-name, .ytp-shorts-channel-avatar, .ytp-modern-title, .ytp-chrome-top, ' +
                     '.ytp-gradient-top, .ytp-gradient-bottom, .ytp-title, .ytp-title-channel, .ytp-watermark'
                 );
                 for (var i = 0; i < targets.length; i++) {
-                    targets[i].remove();
+                    var el = targets[i];
+                    if (el && !el.classList.contains('html5-video-player') && !el.classList.contains('html5-main-video') && el.id !== 'movie_player' && el.tagName !== 'VIDEO') {
+                        el.remove();
+                    }
                 }
             } catch(e) {}
         }
@@ -711,7 +711,7 @@ struct ShortsCardPlayerView: NSViewRepresentable {
         applyShortsStyles();
         document.addEventListener('DOMContentLoaded', applyShortsStyles);
         window.addEventListener('load', applyShortsStyles);
-        setInterval(applyShortsStyles, 100);
+        setInterval(applyShortsStyles, 200);
         
         if (window.MutationObserver) {
             var observer = new MutationObserver(function() {
@@ -845,9 +845,9 @@ struct ShortsCardPlayerView: NSViewRepresentable {
         <meta name="referrer" content="origin">
         <style>
           * { margin: 0; padding: 0; box-sizing: border-box; overflow: hidden; }
-          html, body { width: 100%; height: 100%; background: transparent !important; }
+          html, body { width: 100%; height: 100%; background: #000 !important; }
           #ytPlayer, iframe { width: 100% !important; height: 100% !important; border: none; display: block; }
-          .ytp-shorts-player-overlay, .ytp-shorts-title, .ytp-shorts-channel-name, .ytp-modern-title, .ytp-suggested-action-badge, .ytp-popup, .ytp-ai-info-dialog, [class*="ai-disclosure"], .ytp-paid-content-overlay, [class*="paid-content"], [class*="paid-promotion"], .ytp-chrome-top, [class*="title-channel"], [class*="shorts"], .ytp-bezel, .ytp-bezel-container, .ytp-bezel-icon, .ytp-bezel-text, [class*="bezel"], .ytp-pause-overlay, .ytp-pause-overlay-container, .ytp-large-play-button, .ytp-large-play-button-bg, .ytp-large-play-button-red-bg, button.ytp-large-play-button, .ytp-play-button, button.ytp-play-button, .ytp-mobile-play-button, [class*="pause-overlay"], [class*="play-button"], [aria-label*="Play" i], [aria-label*="Phát" i], [title*="Play" i], [title*="Phát" i], svg.ytp-large-play-button-svg, .ytp-button.ytp-large-play-button-bg, .ytp-impression-link, .ytp-title, .ytp-title-text, .ytp-title-channel, .ytp-title-channel-logo, .ytp-cairo-refresh-signature-moments, .ytp-cairo-refresh-signature-moments-title { display: none !important; opacity: 0 !important; visibility: hidden !important; pointer-events: none !important; width: 0 !important; height: 0 !important; position: absolute !important; left: -9999px !important; top: -9999px !important; }
+          .ytp-shorts-title, .ytp-shorts-channel-name, .ytp-modern-title, .ytp-suggested-action-badge, .ytp-popup, .ytp-ai-info-dialog, [class*="ai-disclosure"], .ytp-paid-content-overlay, [class*="paid-content"], [class*="paid-promotion"], .ytp-chrome-top, [class*="title-channel"], .ytp-bezel, .ytp-bezel-container, .ytp-pause-overlay, .ytp-pause-overlay-container, .ytp-large-play-button, .ytp-large-play-button-bg, .ytp-large-play-button-red-bg, button.ytp-large-play-button, svg.ytp-large-play-button-svg, .ytp-impression-link, .ytp-title, .ytp-title-text, .ytp-title-channel, .ytp-title-channel-logo, .ytp-cairo-refresh-signature-moments, .ytp-cairo-refresh-signature-moments-title { display: none !important; opacity: 0 !important; visibility: hidden !important; pointer-events: none !important; width: 0 !important; height: 0 !important; }
         </style>
         </head>
         <body>
