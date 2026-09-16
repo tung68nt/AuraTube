@@ -905,6 +905,24 @@ public struct NativePlayerView: NSViewRepresentable {
                 });
                 v.addEventListener('seeked', emitDirectSync);
                 
+                // Picture-in-Picture event hooks
+                v.addEventListener('enterpictureinpicture', function() {
+                    if (window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.playerBridge) {
+                        window.webkit.messageHandlers.playerBridge.postMessage({ type: 'pipStateChange', isActive: true });
+                    }
+                });
+                v.addEventListener('leavepictureinpicture', function() {
+                    if (window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.playerBridge) {
+                        window.webkit.messageHandlers.playerBridge.postMessage({ type: 'pipStateChange', isActive: false });
+                    }
+                });
+                v.addEventListener('webkitpresentationmodechanged', function() {
+                    var isPiP = v.webkitPresentationMode === 'picture-in-picture';
+                    if (window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.playerBridge) {
+                        window.webkit.messageHandlers.playerBridge.postMessage({ type: 'pipStateChange', isActive: isPiP });
+                    }
+                });
+                
                 // High-precision clock tick while playing (every 120ms) to ensure continuous frame-accurate stream
                 setInterval(function() {
                     if (!v.paused && !v.ended) {
@@ -1160,6 +1178,24 @@ public struct NativePlayerView: NSViewRepresentable {
                 if (data.type === 'forceQuality') {
                     forceQualityChange(data.quality);
                 }
+                if (data.type === 'togglePiP') {
+                    var v = document.querySelector('video');
+                    if (v) {
+                        if (document.pictureInPictureElement) {
+                            document.exitPictureInPicture().catch(function(){});
+                        } else if (typeof v.requestPictureInPicture === 'function') {
+                            v.requestPictureInPicture().catch(function(){
+                                if (typeof v.webkitSetPresentationMode === 'function') {
+                                    var mode = v.webkitPresentationMode === 'picture-in-picture' ? 'inline' : 'picture-in-picture';
+                                    v.webkitSetPresentationMode(mode);
+                                }
+                            });
+                        } else if (typeof v.webkitSetPresentationMode === 'function') {
+                            var mode = v.webkitPresentationMode === 'picture-in-picture' ? 'inline' : 'picture-in-picture';
+                            v.webkitSetPresentationMode(mode);
+                        }
+                    }
+                }
             } catch(err) {}
         });
     })();
@@ -1225,6 +1261,11 @@ public struct NativePlayerView: NSViewRepresentable {
                 
                 if let type = body["type"] as? String, type == "toggleFullscreen" {
                     PlayerManager.shared.toggleFullscreen()
+                    return
+                }
+                
+                if let type = body["type"] as? String, type == "pipStateChange", let isActive = body["isActive"] as? Bool {
+                    PlayerManager.shared.isPictureInPictureActive = isActive
                     return
                 }
                 

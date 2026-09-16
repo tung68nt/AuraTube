@@ -33,6 +33,7 @@ public final class PlayerManager: ObservableObject {
     @Published public var isLoadingStream: Bool = false
     @Published public var errorMessage: String?
     @Published public var isVideoFullscreen: Bool = false
+    @Published public var isPictureInPictureActive: Bool = false
     @Published public var isCurrentVideoVertical: Bool = false
     @Published public var currentVideoAspectRatio: Double = 16.0 / 9.0
     
@@ -729,6 +730,36 @@ public final class PlayerManager: ObservableObject {
         
         // 6. Clear system Now Playing info completely
         updateNowPlaying()
+    }
+    
+    // MARK: - Picture-in-Picture Control
+    public func togglePictureInPicture() {
+        guard let webView = MainWebPlayerPool.shared.webView else { return }
+        let js = """
+        (function() {
+            var ifr = document.getElementById('ytPlayer');
+            if (ifr && ifr.contentWindow) {
+                ifr.contentWindow.postMessage(JSON.stringify({ type: 'togglePiP' }), '*');
+            }
+            var v = document.querySelector('video');
+            if (v) {
+                if (document.pictureInPictureElement) {
+                    document.exitPictureInPicture().catch(function(){});
+                } else if (typeof v.requestPictureInPicture === 'function') {
+                    v.requestPictureInPicture().catch(function(){
+                        if (typeof v.webkitSetPresentationMode === 'function') {
+                            var mode = v.webkitPresentationMode === 'picture-in-picture' ? 'inline' : 'picture-in-picture';
+                            v.webkitSetPresentationMode(mode);
+                        }
+                    });
+                } else if (typeof v.webkitSetPresentationMode === 'function') {
+                    var mode = v.webkitPresentationMode === 'picture-in-picture' ? 'inline' : 'picture-in-picture';
+                    v.webkitSetPresentationMode(mode);
+                }
+            }
+        })();
+        """
+        webView.evaluateJavaScript(js, completionHandler: nil)
     }
     
     // MARK: - Autoplay Control Methods

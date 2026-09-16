@@ -1,851 +1,154 @@
 import SwiftUI
 import AppKit
-import WebKit
 
-// MARK: - MiniPlayerEngine: Persistent Dual-Player Engine
+// MARK: - MiniPlayerEngine Stub for Backward Compatibility
 @MainActor
-public final class MiniPlayerEngine: NSObject, WKNavigationDelegate, WKScriptMessageHandler {
+public final class MiniPlayerEngine {
     public static let shared = MiniPlayerEngine()
-    
-    public let webView: WKWebView
-    private let offscreenWindow: NSWindow
-    private let observerId = UUID()
-    public private(set) var currentLoadedVideoId: String?
-    public private(set) var isPopoverVisible: Bool = false
-    private var pendingVideo: (video: Video, startPos: Double)? = nil
-    
-    public override init() {
-        let config = WKWebViewConfiguration()
-        config.mediaTypesRequiringUserActionForPlayback = []
-        config.allowsAirPlayForMediaPlayback = false
-        config.preferences.setValue(true, forKey: "allowFileAccessFromFileURLs")
-        config.setValue(false, forKey: "requiresUserActionForAudioPlayback")
-        config.setValue(false, forKey: "requiresUserActionForVideoPlayback")
-        config.setValue(true, forKey: "mainContentUserGestureOverrideEnabled")
-        config.setValue(false, forKey: "invisibleAutoplayNotPermitted")
-        
-        let pref = config.preferences
-        pref.setValue(false, forKey: "requiresUserGestureForAudioPlayback")
-        pref.setValue(false, forKey: "requiresUserGestureForVideoPlayback")
-        pref.setValue(true, forKey: "mainContentUserGestureOverrideEnabled")
-        pref.setValue(false, forKey: "invisibleMediaAutoplayNotPermitted")
-        
-        let contentController = WKUserContentController()
-        
-        let cleanScript = """
-        (function() {
-            function applyStyles() {
-                if (!document.getElementById('auratube-mini-clean-style')) {
-                    var s = document.createElement('style');
-                    s.id = 'auratube-mini-clean-style';
-                    s.innerHTML = `
-                        .ytPlayerOverlayVideoDetailsRendererHost,
-                        .ytPlayerOverlayVideoDetailsRendererTitle,
-                        .ytPlayerOverlayVideoDetailsRendererSubtitle,
-                        .ytPlayerOverlayVideoDetailsRendererChannelAvatarContainer,
-                        .ytPlayerOverlayVideoDetailsRendererTextContainer,
-                        .ytPlayerOverlayVideoDetailsRendererFrostedGlass,
-                        [class*="ytPlayerOverlayVideoDetailsRenderer"],
-                        [class*="ytwPlayerTopControls"],
-                        [class*="ytmWatchPlayerControls"],
-                        [class*="ytmVideoInfo"],
-                        [class*="VideoDetailsRenderer"],
-                        ytw-player-top-controls,
-                        yt-player-overlay-video-details-renderer,
-                        ytm-video-info-flyout,
-                        .ytwPlayerTopControlsHost,
-                        .ytmWatchPlayerControlsHost,
-                        .ytp-chrome-bottom,
-                        .ytp-chrome-top,
-                        .ytp-gradient-top,
-                        .ytp-gradient-bottom,
-                        .ytp-title,
-                        .ytp-title-channel,
-                        .ytp-title-channel-logo,
-                        .ytp-title-text,
-                        .ytp-title-subtext,
-                        .ytp-title-expanded-title,
-                        .ytp-title-link,
-                        a.ytp-title-link,
-                        a.ytp-title-channel,
-                        [class*="title-channel"],
-                        [class*="ytp-title"],
-                        [class*="channel-logo"],
-                        [class*="channel-name"],
-                        [class*="channel-avatar"],
-                        [class*="chrome-top"],
-                        [class*="cairo-refresh"],
-                        .ytp-watermark,
-                        .ytp-youtube-button,
-                        .ytp-cued-thumbnail-overlay,
-                        .ytp-cued-thumbnail-overlay-image,
-                        [class*="cued-thumbnail"],
-                        .ytp-large-play-button,
-                        .ytp-button.ytp-large-play-button-bg,
-                        .ytp-pause-overlay,
-                        .ytp-cards-teaser,
-                        .ytp-ce-element,
-                        [class*="watermark"],
-                        [class*="youtube-button"],
-                        [class*="cards-teaser"],
-                        [class*="pause-overlay"],
-                        .ytp-suggested-action-badge,
-                        .ytp-suggested-action-badge-container,
-                        .ytp-suggested-action,
-                        .ytp-ai-info-dialog,
-                        .ytp-content-disclosure,
-                        .ytp-popup,
-                        .ytp-panel-popup,
-                        [class*="ai-disclosure"],
-                        [class*="content-disclosure"],
-                        [class*="suggested-action"],
-                        [aria-label*="AI" i],
-                        [aria-label*="Made with AI" i],
-                        [aria-label*="Được tạo bằng AI" i],
-                        [aria-label*="Nội dung do AI" i],
-                        [title*="AI" i],
-                        [title*="Made with AI" i],
-                        .ytp-paid-content-overlay,
-                        .ytp-paid-content-overlay-link,
-                        .ytp-paid-content-overlay-text,
-                        .ytp-paid-content-overlay-icon,
-                        .ytp-paid-content-overlay-chevron,
-                        .ytm-paid-content-overlay-renderer,
-                        .YtmPaidContentOverlayHost,
-                        [class*="paid-content"],
-                        [class*="paid-promotion"],
-                        [aria-label*="paid promotion" i],
-                        [aria-label*="paid-promotion" i],
-                        [aria-label*="quảng cáo" i],
-                        [aria-label*="quảng bá" i],
-                        [title*="paid promotion" i],
-                        a[href*="support.google.com/youtube?p=ppp"],
-                        a[href*="support.google.com/youtube/answer/154235"],
-                        .ytp-spinner,
-                        .ytp-spinner-container,
-                        .ytp-spinner-rotator,
-                        .ytp-spinner-left,
-                        .ytp-spinner-right,
-                        .ytp-bezel,
-                        .ytp-bezel-icon,
-                        .ytp-bezel-text,
-                        [class*="ytp-spinner"],
-                        [class*="spinner-container"],
-                        [class*="bezel"] {
-                            display: none !important;
-                            opacity: 0 !important;
-                            visibility: hidden !important;
-                            pointer-events: none !important;
-                            width: 0 !important;
-                            height: 0 !important;
-                            max-width: 0 !important;
-                            max-height: 0 !important;
-                            position: absolute !important;
-                            left: -9999px !important;
-                            top: -9999px !important;
-                            z-index: -9999 !important;
-                        }
-                        body, html { margin: 0; padding: 0; background: #000; overflow: hidden; width: 100%; height: 100%; pointer-events: none !important; }
-                        iframe { width: 100%; height: 100%; border: none; display: block; pointer-events: none !important; }
-                        .html5-video-player,
-                        .html5-video-container {
-                            width: 100% !important;
-                            height: 100% !important;
-                            overflow: hidden !important;
-                            background: #000 !important;
-                            pointer-events: none !important;
-                        }
-                        video.video-stream.html5-main-video,
-                        video.html5-main-video,
-                        video {
-                            object-fit: contain !important;
-                            width: 100% !important;
-                            height: 100% !important;
-                            top: 0 !important;
-                            left: 0 !important;
-                            border-radius: 0 !important;
-                            background: #000 !important;
-                            pointer-events: none !important;
-                        }
-                    `;
-                    (document.head || document.documentElement).appendChild(s);
-                }
-
-                try {
-                    var badges = document.querySelectorAll(
-                        '.ytPlayerOverlayVideoDetailsRendererHost, [class*="ytPlayerOverlayVideoDetailsRenderer"], [class*="ytwPlayerTopControls"], [class*="ytmWatchPlayerControls"], [class*="ytmVideoInfo"], [class*="VideoDetailsRenderer"], ytw-player-top-controls, yt-player-overlay-video-details-renderer, ytm-video-info-flyout, .ytwPlayerTopControlsHost, .ytmWatchPlayerControlsHost, ' +
-                        '.ytp-paid-content-overlay, .ytp-paid-content-overlay-link, [class*="paid-content"], [class*="paid-promotion"], ' +
-                        'a[href*="support.google.com/youtube?p=ppp"], .ytp-suggested-action-badge, .ytp-suggested-action, .ytp-ai-info-dialog, ' +
-                        '[class*="ai-disclosure"], [aria-label*="AI" i], .ytp-popup, .ytp-chrome-top, .ytp-gradient-top, ' +
-                        '.ytp-title, .ytp-title-channel, .ytp-title-channel-logo, [class*="title-channel"], [class*="channel-logo"], [class*="channel-name"], [class*="channel-avatar"], [class*="cairo-refresh"], .ytp-spinner, .ytp-spinner-container, .ytp-bezel'
-                    );
-                    for (var b = 0; b < badges.length; b++) {
-                        badges[b].remove();
-                    }
-                } catch(e) {}
-            }
-            applyStyles();
-            document.addEventListener('DOMContentLoaded', applyStyles);
-            window.addEventListener('load', applyStyles);
-            setInterval(applyStyles, 3000);
-            function enforceMute() {
-                try {
-                    var media = document.querySelectorAll('video, audio');
-                    for (var i = 0; i < media.length; i++) {
-                        if (!media[i].muted) media[i].muted = true;
-                        if (media[i].volume > 0) media[i].volume = 0;
-                    }
-                } catch(e) {}
-            }
-            enforceMute();
-
-
-            function reportVideoDimensions() {
-                try {
-                    var v = document.querySelector('video');
-                    if (v && v.videoWidth > 0 && v.videoHeight > 0) {
-                        var isVertical = v.videoHeight > v.videoWidth;
-                        if (window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.miniPlayerBridge) {
-                            window.webkit.messageHandlers.miniPlayerBridge.postMessage({
-                                type: 'videoDimensions',
-                                isVertical: isVertical,
-                                width: v.videoWidth,
-                                height: v.videoHeight
-                            });
-                        }
-                    }
-                } catch(e) {}
-            }
-            document.addEventListener('loadedmetadata', reportVideoDimensions, true);
-            document.addEventListener('resize', reportVideoDimensions, true);
-
-            document.addEventListener('play', function(e) {
-                if (e.target && (e.target.tagName === 'VIDEO' || e.target.tagName === 'AUDIO')) {
-                    e.target.muted = true;
-                    e.target.volume = 0;
-                }
-                enforceLowQuality();
-                reportVideoDimensions();
-            }, true);
-
-            // High-Precision Dual-Player Synchronizer
-            var isSeekingState = false;
-            var lastSeekTimestamp = 0;
-
-            function handleSync(data) {
-                try {
-                    var v = document.querySelector('video');
-                    if (!v) return;
-                    
-                    if (!v.muted) v.muted = true;
-                    if (v.volume > 0) v.volume = 0;
-                    
-                    var targetTime = data.masterTime;
-                    var shouldPlay = data.isPlaying === true;
-                    var forceSnap = data.forceSnap === true;
-                    var now = performance.now();
-                    
-                    // 1. Play / Pause state sync
-                    if (shouldPlay && v.paused) {
-                        v.play().catch(function(){});
-                    } else if (!shouldPlay && !v.paused) {
-                        v.pause();
-                    }
-                    
-                    if (typeof targetTime !== 'number' || targetTime < 0) return;
-                    
-                    var diff = targetTime - v.currentTime;
-                    var absDiff = Math.abs(diff);
-                    
-                    // 2. Explicit force snap (User scrubbed slider, opened popover, or switched video)
-                    if (forceSnap) {
-                        if (absDiff > 0.05 || v.paused) {
-                            isSeekingState = true;
-                            lastSeekTimestamp = now;
-                            v.currentTime = targetTime;
-                            v.playbackRate = 1.0;
-                            var p = document.getElementById('movie_player') || (window.yt && window.yt.player);
-                            if (p && typeof p.seekTo === 'function') {
-                                p.seekTo(targetTime, true);
-                            }
-                        }
-                        return;
-                    }
-                    
-                    // If video is paused, snap if offset is noticeable (> 50ms)
-                    if (!shouldPlay || v.paused) {
-                        if (absDiff > 0.05 && (now - lastSeekTimestamp > 250)) {
-                            isSeekingState = true;
-                            lastSeekTimestamp = now;
-                            v.currentTime = targetTime;
-                            v.playbackRate = 1.0;
-                            var p = document.getElementById('movie_player') || (window.yt && window.yt.player);
-                            if (p && typeof p.seekTo === 'function') {
-                                p.seekTo(targetTime, true);
-                            }
-                        }
-                        return;
-                    }
-                    
-                    // 3. Active Playback Synchronization:
-                    if (isSeekingState && (now - lastSeekTimestamp < 500)) {
-                        return;
-                    }
-                    
-                    // A. Hard Seek ONLY if drift is huge (> 1.2s) - e.g. major jump or start of playback
-                    if (absDiff > 1.2 && (now - lastSeekTimestamp > 2000)) {
-                        isSeekingState = true;
-                        lastSeekTimestamp = now;
-                        v.currentTime = targetTime;
-                        v.playbackRate = 1.0;
-                        var p = document.getElementById('movie_player') || (window.yt && window.yt.player);
-                        if (p && typeof p.seekTo === 'function') {
-                            p.seekTo(targetTime, true);
-                        }
-                        return;
-                    }
-                    
-                    // B. Tight Lock Deadband: within 60ms (approx 2 frames), video is in perfect perceptual lock!
-                    if (absDiff <= 0.06) {
-                        if (v.playbackRate !== 1.0) {
-                            v.playbackRate = 1.0;
-                        }
-                        return;
-                    }
-                    
-                    // C. Proportional rate steering for drifts (60ms to 1200ms):
-                    // Smoothly speed up or slow down playback rate (0.90x to 1.10x)
-                    // Catches up smoothly with ZERO stuttering, ZERO buffer flushes, and 60fps native decoding!
-                    var kP = 0.15;
-                    var correction = Math.max(-0.10, Math.min(0.10, diff * kP));
-                    v.playbackRate = 1.0 + correction;
-                } catch(err) {}
-            }
-
-            window.addEventListener('message', function(e) {
-                try {
-                    var data = typeof e.data === 'string' ? JSON.parse(e.data) : e.data;
-                    if (!data || data.event !== 'auratube_sync') return;
-                    handleSync(data);
-                } catch(err) {}
-            });
-
-            function hookVideoSyncEvents() {
-                try {
-                    var v = document.querySelector('video');
-                    if (!v || v.__auratube_synchooked) return;
-                    v.__auratube_synchooked = true;
-                    
-                    v.addEventListener('seeking', function() {
-                        isSeekingState = true;
-                    });
-                    v.addEventListener('seeked', function() {
-                        isSeekingState = false;
-                        lastSeekTimestamp = performance.now();
-                        v.playbackRate = 1.0;
-                    });
-                    v.addEventListener('volumechange', function() {
-                        if (!v.muted) v.muted = true;
-                        if (v.volume > 0) v.volume = 0;
-                    });
-                    v.addEventListener('play', function() {
-                        if (!v.muted) v.muted = true;
-                        if (v.volume > 0) v.volume = 0;
-                    });
-                } catch(e) {}
-            }
-            hookVideoSyncEvents();
-            setInterval(hookVideoSyncEvents, 800);
-
-            window.addEventListener('keydown', function(e) {
-                if (e.code === 'Space' || e.keyCode === 32) {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    try {
-                        if (window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.miniPlayerBridge) {
-                            window.webkit.messageHandlers.miniPlayerBridge.postMessage({ type: 'togglePlayPause' });
-                        }
-                    } catch(err) {}
-                }
-            }, true);
-
-            window.addEventListener('click', function(e) {
-                e.preventDefault();
-                e.stopPropagation();
-                try {
-                    if (window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.miniPlayerBridge) {
-                        window.webkit.messageHandlers.miniPlayerBridge.postMessage({ type: 'togglePlayPause' });
-                    }
-                } catch(err) {}
-            }, true);
-        })();
-        """
-        let userScriptStart = WKUserScript(source: cleanScript, injectionTime: .atDocumentStart, forMainFrameOnly: false)
-        let userScriptEnd = WKUserScript(source: cleanScript, injectionTime: .atDocumentEnd, forMainFrameOnly: false)
-        contentController.addUserScript(userScriptStart)
-        contentController.addUserScript(userScriptEnd)
-        config.userContentController = contentController
-        
-        self.webView = WKWebView(frame: NSRect(x: 0, y: 0, width: 288, height: 162), configuration: config)
-        
-        // Persistent standby window to keep WebKit media playback alive continuously in parallel.
-        // Intersects screen coordinates with 0.002 alpha so WindowServer & WebKit do NOT throttle video decoding/timers!
-        let offscreen = NSWindow(
-            contentRect: NSRect(x: 0, y: 0, width: 288, height: 162),
-            styleMask: [.borderless],
-            backing: .buffered,
-            defer: false
-        )
-        offscreen.isReleasedWhenClosed = false
-        offscreen.alphaValue = 0.002
-        offscreen.ignoresMouseEvents = true
-        offscreen.collectionBehavior = [.canJoinAllSpaces, .stationary, .ignoresCycle]
-        offscreen.contentView?.addSubview(self.webView)
-        offscreen.orderBack(nil)
-        self.offscreenWindow = offscreen
-        
-        super.init()
-        
-        contentController.add(self, contentWorld: .page, name: "miniPlayerBridge")
-        contentController.add(self, contentWorld: .defaultClient, name: "miniPlayerBridge")
-        self.webView.navigationDelegate = self
-        
-        setupPlayerManagerBridge()
-    }
-    
-    private func setupPlayerManagerBridge() {
-        let pm = PlayerManager.shared
-        
-        // 1. Play / Pause observer: instant simultaneous sync in parallel ALWAYS
-        pm.registerPlayPauseObserver(id: observerId) { [weak self] shouldPlay in
-            guard let self = self else { return }
-            let masterTime = PlayerManager.shared.currentTime
-            let cmd = shouldPlay ? "playVideo" : "pauseVideo"
-            let js = """
-            (function() {
-                var ifr = document.getElementById('miniYtPlayer');
-                if (ifr && ifr.contentWindow) {
-                    ifr.contentWindow.postMessage(JSON.stringify({event: "command", func: "\(cmd)", args: []}), '*');
-                    ifr.contentWindow.postMessage(JSON.stringify({event: "command", func: "seekTo", args: [\(masterTime), true]}), '*');
-                    ifr.contentWindow.postMessage(JSON.stringify({
-                        event: 'auratube_sync',
-                        masterTime: \(masterTime),
-                        isPlaying: \(shouldPlay),
-                        forceSnap: true
-                    }), '*');
-                }
-                var v = document.querySelector('video');
-                if (v) {
-                    v.currentTime = \(masterTime);
-                    if (\(shouldPlay)) {
-                        v.play().catch(function(){});
-                    } else {
-                        v.pause();
-                    }
-                }
-            })();
-            """
-            self.webView.evaluateJavaScript(js, completionHandler: nil)
-        }
-        
-        // 2. Seek observer: always seek in parallel
-        pm.registerSeekObserver(id: observerId) { [weak self] targetSeconds in
-            guard let self = self else { return }
-            let shouldPlay = PlayerManager.shared.isPlaying
-            let js = """
-            (function() {
-                var ifr = document.getElementById('miniYtPlayer');
-                if (ifr && ifr.contentWindow) {
-                    ifr.contentWindow.postMessage(JSON.stringify({event: "command", func: "seekTo", args: [\(targetSeconds), true]}), '*');
-                    if (\(shouldPlay)) {
-                        ifr.contentWindow.postMessage(JSON.stringify({event: "command", func: "playVideo", args: []}), '*');
-                    } else {
-                        ifr.contentWindow.postMessage(JSON.stringify({event: "command", func: "pauseVideo", args: []}), '*');
-                    }
-                    ifr.contentWindow.postMessage(JSON.stringify({
-                        event: 'auratube_sync',
-                        masterTime: \(targetSeconds),
-                        isPlaying: \(shouldPlay),
-                        forceSnap: true
-                    }), '*');
-                }
-                var v = document.querySelector('video');
-                if (v) {
-                    v.currentTime = \(targetSeconds);
-                    if (\(shouldPlay)) {
-                        v.play().catch(function(){});
-                    } else {
-                        v.pause();
-                    }
-                }
-            })();
-            """
-            self.webView.evaluateJavaScript(js, completionHandler: nil)
-        }
-        
-        // 3. Time sync observer: always sync in parallel smoothly
-        pm.registerTimeSyncObserver(id: observerId) { [weak self] masterTime, isPlaying in
-            guard let self = self else { return }
-            let js = """
-            (function() {
-                var ifr = document.getElementById('miniYtPlayer');
-                if (ifr && ifr.contentWindow) {
-                    if (!\(isPlaying)) {
-                        ifr.contentWindow.postMessage(JSON.stringify({event: "command", func: "pauseVideo", args: []}), '*');
-                    }
-                    ifr.contentWindow.postMessage(JSON.stringify({
-                        event: 'auratube_sync',
-                        masterTime: \(masterTime),
-                        isPlaying: \(isPlaying),
-                        forceSnap: false
-                    }), '*');
-                }
-            })();
-            """
-            self.webView.evaluateJavaScript(js, completionHandler: nil)
-        }
-        
-        // 4. Mute observer: mini player is strictly a visual preview and must ALWAYS remain muted to prevent echo
-        pm.registerMuteObserver(id: observerId) { [weak self] _ in
-            guard let self = self else { return }
-            let js = """
-            (function() {
-                var ifr = document.getElementById('miniYtPlayer');
-                if (ifr && ifr.contentWindow) {
-                    ifr.contentWindow.postMessage(JSON.stringify({event: "command", func: "mute", args: []}), '*');
-                    ifr.contentWindow.postMessage(JSON.stringify({event: "command", func: "setVolume", args: [0]}), '*');
-                }
-            })();
-            """
-            self.webView.evaluateJavaScript(js, completionHandler: nil)
-        }
-        
-        // 5. Video change observer: ALWAYS loads immediately in parallel!
-        pm.registerVideoChangeObserver(id: observerId) { [weak self] newVideo, startTime in
-            guard let self = self else { return }
-            self.loadVideo(video: newVideo, startPos: startTime)
-        }
-        
-        // Initial video loading in parallel
-        if let current = pm.currentVideo {
-            loadVideo(video: current, startPos: pm.currentTime)
-        }
-        
-        // Handle MenuBar popover notifications:
-        // Popover closed: move webView back to standby window, video KEEPS PLAYING silently in parallel!
-        NotificationCenter.default.addObserver(
-            forName: NSNotification.Name("AuraTubeMenuBarPopoverClosed"),
-            object: nil,
-            queue: .main
-        ) { [weak self] _ in
-            Task { @MainActor [weak self] in
-                guard let self = self else { return }
-                self.isPopoverVisible = false
-                self.detachToOffscreen()
-            }
-        }
-        
-        // Popover opened: simply attach to container, the video is ALREADY PLAYING and synchronized!
-        NotificationCenter.default.addObserver(
-            forName: NSNotification.Name("AuraTubeMenuBarPopoverShown"),
-            object: nil,
-            queue: .main
-        ) { [weak self] _ in
-            Task { @MainActor [weak self] in
-                guard let self = self else { return }
-                self.isPopoverVisible = true
-                let pm = PlayerManager.shared
-                
-                if let current = pm.currentVideo, self.currentLoadedVideoId != current.id {
-                    self.loadVideo(video: current, startPos: pm.currentTime)
-                }
-            }
-        }
-    }
-    
-    public func loadVideo(video: Video, startPos: Double = 0) {
-        guard currentLoadedVideoId != video.id else { return }
-        currentLoadedVideoId = video.id
-        pendingVideo = nil
-        
-        let pos = max(0, Int(startPos))
-        let html = generateHTML(for: video, startPos: pos)
-        webView.loadHTMLString(html, baseURL: URL(string: "https://auratube.app"))
-    }
-    
+    private init() {}
     public func stop() {
-        currentLoadedVideoId = nil
-        let js = """
-        (function() {
-            try {
-                var ifr = document.getElementById('miniYtPlayer');
-                if (ifr && ifr.contentWindow) {
-                    ifr.contentWindow.postMessage(JSON.stringify({event: "command", func: "mute", args: []}), '*');
-                    ifr.contentWindow.postMessage(JSON.stringify({event: "command", func: "pauseVideo", args: []}), '*');
-                    ifr.contentWindow.postMessage(JSON.stringify({event: "command", func: "stopVideo", args: []}), '*');
-                }
-                var medias = document.querySelectorAll('video, audio');
-                for (var i = 0; i < medias.length; i++) {
-                    medias[i].pause();
-                    medias[i].muted = true;
-                    medias[i].src = '';
-                    medias[i].load();
-                }
-            } catch(e) {}
-        })();
-        """
-        webView.evaluateJavaScript(js, completionHandler: nil)
-        webView.stopLoading()
-        webView.loadHTMLString("<!DOCTYPE html><html><body style='background:#000;'></body></html>", baseURL: nil)
-        detachToOffscreen()
+        // No-op: The second WebKit player has been retired in favor of native macOS Now Playing Architecture
     }
-    
-    public func attach(to container: NSView) {
-        isPopoverVisible = true
-        if webView.superview != container {
-            webView.removeFromSuperview()
-            container.addSubview(webView)
-        }
-        webView.frame = container.bounds
-        webView.autoresizingMask = [.width, .height]
-    }
-    
-    public func detachToOffscreen() {
-        isPopoverVisible = false
-        if webView.superview != offscreenWindow.contentView {
-            webView.removeFromSuperview()
-            offscreenWindow.contentView?.addSubview(webView)
-            webView.frame = NSRect(x: 0, y: 0, width: 288, height: 162)
-            offscreenWindow.orderBack(nil)
-        }
-    }
-    
-    private func generateHTML(for video: Video, startPos: Int) -> String {
-        return """
-        <!DOCTYPE html>
-        <html>
-        <head>
-        <meta charset="utf-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
-        <meta name="referrer" content="origin">
-        <style>
-          * { margin: 0; padding: 0; box-sizing: border-box; background: #000; overflow: hidden; pointer-events: none !important; }
-          html, body { width: 100%; height: 100%; background: #000; overflow: hidden; pointer-events: none !important; }
-          iframe { 
-            position: absolute; 
-            top: 0; 
-            left: 0; 
-            width: 100%; 
-            height: 100%; 
-            border: none; 
-            display: block; 
-            pointer-events: none !important;
-          }
-          .ytp-cued-thumbnail-overlay, .ytp-cued-thumbnail-overlay-image, .ytp-large-play-button, .ytp-large-play-button-bg, [class*="cued-thumbnail"], [class*="large-play-button"], .ytp-suggested-action-badge, .ytp-popup, .ytp-ai-info-dialog, [class*="ai-disclosure"], .ytp-spinner, .ytp-spinner-container, .ytp-bezel { display: none !important; opacity: 0 !important; visibility: hidden !important; pointer-events: none !important; }
-        </style>
-        </head>
-        <body>
-        <iframe 
-            id="miniYtPlayer"
-            src="https://www.youtube.com/embed/\(video.id)?autoplay=1&mute=1&playsinline=1&controls=0&modestbranding=1&rel=0&enablejsapi=1&origin=https://auratube.app&widget_referrer=https://auratube.app&start=\(startPos)&vq=small" 
-            allow="autoplay; encrypted-media; picture-in-picture; fullscreen">
-        </iframe>
-        <script>
-          window.addEventListener('keydown', function(e) {
-            if (e.code === 'Space' || e.keyCode === 32) {
-              e.preventDefault();
-              e.stopPropagation();
-              try {
-                if (window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.miniPlayerBridge) {
-                  window.webkit.messageHandlers.miniPlayerBridge.postMessage({ type: 'togglePlayPause' });
-                }
-              } catch(err) {}
-            }
-          }, true);
+}
 
-          window.addEventListener('message', function(e) {
-            try {
-              var data = typeof e.data === 'string' ? JSON.parse(e.data) : e.data;
-              if (!data) return;
-              var ifr = document.getElementById('miniYtPlayer');
-              if (data.event === 'onReady') {
-                if (window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.miniPlayerBridge) {
-                  window.webkit.messageHandlers.miniPlayerBridge.postMessage({ type: 'playerReady' });
-                }
-                if (ifr && ifr.contentWindow) {
-                  ifr.contentWindow.postMessage(JSON.stringify({event: "command", func: "mute", args: []}), '*');
-                  ifr.contentWindow.postMessage(JSON.stringify({event: "command", func: "setVolume", args: [0]}), '*');
-                  ifr.contentWindow.postMessage(JSON.stringify({event: "command", func: "playVideo", args: []}), '*');
-                  ifr.contentWindow.postMessage(JSON.stringify({event: "listening"}), '*');
-                }
-              }
-              
-              if (data.event === 'onStateChange') {
-                window.__miniPlayerState = data.info;
-                if (window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.miniPlayerBridge) {
-                  window.webkit.messageHandlers.miniPlayerBridge.postMessage({
-                    type: 'stateChange',
-                    state: data.info
-                  });
-                }
-              }
-              
-              if (data.event === 'infoDelivery' && data.info) {
-                if (typeof data.info.currentTime === 'number') {
-                  window.__miniCurrentTime = data.info.currentTime;
-                }
-                if (typeof data.info.playerState === 'number') {
-                  window.__miniPlayerState = data.info.playerState;
-                }
-                if (window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.miniPlayerBridge) {
-                  window.webkit.messageHandlers.miniPlayerBridge.postMessage({
-                    type: 'playbackSync',
-                    currentTime: data.info.currentTime,
-                    duration: data.info.duration,
-                    playerState: data.info.playerState
-                  });
-                }
-              }
-            } catch(err) {}
-          });
-          
-          var retryListen = setInterval(function() {
-            var ifr = document.getElementById('miniYtPlayer');
-            if (ifr && ifr.contentWindow) {
-              ifr.contentWindow.postMessage(JSON.stringify({event: "listening"}), '*');
-            }
-          }, 500);
-          setTimeout(function() { clearInterval(retryListen); }, 4000);
-        </script>
-        </body>
-        </html>
-        """
+// MARK: - Live Equalizer Bars View (Visual indication when playing)
+struct MiniEqualizerIndicator: View {
+    let isPlaying: Bool
+    @State private var bar1Height: CGFloat = 4
+    @State private var bar2Height: CGFloat = 10
+    @State private var bar3Height: CGFloat = 6
+    @State private var bar4Height: CGFloat = 12
+    
+    var body: some View {
+        HStack(alignment: .bottom, spacing: 2) {
+            bar(height: bar1Height)
+            bar(height: bar2Height)
+            bar(height: bar3Height)
+            bar(height: bar4Height)
+        }
+        .padding(.horizontal, 6)
+        .padding(.vertical, 4)
+        .background(
+            Capsule()
+                .fill(Color.black.opacity(0.65))
+                .overlay(Capsule().strokeBorder(Color.white.opacity(0.2), lineWidth: 0.8))
+        )
+        .onAppear {
+            if isPlaying { startAnimating() }
+        }
+        .onChange(of: isPlaying) { playing in
+            if playing { startAnimating() } else { stopAnimating() }
+        }
     }
     
-    public func userContentController(_ userContentController: WKUserContentController, didReceive message: WKScriptMessage) {
-        guard message.name == "miniPlayerBridge",
-              let body = message.body as? [String: Any] else { return }
-        
-        DispatchQueue.main.async {
-            guard let type = body["type"] as? String else { return }
-            
-            if type == "togglePlayPause" {
-                PlayerManager.shared.togglePlayPause()
-                return
-            }
-            
-            if type == "videoDimensions", let isVertical = body["isVertical"] as? Bool {
-                if PlayerManager.shared.isCurrentVideoVertical != isVertical {
-                    PlayerManager.shared.isCurrentVideoVertical = isVertical
-                }
-                return
-            }
-            
-            if type == "playerReady" {
-                let pm = PlayerManager.shared
-                let shouldPlay = self.isPopoverVisible && pm.isPlaying
-                let masterTime = pm.currentTime
-                let js = """
-                (function() {
-                    var ifr = document.getElementById('miniYtPlayer');
-                    if (ifr && ifr.contentWindow) {
-                        ifr.contentWindow.postMessage(JSON.stringify({event: "command", func: "mute", args: []}), '*');
-                        ifr.contentWindow.postMessage(JSON.stringify({event: "command", func: "setVolume", args: [0]}), '*');
-                        ifr.contentWindow.postMessage(JSON.stringify({event: "command", func: "seekTo", args: [\(masterTime), true]}), '*');
-                        if (\(shouldPlay)) {
-                            ifr.contentWindow.postMessage(JSON.stringify({event: "command", func: "playVideo", args: []}), '*');
-                        } else {
-                            ifr.contentWindow.postMessage(JSON.stringify({event: "command", func: "pauseVideo", args: []}), '*');
-                        }
-                        ifr.contentWindow.postMessage(JSON.stringify({
-                            event: 'auratube_sync',
-                            masterTime: \(masterTime),
-                            isPlaying: \(shouldPlay),
-                            forceSnap: true
-                        }), '*');
-                    }
-                })();
-                """
-                self.webView.evaluateJavaScript(js, completionHandler: nil)
-                return
-            }
-            
-            if type == "playbackSync" {
-                // CRITICAL: NEVER accept time updates from mini player if main player is active or no video is active!
-                guard !PlayerManager.shared.hasActiveMainPlayer, PlayerManager.shared.currentVideo != nil else { return }
-                
-                let cur = body["currentTime"] as? Double
-                let dur = body["duration"] as? Double ?? 0
-                let state = body["playerState"] as? Int
-                let isPlaying = (state == 1) ? true : ((state == 2 || state == 0) ? false : nil)
-                
-                if let cur = cur {
-                    PlayerManager.shared.updatePlaybackSync(
-                        currentTime: cur,
-                        duration: dur,
-                        isPlaying: isPlaying,
-                        isMuted: nil,
-                        source: "mini"
-                    )
-                }
-                return
-            }
-            
-            if type == "stateChange", let state = body["state"] as? Int {
-                guard !PlayerManager.shared.hasActiveMainPlayer, PlayerManager.shared.currentVideo != nil else { return }
-                let isPlaying = (state == 1)
-                PlayerManager.shared.updatePlaybackSync(
-                    currentTime: PlayerManager.shared.currentTime,
-                    duration: PlayerManager.shared.duration,
-                    isPlaying: isPlaying,
-                    isMuted: nil,
-                    source: "mini"
-                )
-                if state == 0 {
-                    PlayerManager.shared.handlePlaybackEnded()
-                }
-                return
-            }
+    private func bar(height: CGFloat) -> some View {
+        RoundedRectangle(cornerRadius: 1)
+            .fill(Color.red)
+            .frame(width: 2.5, height: isPlaying ? height : 3)
+    }
+    
+    private func startAnimating() {
+        withAnimation(Animation.easeInOut(duration: 0.35).repeatForever(autoreverses: true)) {
+            bar1Height = 12
+            bar2Height = 5
+            bar3Height = 14
+            bar4Height = 7
+        }
+    }
+    
+    private func stopAnimating() {
+        withAnimation(.easeOut(duration: 0.2)) {
+            bar1Height = 3
+            bar2Height = 3
+            bar3Height = 3
+            bar4Height = 3
         }
     }
 }
 
-// MARK: - MiniPlayerContainerView: Auto-resizing view ensuring webView fills bounds exactly
-final class MiniPlayerContainerView: NSView {
-    override func hitTest(_ point: NSPoint) -> NSView? {
-        // Must return nil so that all mouse clicks and cursor events pass cleanly to SwiftUI buttons/gestures
-        return nil
-    }
-    
-    override func layout() {
-        super.layout()
-        if let webView = subviews.first as? WKWebView {
-            webView.frame = bounds
-        }
-    }
-}
-
-// MARK: - MiniNativePlayerView: SwiftUI View Representable hosting MiniPlayerEngine
-public struct MiniNativePlayerView: NSViewRepresentable {
-    @ObservedObject var playerManager: PlayerManager = .shared
+// MARK: - MiniNativePlayerView: High-Performance Native Media Artwork
+public struct MiniNativePlayerView: View {
+    @ObservedObject private var playerManager = PlayerManager.shared
     
     public init() {}
     
-    public func makeNSView(context: Context) -> NSView {
-        let container = MiniPlayerContainerView()
-        container.wantsLayer = true
-        container.layer?.backgroundColor = NSColor.black.cgColor
-        
-        MiniPlayerEngine.shared.attach(to: container)
-        
-        return container
+    private var maxResThumbnailUrl: URL? {
+        guard let video = playerManager.currentVideo else { return nil }
+        return URL(string: "https://i.ytimg.com/vi/\(video.id)/maxresdefault.jpg") ?? URL(string: video.thumbnail)
     }
     
-    public func updateNSView(_ nsView: NSView, context: Context) {
-        MiniPlayerEngine.shared.attach(to: nsView)
-        
-        if let video = playerManager.currentVideo {
-            MiniPlayerEngine.shared.loadVideo(video: video, startPos: playerManager.currentTime)
+    public var body: some View {
+        ZStack {
+            Color.black
+            
+            if let video = playerManager.currentVideo {
+                // High-resolution artwork with graceful fallback
+                AsyncImage(url: maxResThumbnailUrl) { phase in
+                    switch phase {
+                    case .success(let image):
+                        image
+                            .resizable()
+                            .aspectRatio(contentMode: .fill)
+                    case .failure:
+                        AsyncImage(url: URL(string: video.thumbnail)) { fbPhase in
+                            if let fbImage = fbPhase.image {
+                                fbImage
+                                    .resizable()
+                                    .aspectRatio(contentMode: .fill)
+                            } else {
+                                Color(white: 0.08)
+                            }
+                        }
+                    case .empty:
+                        Color(white: 0.08)
+                    @unknown default:
+                        Color(white: 0.08)
+                    }
+                }
+                
+                // Subtle dark gradient overlays for cinematic depth
+                LinearGradient(
+                    colors: [Color.black.opacity(0.35), Color.clear, Color.black.opacity(0.35)],
+                    startPoint: .top,
+                    endPoint: .bottom
+                )
+                
+                // Overlay badges
+                VStack {
+                    HStack {
+                        // Live Audio/Video Equalizer Indicator
+                        if playerManager.isPlaying {
+                            MiniEqualizerIndicator(isPlaying: playerManager.isPlaying)
+                                .transition(.opacity)
+                        }
+                        
+                        Spacer()
+                        
+                        // Picture-in-Picture indicator if active
+                        if playerManager.isPictureInPictureActive {
+                            HStack(spacing: 3) {
+                                Image(systemName: "pip")
+                                    .font(.system(size: 9, weight: .bold))
+                                Text("Đang phát PiP")
+                                    .font(.system(size: 9.5, weight: .medium))
+                            }
+                            .padding(.horizontal, 6)
+                            .padding(.vertical, 3)
+                            .background(
+                                Capsule()
+                                    .fill(Color.black.opacity(0.75))
+                                    .overlay(Capsule().strokeBorder(Color.white.opacity(0.25), lineWidth: 0.8))
+                            )
+                            .foregroundColor(.white)
+                        }
+                    }
+                    .padding(8)
+                    
+                    Spacer()
+                }
+            } else {
+                Color.black
+            }
         }
     }
 }

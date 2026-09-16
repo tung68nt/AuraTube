@@ -54,6 +54,22 @@ public struct MenuBarView: View {
                 
                 Spacer()
                 
+                // Picture-in-Picture Button
+                LiquidGlassButton(action: {
+                    playerManager.togglePictureInPicture()
+                }, cornerRadius: 6) {
+                    HStack(spacing: 4) {
+                        Image(systemName: playerManager.isPictureInPictureActive ? "pip.exit" : "pip.enter")
+                            .font(.system(size: 11))
+                        Text("PiP")
+                            .font(.system(size: 11, weight: .medium))
+                    }
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 4)
+                    .foregroundColor(playerManager.isPictureInPictureActive ? Color.red : Color(white: 0.88))
+                }
+                .help("Bật / Tắt Picture-in-Picture (Hình trong hình)")
+                
                 LiquidGlassButton(action: onOpenMainWindow, cornerRadius: 6) {
                     HStack(spacing: 4) {
                         Image(systemName: "arrow.up.forward.app")
@@ -65,6 +81,7 @@ public struct MenuBarView: View {
                     .padding(.vertical, 4)
                     .foregroundColor(Color(white: 0.88))
                 }
+                .help("Mở cửa sổ chính (⌘O)")
             }
             
             // Video Info & Mini Player Preview

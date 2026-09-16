@@ -1,9 +1,9 @@
 {
-  "version": "2.0.44",
-  "build": 45,
-  "title": "AuraTube v2.0.44 (Mượt Mà 60fps - Triệt Tiêu Giật Lag MiniPlayer)",
-  "releaseNotes": "• Triệt tiêu hoàn toàn hiện tượng giật lag ở MenuBar: Loại bỏ cơ chế ép seekTo liên tục 300ms khiến decoder bị đứt quãng, thay thế bằng thuật toán điều tốc vi sai mượt mà (Proportional PlaybackRate Steering 0.9x-1.1x) giữ video luôn chuyển động mượt mà ở 60fps chuẩn native.\n• Xóa bỏ vòng lặp MutationObserver đệ quy làm nghẽn CPU WebKit, tối ưu hóa mức tiêu thụ tài nguyên xuống mức tối thiểu.\n• Duy trì đồng bộ chính xác từng frame giữa Main Player và MiniPlayer mà không bao giờ bị khựng hình hay drop frame.",
-  "downloadUrl": "https://github.com/tung68nt/AuraTube/releases/download/v2.0.44/AuraTube-v2.0.44.dmg",
+  "version": "2.0.45",
+  "build": 46,
+  "title": "AuraTube v2.0.45 (Kiến Trúc Media Controller Mới & Hỗ Trợ Native PiP)",
+  "releaseNotes": "• Triệt tiêu tận gốc 100% hiện tượng giật lag và drop frame ở MenuBar: Chuyển đổi sang kiến trúc Native macOS Media Controller (chuẩn mực Apple Music & Spotify), loại bỏ hoàn toàn iframe YouTube thứ 2 gây ngốn CPU và xung đột giải mã phần cứng.\n• Xóa sạch vĩnh viễn avatar hoạt hình, biểu tượng tạm dừng và tên kênh kép của YouTube trên MenuBar popover.\n• Hiển thị Artwork HD siêu sắc nét cùng dải sóng âm thanh Equalizer động sống động khi đang phát nhạc/video.\n• Tích hợp tính năng Picture-in-Picture (PiP - Hình trong hình) chuẩn native macOS: Xem video nổi lơ lửng trên mọi ứng dụng với phím tắt ⌥⌘P hoặc nút bấm PiP trên MenuBar.",
+  "downloadUrl": "https://github.com/tung68nt/AuraTube/releases/download/v2.0.45/AuraTube-v2.0.45.dmg",
   "publishedAt": "2026-09-16",
   "minOSVersion": "13.0",
   "fileSize": "3.3 MB"

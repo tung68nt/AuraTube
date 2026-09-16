@@ -202,6 +202,11 @@ struct AuraTubeApp: App {
                 }
                 .keyboardShortcut(.escape, modifiers: [])
                 
+                Button(playerManager.isPictureInPictureActive ? "Tắt Picture-in-Picture" : "Bật Picture-in-Picture") {
+                    playerManager.togglePictureInPicture()
+                }
+                .keyboardShortcut("p", modifiers: [.command, .option])
+                
                 Divider()
                 
                 Button("Lưu / Bỏ lưu video") {
