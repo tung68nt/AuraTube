@@ -44,9 +44,9 @@ public struct MenuBarView: View {
                     HStack(spacing: 8) {
                         YouTubeBrandBadge(width: 25)
                         Text("AuraTube")
-                            .font(.custom("Roboto-Bold", size: 14.5))
+                            .font(AppFont.youTubeSans(size: 16.5, weight: .bold))
                             .foregroundColor(.white)
-                            .tracking(-0.3)
+                            .tracking(-0.45)
                     }
                 }
                 .buttonStyle(.plain)

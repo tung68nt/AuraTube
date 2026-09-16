@@ -25,6 +25,12 @@ if [ -f "/Users/tungnguyen/Code/Youtube/assets/icon.icns" ]; then
     cp "/Users/tungnguyen/Code/Youtube/assets/icon.icns" "${RESOURCES_DIR}/AppIcon.icns"
 fi
 
+echo "==> Copying custom fonts..."
+if [ -d "/Users/tungnguyen/Code/Youtube/AuraTubeNative/Resources/Fonts" ]; then
+    mkdir -p "${RESOURCES_DIR}/Fonts"
+    cp -R /Users/tungnguyen/Code/Youtube/AuraTubeNative/Resources/Fonts/* "${RESOURCES_DIR}/Fonts/"
+fi
+
 echo "==> Writing Info.plist..."
 cat << 'EOF' > "${CONTENTS_DIR}/Info.plist"
 <?xml version="1.0" encoding="UTF-8"?>
@@ -46,9 +52,9 @@ cat << 'EOF' > "${CONTENTS_DIR}/Info.plist"
     <key>CFBundlePackageType</key>
     <string>APPL</string>
     <key>CFBundleShortVersionString</key>
-    <string>2.0.39</string>
+    <string>2.0.40</string>
     <key>CFBundleVersion</key>
-    <string>40</string>
+    <string>41</string>
     <key>NSHumanReadableCopyright</key>
     <string>Copyright © 2026 Tung Nguyen. All rights reserved.</string>
     <key>LSMinimumSystemVersion</key>
@@ -57,6 +63,8 @@ cat << 'EOF' > "${CONTENTS_DIR}/Info.plist"
     <true/>
     <key>NSSupportsAutomaticGraphicsSwitching</key>
     <true/>
+    <key>ATSApplicationFontsPath</key>
+    <string>Fonts</string>
     <key>NSAppTransportSecurity</key>
     <dict>
         <key>NSAllowsArbitraryLoads</key>

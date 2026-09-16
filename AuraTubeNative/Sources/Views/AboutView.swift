@@ -103,8 +103,9 @@ public struct AboutView: View {
                 // Name & Version
                 VStack(spacing: 5) {
                     Text("AuraTube")
-                        .font(.system(size: 20, weight: .bold, design: .rounded))
+                        .font(AppFont.youTubeSans(size: 24, weight: .bold))
                         .foregroundColor(.white)
+                        .tracking(-0.5)
                     
                     Text("Phiên bản \(updateService.currentVersion) (\(updateService.currentBuild))")
                         .font(.system(size: 12, weight: .regular))

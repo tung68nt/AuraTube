@@ -355,20 +355,20 @@ public struct ContentView: View {
                                 }
                             }) {
                                 HStack(spacing: 7) {
-                                    YouTubeBrandBadge(width: 24)
+                                    YouTubeBrandBadge(width: 25)
                                     
-                                    HStack(alignment: .center, spacing: 3) {
+                                    HStack(alignment: .center, spacing: 3.5) {
                                         Text("AuraTube")
-                                            .font(.system(size: 15, weight: .bold))
+                                            .font(AppFont.youTubeSans(size: 18, weight: .bold))
                                             .foregroundColor(ThemeColor.textPrimary(for: colorScheme))
-                                            .tracking(-0.35)
+                                            .tracking(-0.5)
                                             .lineLimit(1)
                                             .fixedSize()
                                         
                                         Text("VN")
-                                            .font(.system(size: 8.5, weight: .bold))
+                                            .font(AppFont.youTubeSans(size: 9, weight: .medium))
                                             .foregroundColor(ThemeColor.textSecondary(for: colorScheme))
-                                            .offset(y: -4.5)
+                                            .offset(y: -5)
                                             .lineLimit(1)
                                             .fixedSize()
                                     }

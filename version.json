@@ -1,9 +1,9 @@
 {
-  "version": "2.0.39",
-  "build": 40,
-  "title": "AuraTube v2.0.39 (Xóa Bỏ Triệt Để Lỗi Chữ & Avatar Kênh Của YouTube)",
-  "releaseNotes": "• Triệt tiêu hoàn toàn lỗi tên kênh/avatar YouTube bị đè và cắt góc: Xử lý dứt điểm thanh tiêu đề mặc định của YouTube (.ytp-chrome-top, logo avatar và tiêu đề nhúng) thông qua cơ chế chèn phong cách đa vùng cách ly (Multi-World WKUserScript) và quét triệt tiêu DOM liên tục. Không còn hiện tượng chữ 'Will In Vietnam' bị cắt nửa góc trên đầu hay đè lên giao diện AuraTube.\n• Đồng bộ giao diện xem video thuần khiết: Khi mở video, 100% diện tích trên cùng là khung hình video nguyên bản sạch sẽ, không còn bất kỳ chữ hay logo thừa thãi nào của YouTube lọt vào khung phát.",
-  "downloadUrl": "https://github.com/tung68nt/AuraTube/releases/download/v2.0.39/AuraTube-v2.0.39.dmg",
+  "version": "2.0.40",
+  "build": 41,
+  "title": "AuraTube v2.0.40 (Chuẩn Hóa Font Chữ YouTube Sans Chính Hãng)",
+  "releaseNotes": "• Tích hợp bộ font chính thức YouTube Sans: Thay thế hoàn toàn font chữ bo tròn/bẹt cũ bằng bộ typography chuẩn nhận diện thương hiệu YouTube Sans (Bold, SemiBold, Dark, Medium).\n• Căn chỉnh tỷ lệ Logo AuraTube hoàn mỹ: Kích thước biểu tượng nút Play đỏ và chữ AuraTube cùng nhãn VN được thiết kế theo đúng tỷ lệ chuẩn của YouTube, đem lại cảm giác thanh thoát, cao cấp và chuẩn từng điểm ảnh.",
+  "downloadUrl": "https://github.com/tung68nt/AuraTube/releases/download/v2.0.40/AuraTube-v2.0.40.dmg",
   "publishedAt": "2026-09-16",
   "minOSVersion": "13.0",
   "fileSize": "3.3 MB"

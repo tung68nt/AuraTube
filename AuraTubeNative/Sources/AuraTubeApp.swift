@@ -7,9 +7,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     override init() {
         super.init()
         AppDelegate.shared = self
+        AppFont.registerCustomFonts()
     }
     
     func applicationDidFinishLaunching(_ notification: Notification) {
+        AppFont.registerCustomFonts()
         ThemeManager.shared.applyTheme()
         MenuBarController.shared.setup()
         
