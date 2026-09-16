@@ -93,18 +93,16 @@ public struct MenuBarView: View {
                         ZStack(alignment: .center) {
                             MiniNativePlayerView()
                                 .allowsHitTesting(false)
-                                .aspectRatio(playerManager.isCurrentVideoVertical ? (9/16) : (16/9), contentMode: .fit)
-                                .frame(height: playerManager.isCurrentVideoVertical ? 310 : nil)
+                                .frame(height: playerManager.isCurrentVideoVertical ? 310 : 162)
                                 .frame(maxWidth: .infinity)
-                                .clipped()
-                                .cornerRadius(10)
+                                .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
                                 .overlay(
-                                    RoundedRectangle(cornerRadius: 10)
+                                    RoundedRectangle(cornerRadius: 10, style: .continuous)
                                         .strokeBorder(
                                             LinearGradient(
                                                 colors: [Color.white.opacity(0.35), Color.white.opacity(0.08)],
-                                                startPoint: .top,
-                                                endPoint: .bottom
+                                                startPoint: .topLeading,
+                                                endPoint: .bottomTrailing
                                             ),
                                             lineWidth: 1
                                         )

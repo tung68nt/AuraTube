@@ -1,9 +1,9 @@
 {
-  "version": "2.0.45",
-  "build": 46,
-  "title": "AuraTube v2.0.45 (Kiến Trúc Media Controller Mới & Hỗ Trợ Native PiP)",
-  "releaseNotes": "• Triệt tiêu tận gốc 100% hiện tượng giật lag và drop frame ở MenuBar: Chuyển đổi sang kiến trúc Native macOS Media Controller (chuẩn mực Apple Music & Spotify), loại bỏ hoàn toàn iframe YouTube thứ 2 gây ngốn CPU và xung đột giải mã phần cứng.\n• Xóa sạch vĩnh viễn avatar hoạt hình, biểu tượng tạm dừng và tên kênh kép của YouTube trên MenuBar popover.\n• Hiển thị Artwork HD siêu sắc nét cùng dải sóng âm thanh Equalizer động sống động khi đang phát nhạc/video.\n• Tích hợp tính năng Picture-in-Picture (PiP - Hình trong hình) chuẩn native macOS: Xem video nổi lơ lửng trên mọi ứng dụng với phím tắt ⌥⌘P hoặc nút bấm PiP trên MenuBar.",
-  "downloadUrl": "https://github.com/tung68nt/AuraTube/releases/download/v2.0.45/AuraTube-v2.0.45.dmg",
+  "version": "2.0.46",
+  "build": 47,
+  "title": "AuraTube v2.0.46 (Thumbnail Full-Bleed & Cửa Sổ PiP Nổi macOS Hoạt Động 100%)",
+  "releaseNotes": "• Sửa triệt để lỗi thumbnail bị bé: Thiết kế lại thumbnail dạng full-bleed edge-to-edge sắc nét, lấp đầy 100% khung hình 16:9 với bo góc mượt mà, không còn viền đen hay khoảng trống.\n• Xóa bỏ hoàn toàn dải spectrum động gây nhún nhảy kích thước cửa sổ MenuBar popover, cố định kích thước vững chắc 100%.\n• Ra mắt tính năng Picture-in-Picture (PiP) thực thụ chuẩn Native macOS: Bấm nút PiP sẽ mở một cửa sổ nổi chuyên biệt (Floating Panel) lơ lửng trên mọi ứng dụng, cho phép tự do kéo thả, đổi kích thước 16:9 và điều khiển nhanh video mượt mà 60fps.",
+  "downloadUrl": "https://github.com/tung68nt/AuraTube/releases/download/v2.0.46/AuraTube-v2.0.46.dmg",
   "publishedAt": "2026-09-16",
   "minOSVersion": "13.0",
   "fileSize": "3.3 MB"

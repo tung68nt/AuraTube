@@ -730,36 +730,23 @@ public final class PlayerManager: ObservableObject {
         
         // 6. Clear system Now Playing info completely
         updateNowPlaying()
+        
+        // 7. Close Picture-in-Picture window if active
+        if isPictureInPictureActive {
+            isPictureInPictureActive = false
+            PiPWindowController.shared.close()
+        }
     }
     
     // MARK: - Picture-in-Picture Control
     public func togglePictureInPicture() {
-        guard let webView = MainWebPlayerPool.shared.webView else { return }
-        let js = """
-        (function() {
-            var ifr = document.getElementById('ytPlayer');
-            if (ifr && ifr.contentWindow) {
-                ifr.contentWindow.postMessage(JSON.stringify({ type: 'togglePiP' }), '*');
-            }
-            var v = document.querySelector('video');
-            if (v) {
-                if (document.pictureInPictureElement) {
-                    document.exitPictureInPicture().catch(function(){});
-                } else if (typeof v.requestPictureInPicture === 'function') {
-                    v.requestPictureInPicture().catch(function(){
-                        if (typeof v.webkitSetPresentationMode === 'function') {
-                            var mode = v.webkitPresentationMode === 'picture-in-picture' ? 'inline' : 'picture-in-picture';
-                            v.webkitSetPresentationMode(mode);
-                        }
-                    });
-                } else if (typeof v.webkitSetPresentationMode === 'function') {
-                    var mode = v.webkitPresentationMode === 'picture-in-picture' ? 'inline' : 'picture-in-picture';
-                    v.webkitSetPresentationMode(mode);
-                }
-            }
-        })();
-        """
-        webView.evaluateJavaScript(js, completionHandler: nil)
+        guard currentVideo != nil else { return }
+        isPictureInPictureActive.toggle()
+        if isPictureInPictureActive {
+            PiPWindowController.shared.show(video: currentVideo)
+        } else {
+            PiPWindowController.shared.close()
+        }
     }
     
     // MARK: - Autoplay Control Methods

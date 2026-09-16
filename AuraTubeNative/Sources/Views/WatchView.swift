@@ -700,7 +700,9 @@ struct WatchPlayerContainerView: View {
         let isVertical = playerManager.isCurrentVideoVertical || displayVideo.isShort
         
         Group {
-            if isVertical {
+            if playerManager.isPictureInPictureActive {
+                pipPlaceholder
+            } else if isVertical {
                 verticalPlayer
             } else {
                 horizontalPlayer
@@ -738,6 +740,61 @@ struct WatchPlayerContainerView: View {
                 vm.scheduleAutoHide(delay: 1.8)
             }
         }
+    }
+    
+    // MARK: - Picture-in-Picture Placeholder
+    private var pipPlaceholder: some View {
+        ZStack {
+            Color.black
+            
+            AsyncImage(url: URL(string: displayVideo.thumbnail)) { phase in
+                if let img = phase.image {
+                    img.resizable().scaledToFill()
+                } else {
+                    Color.black
+                }
+            }
+            .blur(radius: 20)
+            .opacity(0.35)
+            
+            VStack(spacing: 14) {
+                Image(systemName: "pip")
+                    .font(.system(size: 38))
+                    .foregroundColor(.white.opacity(0.9))
+                
+                Text("Video đang phát ở chế độ Picture-in-Picture")
+                    .font(.system(size: 15, weight: .semibold))
+                    .foregroundColor(.white)
+                
+                Text("Cửa sổ nổi đang hiển thị trên màn hình của bạn")
+                    .font(.system(size: 12.5))
+                    .foregroundColor(.white.opacity(0.65))
+                
+                Button(action: {
+                    playerManager.togglePictureInPicture()
+                }) {
+                    HStack(spacing: 6) {
+                        Image(systemName: "pip.exit")
+                            .font(.system(size: 12, weight: .semibold))
+                        Text("Đưa video về cửa sổ chính")
+                            .font(.system(size: 13, weight: .semibold))
+                    }
+                    .foregroundColor(.white)
+                    .padding(.horizontal, 18)
+                    .padding(.vertical, 8.5)
+                    .background(Color.red)
+                    .clipShape(Capsule())
+                }
+                .buttonStyle(.plain)
+            }
+        }
+        .aspectRatio(playerManager.currentVideoAspectRatio, contentMode: .fit)
+        .frame(maxHeight: 580)
+        .cornerRadius(12)
+        .overlay(
+            RoundedRectangle(cornerRadius: 12)
+                .strokeBorder(Color.white.opacity(0.15), lineWidth: 1)
+        )
     }
     
     // MARK: - Vertical Player with Ambient Glow
