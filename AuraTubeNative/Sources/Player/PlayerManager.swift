@@ -301,20 +301,20 @@ public final class PlayerManager: ObservableObject {
                 // discard the bogus 0.0s timestamp to eliminate timeline jitter.
                 if currentTime == 0 && self.currentTime > 1.0 && (self.isPlaying || isPlaying == true) {
                     // Bogus uninitialized 0.0s update ignored
-                } else if abs(self.currentTime - currentTime) >= 0.5 {
+                } else {
                     self.currentTime = currentTime
                 }
                 
                 let now = ProcessInfo.processInfo.systemUptime
-                // Fast convergence phase for 2.5s post-seek: sync every 200ms; regular playback sync every 500ms
+                // Fast convergence phase post-seek: 150ms; regular playback clock: 200ms for tight phase-lock
                 let isPostSeekConvergence = (now - lastSeekTimestamp < 2.5)
-                let syncInterval = isPostSeekConvergence ? 0.20 : 0.50
+                let syncInterval = isPostSeekConvergence ? 0.15 : 0.20
                 
                 if hasActiveMainPlayer && (now - lastMiniSyncUptime >= syncInterval) {
                     lastMiniSyncUptime = now
                     let playing = self.isPlaying
                     for observer in timeSyncObservers.values {
-                        observer(self.currentTime, playing)
+                        observer(currentTime, playing)
                     }
                 }
             } else if source == "mini" {

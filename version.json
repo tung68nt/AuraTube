@@ -1,9 +1,9 @@
 {
-  "version": "2.0.41",
-  "build": 42,
-  "title": "AuraTube v2.0.41 (Xóa Triệt Để ytPlayerOverlayVideoDetailsRenderer)",
-  "releaseNotes": "• Triệt tiêu hoàn toàn thành phần tiêu đề mới của YouTube Embed: YouTube mới nâng cấp sang cấu trúc ytPlayerOverlayVideoDetailsRendererHost và ytwPlayerTopControlsHost khiến tên kênh xuất hiện sát viền trên video. Bản vá này đã triệt tiêu dứt điểm 100% component này qua CSS và DOM purger.\n• Khung phát video sạch bóng, không còn bất kỳ chữ thừa nào sát viền.",
-  "downloadUrl": "https://github.com/tung68nt/AuraTube/releases/download/v2.0.41/AuraTube-v2.0.41.dmg",
+  "version": "2.0.42",
+  "build": 43,
+  "title": "AuraTube v2.0.42 (Khắc Phục Hoàn Toàn Lệch Khớp 2 Player)",
+  "releaseNotes": "• Đồng bộ khung hình tức thì giữa Main Player và MenuBar MiniPlayer: Khắc phục triệt để lỗi độ trễ vài giây khi mở Popover hoặc phát đồng thời 2 player.\n• Sửa lỗi logic tự động pause nhầm mini player khi tua hoặc chuyển video.\n• Cơ chế High-Precision Phase Lock: Cưỡng bức snap seekTo chính xác từng frame khi lệch > 0.25s và tự động điều tốc mượt mà 0.8x-1.2x khi vi sai dưới 250ms, đảm bảo hình ảnh 2 player luôn khớp 100%.",
+  "downloadUrl": "https://github.com/tung68nt/AuraTube/releases/download/v2.0.42/AuraTube-v2.0.42.dmg",
   "publishedAt": "2026-09-16",
   "minOSVersion": "13.0",
   "fileSize": "3.3 MB"
