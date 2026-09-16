@@ -73,17 +73,21 @@ public struct NativePlayerView: NSViewRepresentable {
         contentController.add(context.coordinator, contentWorld: .defaultClient, name: "playerBridge")
         
         let cleanScript = NativePlayerView.cleanScriptSource
-        // Inject cleanScript at document start (in both .page and .defaultClient) so YouTube's top chrome bar
+        // Inject cleanScript at document start (in .page, .defaultClient, and default world) so YouTube's top chrome bar
         // (.ytp-chrome-top, channel info, avatar, and Cairo refresh badges) is hidden BEFORE DOM layout or rendering
         let userScriptStartPage = WKUserScript(source: cleanScript, injectionTime: .atDocumentStart, forMainFrameOnly: false, in: .page)
         contentController.addUserScript(userScriptStartPage)
         let userScriptStartClient = WKUserScript(source: cleanScript, injectionTime: .atDocumentStart, forMainFrameOnly: false, in: .defaultClient)
         contentController.addUserScript(userScriptStartClient)
+        let userScriptStartDefault = WKUserScript(source: cleanScript, injectionTime: .atDocumentStart, forMainFrameOnly: false)
+        contentController.addUserScript(userScriptStartDefault)
         
         let userScriptEndPage = WKUserScript(source: cleanScript, injectionTime: .atDocumentEnd, forMainFrameOnly: false, in: .page)
         contentController.addUserScript(userScriptEndPage)
         let userScriptEndClient = WKUserScript(source: cleanScript, injectionTime: .atDocumentEnd, forMainFrameOnly: false, in: .defaultClient)
         contentController.addUserScript(userScriptEndClient)
+        let userScriptEndDefault = WKUserScript(source: cleanScript, injectionTime: .atDocumentEnd, forMainFrameOnly: false)
+        contentController.addUserScript(userScriptEndDefault)
         config.userContentController = contentController
         
         let webView = ScrollForwardingWKWebView(frame: .zero, configuration: config)
@@ -456,10 +460,12 @@ public struct NativePlayerView: NSViewRepresentable {
     public static let cleanScriptSource: String = """
     (function() {
         function applyStyles() {
-            if (!document.getElementById('auratube-clean-style')) {
-                var s = document.createElement('style');
-                s.id = 'auratube-clean-style';
-                s.innerHTML = `
+            try {
+                var target = document.head || document.documentElement || document.body;
+                if (target && !document.getElementById('auratube-clean-style')) {
+                    var s = document.createElement('style');
+                    s.id = 'auratube-clean-style';
+                    s.innerHTML = `
                     /* 1. Remove YouTube logo at bottom right and any watermark */
                     .ytp-youtube-button,
                     a.ytp-youtube-button,
@@ -666,8 +672,9 @@ public struct NativePlayerView: NSViewRepresentable {
                         height: 0 !important;
                     }
                 `;
-                (document.head || document.documentElement).appendChild(s);
-            }
+                    target.appendChild(s);
+                }
+            } catch(e) {}
 
             // Fast targeted cleanup of badges, top channel branding, pause cards and native controls
             try {
@@ -683,14 +690,34 @@ public struct NativePlayerView: NSViewRepresentable {
                     '.ytp-cairo-refresh-header, .ytp-cairo-refresh-signature-moments, .ytp-cairo-refresh-channel-avatar, .ytp-cairo-refresh-channel-name'
                 );
                 for (var b = 0; b < badges.length; b++) {
-                    badges[b].remove();
+                    var el = badges[b];
+                    try {
+                        el.style.setProperty('display', 'none', 'important');
+                        el.style.setProperty('opacity', '0', 'important');
+                        el.style.setProperty('visibility', 'hidden', 'important');
+                        el.style.setProperty('pointer-events', 'none', 'important');
+                        el.style.setProperty('height', '0', 'important');
+                        el.style.setProperty('width', '0', 'important');
+                        el.style.setProperty('max-height', '0', 'important');
+                        el.style.setProperty('position', 'absolute', 'important');
+                        el.style.setProperty('top', '-9999px', 'important');
+                        el.style.setProperty('left', '-9999px', 'important');
+                        el.remove();
+                    } catch(err) {}
                 }
             } catch(err) {}
         }
-        applyStyles();
-        document.addEventListener('DOMContentLoaded', applyStyles);
-        window.addEventListener('load', applyStyles);
-        setInterval(applyStyles, 300);
+        try { applyStyles(); } catch(e) {}
+        try { document.addEventListener('DOMContentLoaded', applyStyles); } catch(e) {}
+        try { window.addEventListener('load', applyStyles); } catch(e) {}
+        try { document.addEventListener('pointermove', applyStyles); } catch(e) {}
+        try { document.addEventListener('mousemove', applyStyles); } catch(e) {}
+
+        var fastInterval = setInterval(applyStyles, 60);
+        setTimeout(function() {
+            clearInterval(fastInterval);
+            setInterval(applyStyles, 180);
+        }, 4000);
 
         try {
             var mo = new MutationObserver(function() {
@@ -698,6 +725,12 @@ public struct NativePlayerView: NSViewRepresentable {
             });
             if (document.documentElement) {
                 mo.observe(document.documentElement, { childList: true, subtree: true });
+            } else {
+                document.addEventListener('DOMContentLoaded', function() {
+                    try {
+                        if (document.documentElement) mo.observe(document.documentElement, { childList: true, subtree: true });
+                    } catch(e) {}
+                });
             }
         } catch(e) {}
 
