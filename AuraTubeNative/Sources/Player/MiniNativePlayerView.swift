@@ -77,7 +77,9 @@ public final class MiniPlayerEngine: NSObject, WKNavigationDelegate, WKScriptMes
                         [class*="cairo-refresh"],
                         .ytp-watermark,
                         .ytp-youtube-button,
-                        a.ytp-youtube-button,
+                        .ytp-cued-thumbnail-overlay,
+                        .ytp-cued-thumbnail-overlay-image,
+                        [class*="cued-thumbnail"],
                         .ytp-large-play-button,
                         .ytp-button.ytp-large-play-button-bg,
                         .ytp-pause-overlay,
@@ -414,9 +416,9 @@ public final class MiniPlayerEngine: NSObject, WKNavigationDelegate, WKScriptMes
     private func setupPlayerManagerBridge() {
         let pm = PlayerManager.shared
         
-        // 1. Play / Pause observer: instant simultaneous sync (only when popover is visible)
+        // 1. Play / Pause observer: instant simultaneous sync in parallel ALWAYS
         pm.registerPlayPauseObserver(id: observerId) { [weak self] shouldPlay in
-            guard let self = self, self.isPopoverVisible else { return }
+            guard let self = self else { return }
             let masterTime = PlayerManager.shared.currentTime
             let cmd = shouldPlay ? "playVideo" : "pauseVideo"
             let js = """
@@ -446,9 +448,9 @@ public final class MiniPlayerEngine: NSObject, WKNavigationDelegate, WKScriptMes
             self.webView.evaluateJavaScript(js, completionHandler: nil)
         }
         
-        // 2. Seek observer: only when popover is visible
+        // 2. Seek observer: always seek in parallel
         pm.registerSeekObserver(id: observerId) { [weak self] targetSeconds in
-            guard let self = self, self.isPopoverVisible else { return }
+            guard let self = self else { return }
             let shouldPlay = PlayerManager.shared.isPlaying
             let js = """
             (function() {
@@ -481,9 +483,9 @@ public final class MiniPlayerEngine: NSObject, WKNavigationDelegate, WKScriptMes
             self.webView.evaluateJavaScript(js, completionHandler: nil)
         }
         
-        // 3. Time sync observer: only sync when popover is actually visible
+        // 3. Time sync observer: always sync in parallel
         pm.registerTimeSyncObserver(id: observerId) { [weak self] masterTime, isPlaying in
-            guard let self = self, self.isPopoverVisible else { return }
+            guard let self = self else { return }
             let js = """
             (function() {
                 var ifr = document.getElementById('miniYtPlayer');
@@ -494,17 +496,20 @@ public final class MiniPlayerEngine: NSObject, WKNavigationDelegate, WKScriptMes
                     var now = Date.now();
                     if (!window.__lastMiniHardSeek) window.__lastMiniHardSeek = 0;
                     var miniTime = window.__miniCurrentTime;
-                    var diff = (typeof miniTime === 'number') ? Math.abs(\(masterTime) - miniTime) : 0;
-                    var needHardSnap = (diff > 0.35 && (now - window.__lastMiniHardSeek > 500));
-                    if (needHardSnap) {
-                        window.__lastMiniHardSeek = now;
-                        ifr.contentWindow.postMessage(JSON.stringify({event: "command", func: "seekTo", args: [\(masterTime), true]}), '*');
+                    // Only perform hard seek if mini player has reported a valid time > 0
+                    // to avoid interrupting initial buffering or YouTube player setup!
+                    if (typeof miniTime === 'number' && miniTime > 0) {
+                        var diff = Math.abs(\(masterTime) - miniTime);
+                        if (diff > 0.4 && (now - window.__lastMiniHardSeek > 800)) {
+                            window.__lastMiniHardSeek = now;
+                            ifr.contentWindow.postMessage(JSON.stringify({event: "command", func: "seekTo", args: [\(masterTime), true]}), '*');
+                        }
                     }
                     ifr.contentWindow.postMessage(JSON.stringify({
                         event: 'auratube_sync',
                         masterTime: \(masterTime),
                         isPlaying: \(isPlaying),
-                        forceSnap: needHardSnap
+                        forceSnap: false
                     }), '*');
                 }
             })();
@@ -527,27 +532,19 @@ public final class MiniPlayerEngine: NSObject, WKNavigationDelegate, WKScriptMes
             self.webView.evaluateJavaScript(js, completionHandler: nil)
         }
         
-        // 5. Video change observer: only loads and starts playing if popover is visible!
+        // 5. Video change observer: ALWAYS loads immediately in parallel!
         pm.registerVideoChangeObserver(id: observerId) { [weak self] newVideo, startTime in
             guard let self = self else { return }
-            if self.isPopoverVisible {
-                self.loadVideo(video: newVideo, startPos: startTime)
-            } else {
-                self.pendingVideo = (newVideo, startTime)
-            }
+            self.loadVideo(video: newVideo, startPos: startTime)
         }
         
-        // If a video is already active and popover is visible, load it; otherwise save as pending
+        // Initial video loading in parallel
         if let current = pm.currentVideo {
-            if isPopoverVisible {
-                loadVideo(video: current, startPos: pm.currentTime)
-            } else {
-                pendingVideo = (current, pm.currentTime)
-            }
+            loadVideo(video: current, startPos: pm.currentTime)
         }
         
         // Handle MenuBar popover notifications:
-        // Popover closed: move webView back to standby window and pause video to eliminate CPU/GPU/network drain!
+        // Popover closed: move webView back to standby window, video KEEPS PLAYING silently in parallel!
         NotificationCenter.default.addObserver(
             forName: NSNotification.Name("AuraTubeMenuBarPopoverClosed"),
             object: nil,
@@ -557,21 +554,10 @@ public final class MiniPlayerEngine: NSObject, WKNavigationDelegate, WKScriptMes
                 guard let self = self else { return }
                 self.isPopoverVisible = false
                 self.detachToOffscreen()
-                let js = """
-                (function() {
-                    var ifr = document.getElementById('miniYtPlayer');
-                    if (ifr && ifr.contentWindow) {
-                        ifr.contentWindow.postMessage(JSON.stringify({event: "command", func: "pauseVideo", args: []}), '*');
-                    }
-                    var v = document.querySelector('video');
-                    if (v) { v.pause(); }
-                })();
-                """
-                self.webView.evaluateJavaScript(js, completionHandler: nil)
             }
         }
         
-        // Popover opened: snap smoothly to master playback frame
+        // Popover opened: simply attach to container, the video is ALREADY PLAYING and synchronized!
         NotificationCenter.default.addObserver(
             forName: NSNotification.Name("AuraTubeMenuBarPopoverShown"),
             object: nil,
@@ -584,43 +570,12 @@ public final class MiniPlayerEngine: NSObject, WKNavigationDelegate, WKScriptMes
                 
                 if let current = pm.currentVideo, self.currentLoadedVideoId != current.id {
                     self.loadVideo(video: current, startPos: pm.currentTime)
-                } else if let pending = self.pendingVideo {
-                    self.loadVideo(video: pending.video, startPos: pending.startPos)
-                } else {
-                    let shouldPlay = pm.isPlaying
-                    let masterTime = pm.currentTime
-                    let js = """
-                    (function() {
-                        var ifr = document.getElementById('miniYtPlayer');
-                        if (ifr && ifr.contentWindow) {
-                            ifr.contentWindow.postMessage(JSON.stringify({event: "command", func: "mute", args: []}), '*');
-                            ifr.contentWindow.postMessage(JSON.stringify({event: "command", func: "setVolume", args: [0]}), '*');
-                            ifr.contentWindow.postMessage(JSON.stringify({event: "command", func: "seekTo", args: [\(masterTime), true]}), '*');
-                            if (\(shouldPlay)) {
-                                ifr.contentWindow.postMessage(JSON.stringify({event: "command", func: "playVideo", args: []}), '*');
-                            } else {
-                                ifr.contentWindow.postMessage(JSON.stringify({event: "command", func: "pauseVideo", args: []}), '*');
-                            }
-                            ifr.contentWindow.postMessage(JSON.stringify({
-                                event: 'auratube_sync',
-                                masterTime: \(masterTime),
-                                isPlaying: \(shouldPlay),
-                                forceSnap: true
-                            }), '*');
-                        }
-                    })();
-                    """
-                    self.webView.evaluateJavaScript(js, completionHandler: nil)
                 }
             }
         }
     }
     
     public func loadVideo(video: Video, startPos: Double = 0) {
-        if !isPopoverVisible {
-            pendingVideo = (video, startPos)
-            return
-        }
         guard currentLoadedVideoId != video.id else { return }
         currentLoadedVideoId = video.id
         pendingVideo = nil
@@ -698,7 +653,7 @@ public final class MiniPlayerEngine: NSObject, WKNavigationDelegate, WKScriptMes
             display: block; 
             pointer-events: none !important;
           }
-          .ytp-suggested-action-badge, .ytp-popup, .ytp-ai-info-dialog, [class*="ai-disclosure"], .ytp-spinner, .ytp-spinner-container, .ytp-bezel { display: none !important; opacity: 0 !important; visibility: hidden !important; pointer-events: none !important; }
+          .ytp-cued-thumbnail-overlay, .ytp-cued-thumbnail-overlay-image, .ytp-large-play-button, .ytp-large-play-button-bg, [class*="cued-thumbnail"], [class*="large-play-button"], .ytp-suggested-action-badge, .ytp-popup, .ytp-ai-info-dialog, [class*="ai-disclosure"], .ytp-spinner, .ytp-spinner-container, .ytp-bezel { display: none !important; opacity: 0 !important; visibility: hidden !important; pointer-events: none !important; }
         </style>
         </head>
         <body>

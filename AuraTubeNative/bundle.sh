@@ -52,9 +52,9 @@ cat << 'EOF' > "${CONTENTS_DIR}/Info.plist"
     <key>CFBundlePackageType</key>
     <string>APPL</string>
     <key>CFBundleShortVersionString</key>
-    <string>2.0.42</string>
+    <string>2.0.43</string>
     <key>CFBundleVersion</key>
-    <string>43</string>
+    <string>44</string>
     <key>NSHumanReadableCopyright</key>
     <string>Copyright © 2026 Tung Nguyen. All rights reserved.</string>
     <key>LSMinimumSystemVersion</key>

@@ -1,9 +1,9 @@
 {
-  "version": "2.0.42",
-  "build": 43,
-  "title": "AuraTube v2.0.42 (Khắc Phục Hoàn Toàn Lệch Khớp 2 Player)",
-  "releaseNotes": "• Đồng bộ khung hình tức thì giữa Main Player và MenuBar MiniPlayer: Khắc phục triệt để lỗi độ trễ vài giây khi mở Popover hoặc phát đồng thời 2 player.\n• Sửa lỗi logic tự động pause nhầm mini player khi tua hoặc chuyển video.\n• Cơ chế High-Precision Phase Lock: Cưỡng bức snap seekTo chính xác từng frame khi lệch > 0.25s và tự động điều tốc mượt mà 0.8x-1.2x khi vi sai dưới 250ms, đảm bảo hình ảnh 2 player luôn khớp 100%.",
-  "downloadUrl": "https://github.com/tung68nt/AuraTube/releases/download/v2.0.42/AuraTube-v2.0.42.dmg",
+  "version": "2.0.43",
+  "build": 44,
+  "title": "AuraTube v2.0.43 (Chạy Song Song Thực Thụ - Triệt Tiêu Loading MiniPlayer)",
+  "releaseNotes": "• Chạy giải mã song song thực thụ (True Parallel Live Stream): MenuBar MiniPlayer luôn load và phát video song song cùng Main Player trong nền offscreen.\n• Triệt tiêu hoàn toàn độ trễ khi click MenuBar: Bấm vào icon là video ĐÃ ĐANG CHẠY sẵn ở đúng frame đó, hiển thị tức thì 0ms, không còn tình trạng click vào mới bắt đầu load video gây giật lag hay hiện màn hình chờ/loading.\n• Triệt tiêu hoàn toàn ảnh bìa/cover/nút play YouTube: Chặn triệt để ytp-cued-thumbnail-overlay và large-play-button.\n• Khắc phục triệt để lỗi spam lệnh seekTo làm gián đoạn luồng stream ban đầu.",
+  "downloadUrl": "https://github.com/tung68nt/AuraTube/releases/download/v2.0.43/AuraTube-v2.0.43.dmg",
   "publishedAt": "2026-09-16",
   "minOSVersion": "13.0",
   "fileSize": "3.3 MB"
