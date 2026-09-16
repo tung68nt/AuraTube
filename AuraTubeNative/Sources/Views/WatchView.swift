@@ -618,7 +618,76 @@ public struct WatchView: View {
 @MainActor
 final class WatchPlayerViewModel: ObservableObject {
     @Published var isControlsVisible: Bool = true
+    @Published var isMouseOverPlayer: Bool = false
     var hideTimer: Timer? = nil
+    var mouseMonitor: Any? = nil
+    weak var playerManager: PlayerManager?
+    
+    func scheduleAutoHide(delay: Double = 1.8) {
+        hideTimer?.invalidate()
+        guard playerManager?.isPlaying == true else { return }
+        
+        let timer = Timer(timeInterval: delay, repeats: false) { [weak self] _ in
+            Task { @MainActor in
+                guard let self = self else { return }
+                if self.playerManager?.isPlaying == true {
+                    withAnimation(.easeInOut(duration: 0.2)) {
+                        self.isControlsVisible = false
+                    }
+                }
+            }
+        }
+        RunLoop.main.add(timer, forMode: .common)
+        hideTimer = timer
+    }
+    
+    func wakeControls() {
+        if !isControlsVisible {
+            withAnimation(.easeInOut(duration: 0.18)) {
+                isControlsVisible = true
+            }
+        }
+        scheduleAutoHide(delay: 1.8)
+    }
+    
+    func hideControlsImmediately() {
+        hideTimer?.invalidate()
+        hideTimer = nil
+        if playerManager?.isPlaying == true {
+            withAnimation(.easeInOut(duration: 0.15)) {
+                isControlsVisible = false
+            }
+        }
+    }
+    
+    func setupMouseMonitor() {
+        guard mouseMonitor == nil else { return }
+        mouseMonitor = NSEvent.addLocalMonitorForEvents(matching: [.mouseMoved, .leftMouseDown]) { [weak self] event in
+            guard let self = self else { return event }
+            if self.isMouseOverPlayer {
+                Task { @MainActor in
+                    self.wakeControls()
+                }
+            }
+            return event
+        }
+    }
+    
+    func cleanup() {
+        if let mm = mouseMonitor {
+            NSEvent.removeMonitor(mm)
+            mouseMonitor = nil
+        }
+        hideTimer?.invalidate()
+        hideTimer = nil
+    }
+    
+    deinit {
+        if let mm = mouseMonitor {
+            NSEvent.removeMonitor(mm)
+        }
+        hideTimer?.invalidate()
+    }
 }
 
 @MainActor
@@ -637,13 +706,36 @@ struct WatchPlayerContainerView: View {
                 horizontalPlayer
             }
         }
+        .onHover { isHovered in
+            vm.isMouseOverPlayer = isHovered
+            if isHovered {
+                vm.wakeControls()
+            } else {
+                vm.hideControlsImmediately()
+            }
+        }
+        .onAppear {
+            vm.playerManager = playerManager
+            vm.setupMouseMonitor()
+            vm.scheduleAutoHide(delay: 2.0)
+        }
+        .onDisappear {
+            vm.cleanup()
+        }
         .onChange(of: playerManager.isPlaying) { isPlaying in
             if isPlaying {
-                scheduleAutoHide(delay: 1.2)
+                vm.scheduleAutoHide(delay: 1.8)
             } else {
                 withAnimation(.easeInOut(duration: 0.18)) {
                     vm.isControlsVisible = true
                 }
+                vm.hideTimer?.invalidate()
+                vm.hideTimer = nil
+            }
+        }
+        .onChange(of: playerManager.currentTime) { _ in
+            if playerManager.isPlaying && vm.isControlsVisible && vm.hideTimer == nil {
+                vm.scheduleAutoHide(delay: 1.8)
             }
         }
     }
@@ -743,14 +835,13 @@ struct WatchPlayerContainerView: View {
                 }
                 Spacer()
             }
+            .opacity(vm.isControlsVisible ? 1.0 : 0.0)
+            .animation(.easeInOut(duration: 0.18), value: vm.isControlsVisible)
         }
         .frame(maxWidth: .infinity)
         .frame(height: 580)
         .cornerRadius(14)
         .overlay(RoundedRectangle(cornerRadius: 14).stroke(Color.white.opacity(0.08), lineWidth: 1))
-        .onHover { isHovered in
-            handleHover(isHovered)
-        }
     }
     
     // MARK: - Horizontal 16:9 Player
@@ -794,9 +885,6 @@ struct WatchPlayerContainerView: View {
                 .stroke(Color.white.opacity(0.08), lineWidth: 1)
         )
         .shadow(color: .black.opacity(0.4), radius: 16, y: 6)
-        .onHover { isHovered in
-            handleHover(isHovered)
-        }
     }
     
     // MARK: - Top Channel Header Overlay (Clean Apple-Style Capsule)
@@ -901,39 +989,6 @@ struct WatchPlayerContainerView: View {
                 .opacity(vm.isControlsVisible ? 1.0 : 0.0)
                 .animation(.easeInOut(duration: 0.18), value: vm.isControlsVisible)
                 .allowsHitTesting(vm.isControlsVisible)
-            }
-        }
-    }
-    
-    // MARK: - Hover & Auto-hide Logic (Synchronized with Timeline)
-    private func handleHover(_ isHovered: Bool) {
-        if isHovered {
-            withAnimation(.easeInOut(duration: 0.18)) {
-                vm.isControlsVisible = true
-            }
-            scheduleAutoHide(delay: 2.2)
-        } else {
-            vm.hideTimer?.invalidate()
-            vm.hideTimer = nil
-            
-            // When moving mouse OUT of the player, hide controls in exact 0.18s sync with timeline
-            if playerManager.isPlaying {
-                withAnimation(.easeInOut(duration: 0.18)) {
-                    vm.isControlsVisible = false
-                }
-            }
-        }
-    }
-    
-    private func scheduleAutoHide(delay: Double) {
-        vm.hideTimer?.invalidate()
-        vm.hideTimer = Timer.scheduledTimer(withTimeInterval: delay, repeats: false) { _ in
-            Task { @MainActor in
-                if self.playerManager.isPlaying {
-                    withAnimation(.easeInOut(duration: 0.18)) {
-                        self.vm.isControlsVisible = false
-                    }
-                }
             }
         }
     }
