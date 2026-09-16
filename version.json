@@ -1,9 +1,9 @@
 {
-  "version": "2.0.34",
-  "build": 35,
-  "title": "AuraTube v2.0.34 (Căn Thẳng Hàng Lưới Video & Đồng Bộ Chiều Cao Thẻ)",
-  "releaseNotes": "• Căn thẳng hàng lề 100% cho lưới video: Chuyển cấu hình lưới LazyVGrid sang canh lề đỉnh (alignment: .top) kết hợp cố định chiều cao khối tiêu đề (38pt chuẩn 2 dòng) và chuẩn hóa thông tin kênh, thời gian.\n• Triệt tiêu hoàn toàn tình trạng thẻ video cao thấp so le: Mọi thẻ video trong cùng một hàng và giữa các hàng giờ đây đều bắt đầu ở cùng một tọa độ thẳng tắp, không còn bị xô lệch hay thụt thò khi tiêu đề dài ngắn khác nhau.",
-  "downloadUrl": "https://github.com/tung68nt/AuraTube/releases/download/v2.0.34/AuraTube-v2.0.34.dmg",
+  "version": "2.0.35",
+  "build": 36,
+  "title": "AuraTube v2.0.35 (Quy Hoạch Bố Cục Video Dài & Kệ Shorts Riêng Biệt)",
+  "releaseNotes": "• Quy hoạch nội dung chuẩn mực: Tách biệt hoàn toàn Video Dài (16:9) và Video Ngắn Shorts (9:16). Tuyệt đối không còn hiện tượng video ngắn bị chèn lộn xộn làm phá vỡ lưới video.\n• Kệ Shorts chuyên biệt (Dedicated Shorts Shelf): Shorts được gom nhóm riêng biệt vào một thanh cuộn ngang tuyệt đẹp giữa các hàng video với đầy đủ tiêu đề, lượt xem và huy hiệu Shorts đặc trưng.\n• Khóa chuẩn khung hình thumbnail 16:9: Khung thumbnail luôn giữ đúng tỉ lệ 16:9 trong mọi trường hợp, đảm bảo lưới hiển thị thẳng tắp và đồng đều trên toàn bộ ứng dụng.",
+  "downloadUrl": "https://github.com/tung68nt/AuraTube/releases/download/v2.0.35/AuraTube-v2.0.35.dmg",
   "publishedAt": "2026-09-16",
   "minOSVersion": "13.0",
   "fileSize": "3.3 MB"

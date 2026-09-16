@@ -423,14 +423,69 @@ public struct HomeView: View {
                         }
                         .frame(maxWidth: .infinity, minHeight: 240)
                     } else {
-                        LazyVGrid(columns: columns, alignment: .leading, spacing: 28) {
-                            ForEach(currentList) { video in
-                                VideoCardView(video: video) {
-                                    onSelectVideo(video)
+                        let regularVideos = currentList.filter { !$0.isShort }
+                        let shortVideos = currentList.filter { $0.isShort }
+                        
+                        if shortVideos.isEmpty {
+                            // Only regular 16:9 videos
+                            LazyVGrid(columns: columns, alignment: .leading, spacing: 28) {
+                                ForEach(regularVideos) { video in
+                                    VideoCardView(video: video) {
+                                        onSelectVideo(video)
+                                    }
+                                }
+                            }
+                            .padding(.horizontal, 24)
+                        } else if regularVideos.isEmpty {
+                            // Only Shorts available
+                            VStack(alignment: .leading, spacing: 16) {
+                                HomeShortsShelfHeader()
+                                    .padding(.horizontal, 24)
+                                
+                                LazyVGrid(columns: [GridItem(.adaptive(minimum: 160, maximum: 200), spacing: 16, alignment: .top)], alignment: .leading, spacing: 22) {
+                                    ForEach(shortVideos) { short in
+                                        SearchShortCardView(video: short) {
+                                            onSelectVideo(short)
+                                        }
+                                    }
+                                }
+                                .padding(.horizontal, 24)
+                            }
+                        } else {
+                            // Integrated YouTube-style layout: Top long videos -> Shorts shelf -> Remaining long videos
+                            let topVideos = Array(regularVideos.prefix(6))
+                            let remainingVideos = Array(regularVideos.dropFirst(6))
+                            
+                            VStack(alignment: .leading, spacing: 28) {
+                                // 1. Top regular videos (16:9 grid)
+                                LazyVGrid(columns: columns, alignment: .leading, spacing: 28) {
+                                    ForEach(topVideos) { video in
+                                        VideoCardView(video: video) {
+                                            onSelectVideo(video)
+                                        }
+                                    }
+                                }
+                                .padding(.horizontal, 24)
+                                
+                                // 2. Distinct YouTube Shorts Shelf
+                                HomeShortsShelfView(
+                                    shorts: Array(shortVideos.prefix(14)),
+                                    onSelectShort: { onSelectVideo($0) }
+                                )
+                                
+                                // 3. Remaining regular videos (16:9 grid)
+                                if !remainingVideos.isEmpty {
+                                    LazyVGrid(columns: columns, alignment: .leading, spacing: 28) {
+                                        ForEach(remainingVideos) { video in
+                                            VideoCardView(video: video) {
+                                                onSelectVideo(video)
+                                            }
+                                        }
+                                    }
+                                    .padding(.horizontal, 24)
                                 }
                             }
                         }
-                        .padding(.horizontal, 24)
                     }
                 }
             }
@@ -506,17 +561,19 @@ public struct VideoCardView: View {
             VStack(alignment: .leading, spacing: 12) {
                 // Thumbnail Wrap
                 ZStack(alignment: .bottomTrailing) {
-                    AsyncImage(url: URL(string: video.thumbnail)) { phase in
-                        if let img = phase.image {
-                            img.resizable().scaledToFill()
-                        } else {
-                            (colorScheme == .dark ? Color(white: 0.12) : Color(white: 0.88))
-                        }
-                    }
-                    .aspectRatio(16/9, contentMode: .fit)
-                    .frame(maxWidth: .infinity)
-                    .clipped()
-                    .clipShape(RoundedRectangle(cornerRadius: 11, style: .continuous))
+                    Color.clear
+                        .aspectRatio(16/9, contentMode: .fit)
+                        .overlay(
+                            AsyncImage(url: URL(string: video.thumbnail)) { phase in
+                                if let img = phase.image {
+                                    img.resizable().scaledToFill()
+                                } else {
+                                    (colorScheme == .dark ? Color(white: 0.12) : Color(white: 0.88))
+                                }
+                            }
+                        )
+                        .clipped()
+                        .clipShape(RoundedRectangle(cornerRadius: 11, style: .continuous))
                     .overlay(
                         RoundedRectangle(cornerRadius: 11, style: .continuous)
                             .strokeBorder(
@@ -605,3 +662,71 @@ public struct VideoCardView: View {
         .onHover { hoverVm.isHovered = $0 }
     }
 }
+
+// MARK: - Home Shorts Shelf Header & View
+struct HomeShortsShelfHeader: View {
+    @Environment(\.colorScheme) private var colorScheme
+    
+    var body: some View {
+        HStack(spacing: 9) {
+            ZStack {
+                RoundedRectangle(cornerRadius: 6, style: .continuous)
+                    .fill(Color(red: 1.0, green: 0.15, blue: 0.15))
+                    .frame(width: 26, height: 26)
+                Image(systemName: "play.rectangle.fill")
+                    .foregroundColor(.white)
+                    .font(.system(size: 13, weight: .bold))
+            }
+            
+            Text("Shorts")
+                .font(.system(size: 19, weight: .bold))
+                .foregroundColor(ThemeColor.textPrimary(for: colorScheme))
+            
+            Text("• Video ngắn nổi bật")
+                .font(.system(size: 13, weight: .medium))
+                .foregroundColor(ThemeColor.textSecondary(for: colorScheme))
+            
+            Spacer()
+        }
+    }
+}
+
+struct HomeShortsShelfView: View {
+    @Environment(\.colorScheme) private var colorScheme
+    let shorts: [Video]
+    let onSelectShort: (Video) -> Void
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            // Subtle top divider
+            Divider()
+                .background(ThemeColor.divider(for: colorScheme))
+                .padding(.horizontal, 24)
+                .padding(.bottom, 2)
+            
+            // Header
+            HomeShortsShelfHeader()
+                .padding(.horizontal, 24)
+            
+            // Horizontal scrollable Shorts cards
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 16) {
+                    ForEach(shorts) { short in
+                        SearchShortCardView(video: short) {
+                            onSelectShort(short)
+                        }
+                    }
+                }
+                .padding(.horizontal, 24)
+                .padding(.vertical, 4)
+            }
+            
+            // Subtle bottom divider
+            Divider()
+                .background(ThemeColor.divider(for: colorScheme))
+                .padding(.horizontal, 24)
+                .padding(.top, 4)
+        }
+    }
+}
+
