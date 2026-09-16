@@ -242,19 +242,37 @@ public struct NativePlayerView: NSViewRepresentable {
         <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
         <meta name="referrer" content="origin">
         <style>
-          * { margin: 0; padding: 0; box-sizing: border-box; overflow: hidden; }
-          html, body { width: 100%; height: 100%; background: transparent !important; }
-          #ytPlayer, iframe { width: 100% !important; height: 100% !important; border: none; display: block; }
-          .ytp-suggested-action-badge, .ytp-popup, .ytp-ai-info-dialog, [class*="ai-disclosure"], .ytp-paid-content-overlay, [class*="paid-content"], [class*="paid-promotion"], .ytp-chrome-top, [class*="title-channel"] { display: none !important; opacity: 0 !important; visibility: hidden !important; }
+          * { margin: 0; padding: 0; box-sizing: border-box; }
+          html, body { width: 100%; height: 100%; overflow: hidden; background: #000 !important; }
+          .player-wrapper {
+            position: relative;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            background: #000;
+          }
+          #ytPlayer, iframe {
+            position: absolute;
+            top: -56px;
+            left: 0;
+            width: 100% !important;
+            height: calc(100% + 56px) !important;
+            border: none;
+            display: block;
+            pointer-events: none !important;
+          }
+          .ytp-suggested-action-badge, .ytp-popup, .ytp-ai-info-dialog, [class*="ai-disclosure"], .ytp-paid-content-overlay, [class*="paid-content"], [class*="paid-promotion"], .ytp-chrome-top, [class*="title-channel"], .ytp-bezel { display: none !important; opacity: 0 !important; visibility: hidden !important; }
         </style>
         </head>
         <body>
+        <div class="player-wrapper">
         <iframe 
             id="ytPlayer"
             src="https://www.youtube.com/embed/\(video.id)?autoplay=1&mute=\(muteParam)&playsinline=1&controls=0&enablejsapi=1&rel=0&modestbranding=1&fs=1&origin=https://auratube.app&widget_referrer=https://auratube.app&start=\(startPos)&vq=\(qParam)" 
             allow="autoplay; encrypted-media; picture-in-picture; fullscreen" 
             allowfullscreen="true">
         </iframe>
+        </div>
         <script>
           var isPlaying = true;
           var isMuted = \(playerManager.isMuted ? "true" : "false");
@@ -1090,36 +1108,7 @@ public struct NativePlayerView: NSViewRepresentable {
             """
             view.evaluateJavaScript(js, completionHandler: nil)
             
-            // 2. Synthesize AppKit native mouse click at center of WKWebView to click YouTube's big red play button
-            if view.bounds.width > 50 && view.bounds.height > 50, let win = view.window {
-                let centerPoint = NSPoint(x: view.bounds.midX, y: view.bounds.midY)
-                let winPoint = view.convert(centerPoint, to: nil)
-                if let mouseDown = NSEvent.mouseEvent(
-                    with: .leftMouseDown,
-                    location: winPoint,
-                    modifierFlags: [],
-                    timestamp: ProcessInfo.processInfo.systemUptime,
-                    windowNumber: win.windowNumber,
-                    context: nil,
-                    eventNumber: 0,
-                    clickCount: 1,
-                    pressure: 1.0
-                ),
-                let mouseUp = NSEvent.mouseEvent(
-                    with: .leftMouseUp,
-                    location: winPoint,
-                    modifierFlags: [],
-                    timestamp: ProcessInfo.processInfo.systemUptime,
-                    windowNumber: win.windowNumber,
-                    context: nil,
-                    eventNumber: 0,
-                    clickCount: 1,
-                    pressure: 0.0
-                ) {
-                    view.mouseDown(with: mouseDown)
-                    view.mouseUp(with: mouseUp)
-                }
-            }
+            // Direct postMessage already triggers playback without UI bezel side-effects
             
             // Retry after 0.25s until isActuallyPlaying becomes true
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) { [weak self, weak view] in

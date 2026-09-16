@@ -618,9 +618,6 @@ public struct WatchView: View {
 @MainActor
 final class WatchPlayerViewModel: ObservableObject {
     @Published var isControlsVisible: Bool = true
-    @Published var flashIcon: String? = nil
-    @Published var flashScale: CGFloat = 0.85
-    @Published var flashOpacity: Double = 0
     var hideTimer: Timer? = nil
 }
 
@@ -641,7 +638,13 @@ struct WatchPlayerContainerView: View {
             }
         }
         .onChange(of: playerManager.isPlaying) { isPlaying in
-            triggerPlayPauseFlash(isPlaying: isPlaying)
+            if isPlaying {
+                scheduleAutoHide(delay: 1.2)
+            } else {
+                withAnimation(.easeInOut(duration: 0.18)) {
+                    vm.isControlsVisible = true
+                }
+            }
         }
     }
     
@@ -675,8 +678,20 @@ struct WatchPlayerContainerView: View {
             ZStack(alignment: .bottom) {
                 NativePlayerView()
                 
-                // Flash Play/Pause Center Indicator
-                centerFlashOverlay
+                // Click to play/pause, double click for fullscreen
+                Color.black.opacity(0.001)
+                    .contentShape(Rectangle())
+                    .onTapGesture(count: 2) {
+                        playerManager.toggleFullscreen()
+                    }
+                    .simultaneousGesture(
+                        TapGesture(count: 1).onEnded {
+                            playerManager.togglePlayPause()
+                        }
+                    )
+                
+                // Center Play/Pause Indicator (Synchronized with Timeline)
+                centerPlayPauseOverlay
                 
                 // Bottom Controls with YouTube Auto-Hide
                 PlayerControlOverlay()
@@ -743,8 +758,23 @@ struct WatchPlayerContainerView: View {
         ZStack(alignment: .bottom) {
             NativePlayerView()
             
-            // Flash Play/Pause Center Indicator
-            centerFlashOverlay
+            // Click to play/pause, double click for fullscreen
+            Color.black.opacity(0.001)
+                .contentShape(Rectangle())
+                .onTapGesture(count: 2) {
+                    playerManager.toggleFullscreen()
+                }
+                .simultaneousGesture(
+                    TapGesture(count: 1).onEnded {
+                        playerManager.togglePlayPause()
+                    }
+                )
+            
+            // Top Channel & Video Info Header (Positioned properly with safe margins)
+            topChannelHeaderOverlay
+            
+            // Center Play/Pause Indicator (Synchronized with Timeline)
+            centerPlayPauseOverlay
             
             // Bottom Controls with YouTube Auto-Hide
             PlayerControlOverlay()
@@ -769,46 +799,122 @@ struct WatchPlayerContainerView: View {
         }
     }
     
-    // MARK: - Flash Center Indicator
-    private var centerFlashOverlay: some View {
-        ZStack {
-            if let icon = vm.flashIcon {
-                Circle()
-                    .fill(Color.black.opacity(0.65))
-                    .frame(width: 72, height: 72)
-                    .overlay(
-                        Image(systemName: icon)
-                            .font(.system(size: 28, weight: .bold))
-                            .foregroundColor(.white)
-                    )
-                    .scaleEffect(vm.flashScale)
-                    .opacity(vm.flashOpacity)
+    // MARK: - Top Channel Header Overlay (Clean Apple-Style Capsule)
+    private var topChannelHeaderOverlay: some View {
+        VStack {
+            HStack(alignment: .center, spacing: 10) {
+                // Channel Avatar
+                if let avatarUrl = displayVideo.channelAvatarUrl, !avatarUrl.isEmpty {
+                    AsyncImage(url: URL(string: avatarUrl)) { phase in
+                        if let img = phase.image {
+                            img.resizable().scaledToFill()
+                        } else {
+                            Circle().fill(Color.white.opacity(0.15))
+                        }
+                    }
+                    .frame(width: 32, height: 32)
+                    .clipShape(Circle())
+                    .overlay(Circle().stroke(Color.white.opacity(0.3), lineWidth: 1))
+                } else {
+                    Circle()
+                        .fill(Color.white.opacity(0.15))
+                        .frame(width: 32, height: 32)
+                        .overlay(
+                            Image(systemName: "play.tv.fill")
+                                .font(.system(size: 13))
+                                .foregroundColor(.white.opacity(0.8))
+                        )
+                }
+                
+                VStack(alignment: .leading, spacing: 1.5) {
+                    Text(displayVideo.uploader)
+                        .font(.system(size: 13, weight: .bold))
+                        .foregroundColor(.white)
+                        .lineLimit(1)
+                        .shadow(color: .black.opacity(0.8), radius: 3, x: 0, y: 1)
+                    
+                    if !displayVideo.title.isEmpty {
+                        Text(displayVideo.title)
+                            .font(.system(size: 11, weight: .medium))
+                            .foregroundColor(Color.white.opacity(0.82))
+                            .lineLimit(1)
+                            .shadow(color: .black.opacity(0.8), radius: 3, x: 0, y: 1)
+                    }
+                }
+                .frame(maxWidth: 320, alignment: .leading)
             }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 6)
+            .background(
+                ZStack {
+                    Capsule()
+                        .fill(Color.black.opacity(0.65))
+                    Capsule()
+                        .strokeBorder(Color.white.opacity(0.18), lineWidth: 0.8)
+                }
+            )
+            .shadow(color: .black.opacity(0.4), radius: 8, x: 0, y: 3)
+            .padding(.leading, 16)
+            .padding(.top, 14)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            
+            Spacer()
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .opacity(vm.isControlsVisible ? 1.0 : 0.0)
+        .animation(.easeInOut(duration: 0.18), value: vm.isControlsVisible)
         .allowsHitTesting(false)
     }
     
-    // MARK: - Hover & Auto-hide Logic (YouTube Style)
+    // MARK: - Center Play / Pause Indicator (Synchronized with Timeline)
+    private var centerPlayPauseOverlay: some View {
+        Button(action: {
+            playerManager.togglePlayPause()
+        }) {
+            ZStack {
+                Circle()
+                    .fill(Color.black.opacity(0.62))
+                    .frame(width: 68, height: 68)
+                    .overlay(
+                        Circle()
+                            .strokeBorder(
+                                LinearGradient(
+                                    colors: [Color.white.opacity(0.4), Color.white.opacity(0.12)],
+                                    startPoint: .topLeading,
+                                    endPoint: .bottomTrailing
+                                ),
+                                lineWidth: 1.2
+                            )
+                    )
+                    .shadow(color: .black.opacity(0.5), radius: 12, x: 0, y: 4)
+                
+                Image(systemName: playerManager.isPlaying ? "pause.fill" : "play.fill")
+                    .font(.system(size: 26, weight: .bold))
+                    .foregroundColor(.white)
+                    .offset(x: playerManager.isPlaying ? 0 : 2)
+            }
+        }
+        .buttonStyle(.plain)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
+        .opacity(vm.isControlsVisible ? 1.0 : 0.0)
+        .animation(.easeInOut(duration: 0.18), value: vm.isControlsVisible)
+        .allowsHitTesting(vm.isControlsVisible)
+    }
+    
+    // MARK: - Hover & Auto-hide Logic (Synchronized with Timeline)
     private func handleHover(_ isHovered: Bool) {
         if isHovered {
-            withAnimation(.easeInOut(duration: 0.15)) {
+            withAnimation(.easeInOut(duration: 0.18)) {
                 vm.isControlsVisible = true
             }
-            scheduleAutoHide(delay: 2.0)
+            scheduleAutoHide(delay: 2.2)
         } else {
             vm.hideTimer?.invalidate()
             vm.hideTimer = nil
             
-            // Immediately clear center flash indicator when mouse leaves
-            withAnimation(.easeOut(duration: 0.12)) {
-                vm.flashOpacity = 0.0
-            }
-            vm.flashIcon = nil
-            
-            // When moving mouse OUT of the player, hide controls instantly & smoothly
+            // When moving mouse OUT of the player, hide controls in exact 0.18s sync with timeline
             if playerManager.isPlaying {
-                withAnimation(.easeOut(duration: 0.18)) {
+                withAnimation(.easeInOut(duration: 0.18)) {
                     vm.isControlsVisible = false
                 }
             }
@@ -820,36 +926,10 @@ struct WatchPlayerContainerView: View {
         vm.hideTimer = Timer.scheduledTimer(withTimeInterval: delay, repeats: false) { _ in
             Task { @MainActor in
                 if self.playerManager.isPlaying {
-                    withAnimation(.easeOut(duration: 0.28)) {
+                    withAnimation(.easeInOut(duration: 0.18)) {
                         self.vm.isControlsVisible = false
                     }
                 }
-            }
-        }
-    }
-    
-    private func triggerPlayPauseFlash(isPlaying: Bool) {
-        vm.flashIcon = isPlaying ? "play.fill" : "pause.fill"
-        vm.flashScale = 0.90
-        vm.flashOpacity = 0.95
-        
-        withAnimation(.easeOut(duration: 0.20)) {
-            self.vm.flashScale = 1.20
-            self.vm.flashOpacity = 0.0
-        }
-        
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.22) { [weak vm] in
-            if vm?.flashOpacity == 0.0 {
-                vm?.flashIcon = nil
-            }
-        }
-        
-        if isPlaying {
-            // Hide controls quickly after playing starts
-            scheduleAutoHide(delay: 0.75)
-        } else {
-            withAnimation(.easeInOut(duration: 0.15)) {
-                self.vm.isControlsVisible = true
             }
         }
     }

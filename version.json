@@ -1,9 +1,9 @@
 {
-  "version": "2.0.29",
-  "build": 30,
-  "title": "AuraTube v2.0.29 (Tối Ưu Độ Mượt, Nút Bấm & Trải Nghiệm Video Player)",
-  "releaseNotes": "• Khắc phục triệt để độ tương phản nút bấm: Sửa lỗi chữ đen chìm trên nền nút Đăng ký ở Light Mode; thiết kế lại toàn bộ các nút chức năng (Chia sẻ, Tải xuống, Lưu video) theo chuẩn kính lỏng với nền và viền sắc nét, độ tương phản cao, khắc phục hoàn toàn tình trạng nút mờ nhạt khó nhìn.\n• Tối ưu hóa độ mượt khi bấm chọn video: Loại bỏ vòng lặp nền 180ms tải comment liên tục; chuyển MiniPlayerEngine sang chế độ On-Demand chỉ phát khi người dùng mở Menu Bar popover, giải phóng 100% băng thông mạng và CPU giúp video tải nhanh tức thì không còn giật lag.\n• Tinh chỉnh tốc độ ẩn nút Pause trung tâm: Nút pause/play giữa màn hình nhấp nháy siêu nhạy (0.20s) và tự động biến mất lập tức cùng thanh timeline ngay khi di chuột ra khỏi khung hình.\n• Triệt tiêu hoàn toàn thanh thông tin kênh lặp ở góc trái trên video: Vô hiệu hóa dứt điểm .ytp-chrome-top, avatar và tiêu đề từ iframe YouTube ngay từ thời điểm Document Start, giữ khung hình sạch sẽ và chuyên nghiệp.",
-  "downloadUrl": "https://github.com/tung68nt/AuraTube/releases/download/v2.0.29/AuraTube-v2.0.29.dmg",
+  "version": "2.0.30",
+  "build": 31,
+  "title": "AuraTube v2.0.30 (Tái Thiết Kế Header Kênh & Đồng Tốc Nút Pause Với Timeline)",
+  "releaseNotes": "• Tái thiết kế bố cục Logo kênh & Tên kênh: Loại bỏ hoàn toàn thanh tiêu đề iframe YouTube bị cắt nửa và card gợi ý chồng chéo; thay thế bằng thanh header kính lỏng native bo cong (Capsule) đặt tại góc trên bên trái với khoảng cách viền tiêu chuẩn, hiển thị avatar sắc nét, tên kênh đậm và tên video tinh tế, tự động ẩn hiện đồng bộ cùng controls.\n• Đồng tốc ẩn nút Pause/Play trung tâm với Timeline: Nút Pause/Play giữa player được đồng bộ tuyệt đối về thời gian (0.18s), tốc độ và đường cong chuyển động cùng với thanh timeline scrubber, đồng thời loại bỏ triệt để hiện tượng bezel mặc định của YouTube iframe nán lại gây lệch pha khi bấm phát/tạm dừng.\n• Hỗ trợ chạm để Play/Pause và nhấp đúp Fullscreen: Thao tác click trực tiếp trên khung hình video chuyển đổi Play/Pause tức thì, nhấp đúp để bật/tắt toàn màn hình mượt mà.",
+  "downloadUrl": "https://github.com/tung68nt/AuraTube/releases/download/v2.0.30/AuraTube-v2.0.30.dmg",
   "publishedAt": "2026-09-16",
   "minOSVersion": "13.0",
   "fileSize": "3.3 MB"
