@@ -52,18 +52,22 @@ public struct PlayerControlOverlay: View {
         VStack(spacing: 0) {
             Spacer()
             
-            VStack(spacing: 8) {
-                // 1. Scrubber Timeline Bar (Thanh tua với các phân đoạn)
-                scrubberBar
-                    .padding(.horizontal, 16)
+            GeometryReader { geo in
+                let isCompact = geo.size.width < 460 || playerManager.isCurrentVideoVertical
                 
-                // 2. Control Buttons, Chapter title & Time Display
-                controlButtonsRow
-                    .padding(.horizontal, 18)
-                    .padding(.bottom, 8)
+                VStack(spacing: isCompact ? 6 : 8) {
+                    // 1. Scrubber Timeline Bar (Thanh tua với các phân đoạn)
+                    scrubberBar
+                        .padding(.horizontal, isCompact ? 10 : 16)
+                    
+                    // 2. Control Buttons, Chapter title & Time Display
+                    controlButtonsRow(isCompact: isCompact)
+                        .padding(.horizontal, isCompact ? 10 : 18)
+                        .padding(.bottom, 8)
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
             }
-            .frame(maxWidth: .infinity)
-            .padding(.top, 24)
+            .frame(height: 68)
             .background(
                 LinearGradient(
                     stops: [
@@ -274,61 +278,64 @@ public struct PlayerControlOverlay: View {
     }
     
     // MARK: - Controls Row
-    private var controlButtonsRow: some View {
-        HStack(spacing: 16) {
-            // Play / Pause
+    @ViewBuilder
+    private func controlButtonsRow(isCompact: Bool) -> some View {
+        HStack(spacing: isCompact ? 8 : 16) {
+            // Play / Pause (ALWAYS PRESENT ON THE LEFT)
             Button(action: { playerManager.togglePlayPause() }) {
                 Image(systemName: playerManager.isPlaying ? "pause.fill" : "play.fill")
-                    .font(.system(size: 16, weight: .bold))
+                    .font(.system(size: isCompact ? 14 : 16, weight: .bold))
                     .foregroundColor(.white)
-                    .frame(width: 28, height: 28)
+                    .frame(width: isCompact ? 24 : 28, height: isCompact ? 24 : 28)
             }
             .buttonStyle(.plain)
             
-            // Backward 10s
-            Button(action: { playerManager.seekRelative(-10) }) {
-                Image(systemName: "gobackward.10")
-                    .font(.system(size: 14, weight: .medium))
-                    .foregroundColor(Color(white: 0.9))
-                    .frame(width: 26, height: 26)
+            if !isCompact {
+                // Backward 10s
+                Button(action: { playerManager.seekRelative(-10) }) {
+                    Image(systemName: "gobackward.10")
+                        .font(.system(size: 14, weight: .medium))
+                        .foregroundColor(Color(white: 0.9))
+                        .frame(width: 26, height: 26)
+                }
+                .buttonStyle(.plain)
+                .help("Tua lùi 10 giây (J)")
+                
+                // Forward 10s
+                Button(action: { playerManager.seekRelative(10) }) {
+                    Image(systemName: "goforward.10")
+                        .font(.system(size: 14, weight: .medium))
+                        .foregroundColor(Color(white: 0.9))
+                        .frame(width: 26, height: 26)
+                }
+                .buttonStyle(.plain)
+                .help("Tua tới 10 giây (L)")
             }
-            .buttonStyle(.plain)
-            .help("Tua lùi 10 giây (J)")
             
-            // Forward 10s
-            Button(action: { playerManager.seekRelative(10) }) {
-                Image(systemName: "goforward.10")
-                    .font(.system(size: 14, weight: .medium))
-                    .foregroundColor(Color(white: 0.9))
-                    .frame(width: 26, height: 26)
-            }
-            .buttonStyle(.plain)
-            .help("Tua tới 10 giây (L)")
-            
-            // Volume / Mute
+            // Volume / Mute (ALWAYS PRESENT)
             Button(action: { playerManager.toggleMute() }) {
                 Image(systemName: playerManager.isMuted ? "speaker.slash.fill" : (playerManager.volume > 0.5 ? "speaker.wave.2.fill" : "speaker.wave.1.fill"))
-                    .font(.system(size: 13, weight: .medium))
+                    .font(.system(size: isCompact ? 12 : 13, weight: .medium))
                     .foregroundColor(Color(white: 0.9))
-                    .frame(width: 26, height: 26)
+                    .frame(width: isCompact ? 22 : 26, height: isCompact ? 22 : 26)
             }
             .buttonStyle(.plain)
             .help("Tắt/Bật tiếng (M)")
             
-            // Current Time / Total Duration + Chapter Title
-            HStack(spacing: 4) {
+            // Current Time / Total Duration + Chapter Title (ALWAYS PRESENT)
+            HStack(spacing: isCompact ? 2 : 4) {
                 Text(formatTime(effectiveTime))
-                    .font(.system(size: 12, weight: .medium))
+                    .font(.system(size: isCompact ? 10.5 : 12, weight: .medium))
                     .foregroundColor(.white)
                 Text("/")
-                    .font(.system(size: 11, weight: .regular))
+                    .font(.system(size: isCompact ? 9.5 : 11, weight: .regular))
                     .foregroundColor(Color(white: 0.5))
                 Text(formatTime(playerManager.duration))
-                    .font(.system(size: 12, weight: .medium))
+                    .font(.system(size: isCompact ? 10.5 : 12, weight: .medium))
                     .foregroundColor(Color(white: 0.7))
                 
                 // Display Current Chapter Title next to time (like YouTube)
-                if !playerManager.isCurrentVideoVertical, let ch = playerManager.currentChapter {
+                if !isCompact && !playerManager.isCurrentVideoVertical, let ch = playerManager.currentChapter {
                     Text("•")
                         .font(.system(size: 11, weight: .regular))
                         .foregroundColor(Color(white: 0.4))
@@ -341,11 +348,11 @@ public struct PlayerControlOverlay: View {
                         .frame(maxWidth: 240, alignment: .leading)
                 }
             }
-            .padding(.leading, 2)
+            .padding(.leading, isCompact ? 0 : 2)
             
-            Spacer()
+            Spacer(minLength: 4)
             
-            // Quality Dropdown Menu (Độ phân giải)
+            // Quality Dropdown Menu (Độ phân giải) (ALWAYS PRESENT)
             Menu {
                 Button(action: { playerManager.setQuality("auto") }) {
                     HStack {
@@ -377,16 +384,16 @@ public struct PlayerControlOverlay: View {
                     }
                 }
             } label: {
-                HStack(spacing: 3) {
-                    Text(displayQualityBadge)
-                        .font(.system(size: 11, weight: .bold))
+                HStack(spacing: isCompact ? 2 : 3) {
+                    Text(displayQualityBadge(isCompact: isCompact))
+                        .font(.system(size: isCompact ? 10 : 11, weight: .bold))
                         .foregroundColor(.white)
                     Image(systemName: "chevron.up.chevron.down")
-                        .font(.system(size: 7, weight: .semibold))
+                        .font(.system(size: isCompact ? 6 : 7, weight: .semibold))
                         .foregroundColor(Color(white: 0.7))
                 }
-                .padding(.horizontal, 7)
-                .padding(.vertical, 3.5)
+                .padding(.horizontal, isCompact ? 5 : 7)
+                .padding(.vertical, isCompact ? 3 : 3.5)
                 .background(Color.white.opacity(0.18))
                 .cornerRadius(4)
             }
@@ -394,39 +401,54 @@ public struct PlayerControlOverlay: View {
             .fixedSize()
             .help("Chọn độ phân giải video")
             
-            // Autoplay Next Video Toggle (YouTube Style)
-            Button(action: {
-                playerManager.toggleAutoplay()
-            }) {
-                ZStack(alignment: playerManager.isAutoplayEnabled ? .trailing : .leading) {
-                    Capsule()
-                        .fill(playerManager.isAutoplayEnabled ? Color.white : Color(white: 0.28))
-                        .frame(width: 32, height: 16)
-                    
-                    Circle()
-                        .fill(playerManager.isAutoplayEnabled ? Color.black : Color(white: 0.75))
-                        .frame(width: 12, height: 12)
-                        .padding(.horizontal, 2)
-                        .overlay(
-                            Image(systemName: playerManager.isAutoplayEnabled ? "play.fill" : "pause.fill")
-                                .font(.system(size: 6, weight: .bold))
-                                .foregroundColor(playerManager.isAutoplayEnabled ? .white : .black)
-                        )
+            if !isCompact {
+                // Autoplay Next Video Toggle (YouTube Style)
+                Button(action: {
+                    playerManager.toggleAutoplay()
+                }) {
+                    ZStack(alignment: playerManager.isAutoplayEnabled ? .trailing : .leading) {
+                        Capsule()
+                            .fill(playerManager.isAutoplayEnabled ? Color.white : Color(white: 0.28))
+                            .frame(width: 32, height: 16)
+                        
+                        Circle()
+                            .fill(playerManager.isAutoplayEnabled ? Color.black : Color(white: 0.75))
+                            .frame(width: 12, height: 12)
+                            .padding(.horizontal, 2)
+                            .overlay(
+                                Image(systemName: playerManager.isAutoplayEnabled ? "play.fill" : "pause.fill")
+                                    .font(.system(size: 6, weight: .bold))
+                                    .foregroundColor(playerManager.isAutoplayEnabled ? .white : .black)
+                            )
+                    }
+                    .animation(.easeInOut(duration: 0.18), value: playerManager.isAutoplayEnabled)
                 }
-                .animation(.easeInOut(duration: 0.18), value: playerManager.isAutoplayEnabled)
+                .buttonStyle(.plain)
+                .help(playerManager.isAutoplayEnabled ? "Tự động phát: Đang BẬT" : "Tự động phát: Đang TẮT")
+            }
+            
+            // Picture-in-Picture Button (PiP) (ALWAYS PRESENT)
+            Button(action: {
+                playerManager.togglePictureInPicture()
+            }) {
+                Image(systemName: playerManager.isPictureInPictureActive ? "pip.exit" : "pip.enter")
+                    .font(.system(size: isCompact ? 10.5 : 12, weight: .semibold))
+                    .foregroundColor(.white)
+                    .frame(width: isCompact ? 24 : 28, height: isCompact ? 24 : 28)
+                    .background(playerManager.isPictureInPictureActive ? Color.red.opacity(0.85) : Color.white.opacity(0.12))
+                    .clipShape(Circle())
             }
             .buttonStyle(.plain)
-            .help(playerManager.isAutoplayEnabled ? "Tự động phát: Đang BẬT" : "Tự động phát: Đang TẮT")
+            .help(playerManager.isPictureInPictureActive ? "Đưa video về cửa sổ chính (P)" : "Chuyển sang cửa sổ nổi PiP (P)")
             
-            // Fullscreen Button
+            // Fullscreen Button (ALWAYS PRESENT ON THE RIGHT)
             Button(action: {
-                print("### [PlayerControlOverlay] Fullscreen button CLICKED!")
                 playerManager.toggleFullscreen()
             }) {
                 Image(systemName: playerManager.isVideoFullscreen ? "arrow.down.right.and.arrow.up.left" : "arrow.up.left.and.arrow.down.right")
-                    .font(.system(size: 12, weight: .semibold))
+                    .font(.system(size: isCompact ? 10.5 : 12, weight: .semibold))
                     .foregroundColor(.white)
-                    .frame(width: 28, height: 28)
+                    .frame(width: isCompact ? 24 : 28, height: isCompact ? 24 : 28)
                     .background(Color.white.opacity(0.12))
                     .clipShape(Circle())
             }
@@ -435,11 +457,11 @@ public struct PlayerControlOverlay: View {
         }
     }
     
-    private var displayQualityBadge: String {
+    private func displayQualityBadge(isCompact: Bool = false) -> String {
         if playerManager.selectedQuality != "auto" {
             return "\(playerManager.selectedQuality)p"
         } else if !playerManager.currentQuality.isEmpty && playerManager.currentQuality != "auto" && playerManager.currentQuality != "default" {
-            return "Auto • \(playerManager.currentQuality)p"
+            return isCompact ? "\(playerManager.currentQuality)p" : "Auto • \(playerManager.currentQuality)p"
         } else {
             return "Auto"
         }

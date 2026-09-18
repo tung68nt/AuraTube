@@ -3,6 +3,8 @@
 *.zip
 .build/
 node_modules/
+dist/
+AuraTube.app/
 
 # OS Files
 .DS_Store

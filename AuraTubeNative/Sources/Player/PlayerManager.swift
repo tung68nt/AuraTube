@@ -36,6 +36,7 @@ public final class PlayerManager: ObservableObject {
     @Published public var isPictureInPictureActive: Bool = false
     @Published public var isCurrentVideoVertical: Bool = false
     @Published public var currentVideoAspectRatio: Double = 16.0 / 9.0
+    @Published public var isSearchFocused: Bool = false
     
     // MARK: - Autoplay Next Video State
     @Published public var isAutoplayEnabled: Bool = (UserDefaults.standard.object(forKey: "auratube_autoplay") as? Bool) ?? true {
@@ -165,8 +166,14 @@ public final class PlayerManager: ObservableObject {
             forName: NSWindow.willEnterFullScreenNotification,
             object: nil,
             queue: .main
-        ) { [weak self] _ in
+        ) { [weak self] notif in
             Task { @MainActor in
+                if let win = notif.object as? NSWindow {
+                    win.backgroundColor = .black
+                    win.contentView?.wantsLayer = true
+                    win.contentView?.layer?.cornerRadius = 0
+                    win.contentView?.layer?.masksToBounds = false
+                }
                 if self?.currentVideo != nil {
                     self?.isVideoFullscreen = true
                 }
@@ -177,8 +184,14 @@ public final class PlayerManager: ObservableObject {
             forName: NSWindow.didEnterFullScreenNotification,
             object: nil,
             queue: .main
-        ) { [weak self] _ in
+        ) { [weak self] notif in
             Task { @MainActor in
+                if let win = notif.object as? NSWindow {
+                    win.backgroundColor = .black
+                    win.contentView?.wantsLayer = true
+                    win.contentView?.layer?.cornerRadius = 0
+                    win.contentView?.layer?.masksToBounds = false
+                }
                 if self?.currentVideo != nil {
                     self?.isVideoFullscreen = true
                 }
@@ -189,8 +202,11 @@ public final class PlayerManager: ObservableObject {
             forName: NSWindow.didExitFullScreenNotification,
             object: nil,
             queue: .main
-        ) { [weak self] _ in
+        ) { [weak self] notif in
             Task { @MainActor in
+                if let win = notif.object as? NSWindow {
+                    AppDelegate.configureTitlebar(for: win)
+                }
                 self?.isVideoFullscreen = false
             }
         }
@@ -219,6 +235,16 @@ public final class PlayerManager: ObservableObject {
                 }
             }
         }
+        
+        DistributedNotificationCenter.default().addObserver(
+            forName: NSNotification.Name("app.auratube.navigateSection"),
+            object: nil,
+            queue: .main
+        ) { _ in
+            Task { @MainActor in
+                NotificationCenter.default.post(name: Notification.Name("AuraTubeNavigateShorts"), object: nil)
+            }
+        }
     }
     
     deinit {
@@ -243,13 +269,21 @@ public final class PlayerManager: ObservableObject {
         
         isVideoFullscreen.toggle()
         
-        if isVideoFullscreen {
-            if let w = window, !w.styleMask.contains(.fullScreen) {
-                w.toggleFullScreen(nil)
-            }
-        } else {
-            if let w = window, w.styleMask.contains(.fullScreen) {
-                w.toggleFullScreen(nil)
+        if let w = window {
+            if isVideoFullscreen {
+                w.backgroundColor = .black
+                w.contentView?.wantsLayer = true
+                w.contentView?.layer?.cornerRadius = 0
+                w.contentView?.layer?.masksToBounds = false
+                if !w.styleMask.contains(.fullScreen) {
+                    w.makeKeyAndOrderFront(nil)
+                    w.toggleFullScreen(nil)
+                }
+            } else {
+                if w.styleMask.contains(.fullScreen) {
+                    w.toggleFullScreen(nil)
+                }
+                AppDelegate.configureTitlebar(for: w)
             }
         }
     }
@@ -307,9 +341,9 @@ public final class PlayerManager: ObservableObject {
                 }
                 
                 let now = ProcessInfo.processInfo.systemUptime
-                // Fast convergence phase post-seek: 150ms; regular playback clock: 200ms for tight phase-lock
+                // Ultra-low latency dual-player sync: 30ms post-seek convergence; 50ms regular clock for frame-accurate phase lock
                 let isPostSeekConvergence = (now - lastSeekTimestamp < 2.5)
-                let syncInterval = isPostSeekConvergence ? 0.15 : 0.20
+                let syncInterval = isPostSeekConvergence ? 0.03 : 0.05
                 
                 if hasActiveMainPlayer && (now - lastMiniSyncUptime >= syncInterval) {
                     lastMiniSyncUptime = now
@@ -398,8 +432,14 @@ public final class PlayerManager: ObservableObject {
         }
         
         self.currentVideo = video
-        self.isCurrentVideoVertical = video.isShort
-        self.currentVideoAspectRatio = video.isShort ? (9.0 / 16.0) : (16.0 / 9.0)
+        let isShortVideo = video.isShort 
+            || video.title.lowercased().contains("#shorts") 
+            || video.title.lowercased().contains("#short") 
+            || video.title.lowercased().contains("/shorts/")
+            || video.durationFormatted == "Shorts"
+            || ((video.duration ?? 0) > 0 && (video.duration ?? 0) <= 65)
+        self.isCurrentVideoVertical = isShortVideo
+        self.currentVideoAspectRatio = isShortVideo ? (9.0 / 16.0) : (16.0 / 9.0)
         self.selectedQuality = "auto"
         self.currentQuality = quality
         self.availableQualities = []
@@ -462,13 +502,32 @@ public final class PlayerManager: ObservableObject {
     }
     
     public func updateVideoDimensions(isVertical: Bool, width: Double, height: Double) {
-        if self.isCurrentVideoVertical != isVertical {
-            self.isCurrentVideoVertical = isVertical
+        let isShortByMeta = (currentVideo?.isShort ?? false) 
+            || (duration > 0 && duration <= 180)
+            || ((currentVideo?.duration ?? 0) > 0 && (currentVideo?.duration ?? 0) <= 180)
+            || (currentVideo?.durationFormatted == "Shorts")
+            || (currentVideo?.title.lowercased().contains("short") ?? false)
+            || (currentVideo?.title.lowercased().contains("tiktok") ?? false)
+            || (currentVideo?.title.lowercased().contains("reels") ?? false)
+        
+        let isActuallyVertical = isShortByMeta || isVertical || (height > width && height > 0)
+        
+        if isActuallyVertical {
+            self.isCurrentVideoVertical = true
+            self.currentVideoAspectRatio = 9.0 / 16.0
+            return
         }
+        
         if height > 0 && width > 0 {
-            let ratio = width / height
-            if abs(self.currentVideoAspectRatio - ratio) > 0.01 {
-                self.currentVideoAspectRatio = ratio
+            let directRatio = width / height
+            // Mọi tỷ lệ < 1.4 (bao gồm khổ dọc < 1.0, vuông 1:1, SD 4:3 của Shorts) đều nhận diện là video dọc 9:16
+            if directRatio < 1.4 {
+                self.isCurrentVideoVertical = true
+                self.currentVideoAspectRatio = 9.0 / 16.0
+                return
+            }
+            if abs(self.currentVideoAspectRatio - directRatio) > 0.01 {
+                self.currentVideoAspectRatio = directRatio
             }
         }
     }
@@ -626,6 +685,8 @@ public final class PlayerManager: ObservableObject {
         self.seekTargetTime = clampedTime
         self.lastSeekTimestamp = ProcessInfo.processInfo.systemUptime
         self.isSeekingLock = true
+        
+        PlaybackClock.shared.update(time: clampedTime, duration: self.duration, isPlaying: self.isPlaying)
         
         onSeek?(clampedTime)
         for observer in seekObservers.values {

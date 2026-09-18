@@ -42,10 +42,24 @@ public struct HomeView: View {
     @ObservedObject private var subManager = ChannelSubscriptionManager.shared
     @ObservedObject private var recService = RecommendationService.shared
     
-    private let tags = [
-        "Tất cả", "🔔 Đang theo dõi", "Công nghệ", "Tin tức", "Giải trí", "Âm nhạc", "Trò chơi",
-        "Podcast", "Khoa học", "Bóng đá"
-    ]
+    private var allTags: [String] {
+        var list = ["Tất cả", "🔔 Đang theo dõi"]
+        for t in recService.dynamicInterestTags {
+            if !list.contains(t) {
+                list.append(t)
+            }
+        }
+        let baseCategories = [
+            "Công nghệ", "Tin tức", "Giải trí", "Âm nhạc", "Trò chơi",
+            "Podcast", "Khoa học", "Bóng đá"
+        ]
+        for c in baseCategories {
+            if !list.contains(c) {
+                list.append(c)
+            }
+        }
+        return list
+    }
     
     private let columns = [
         GridItem(.adaptive(minimum: 300, maximum: 380), spacing: 20, alignment: .top)
@@ -61,7 +75,7 @@ public struct HomeView: View {
                 // 1. Tag Chips Bar with macOS HIG Styling
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(spacing: 7) {
-                        ForEach(tags, id: \.self) { tag in
+                        ForEach(allTags, id: \.self) { tag in
                             let isFollowedTag = tag.contains("Đang theo dõi")
                             let displayTitle = (isFollowedTag && !subManager.subscribedChannels.isEmpty)
                                 ? "🔔 Đang theo dõi (\(subManager.subscribedChannels.count))"
@@ -515,6 +529,18 @@ public struct HomeView: View {
                 vm.videos = await YTDLPService.shared.searchVideos(query: "công nghệ review sản phẩm mới nhất")
             } else if tag == "Giải trí" {
                 vm.videos = await YTDLPService.shared.searchVideos(query: "video giải trí hay thú vị triệu view")
+            } else if tag == "Hệ sinh thái Apple" {
+                vm.videos = await YTDLPService.shared.searchVideos(query: "apple iphone macbook ipad phụ kiện mới nhất")
+            } else if tag == "Setup góc làm việc" {
+                vm.videos = await YTDLPService.shared.searchVideos(query: "setup góc làm việc tối giản bàn phím decor")
+            } else if tag == "Kính VR & AI" {
+                vm.videos = await YTDLPService.shared.searchVideos(query: "kính thực tế ảo vr ar apple vision pro meta quest ai")
+            } else if tag == "Gaming Gear" {
+                vm.videos = await YTDLPService.shared.searchVideos(query: "chuột bàn phím tai nghe gaming gear máy chơi game")
+            } else if tag == "Xe & Công nghệ" {
+                vm.videos = await YTDLPService.shared.searchVideos(query: "xe hơi ô tô thông minh xe điện công nghệ")
+            } else if recService.topChannels.contains(tag) {
+                vm.videos = await YTDLPService.shared.searchVideos(query: "\(tag) video mới nhất")
             } else {
                 vm.videos = await YTDLPService.shared.searchVideos(query: tag)
             }

@@ -27,8 +27,16 @@ public final class ScrollForwardingWKWebView: WKWebView {
 
 public struct NativePlayerView: NSViewRepresentable {
     @ObservedObject var playerManager: PlayerManager = .shared
+    public var cornerRadius: CGFloat
+    public var maskedCorners: CACornerMask
     
-    public init() {}
+    public init(
+        cornerRadius: CGFloat = 0,
+        maskedCorners: CACornerMask = [.layerMinXMinYCorner, .layerMaxXMinYCorner, .layerMinXMaxYCorner, .layerMaxXMaxYCorner]
+    ) {
+        self.cornerRadius = cornerRadius
+        self.maskedCorners = maskedCorners
+    }
     
     public func makeCoordinator() -> Coordinator {
         if let existing = MainWebPlayerPool.shared.coordinator {
@@ -44,6 +52,10 @@ public struct NativePlayerView: NSViewRepresentable {
         
         if let existing = MainWebPlayerPool.shared.webView {
             existing.removeFromSuperview()
+            existing.wantsLayer = true
+            existing.layer?.cornerRadius = cornerRadius
+            existing.layer?.maskedCorners = maskedCorners
+            existing.layer?.masksToBounds = cornerRadius > 0
             context.coordinator.targetWebView = existing
             setupBridgeCallbacks(for: existing)
             return existing
@@ -73,27 +85,21 @@ public struct NativePlayerView: NSViewRepresentable {
         contentController.add(context.coordinator, contentWorld: .defaultClient, name: "playerBridge")
         
         let cleanScript = NativePlayerView.cleanScriptSource
-        // Inject cleanScript at document start (in .page, .defaultClient, and default world) so YouTube's top chrome bar
-        // (.ytp-chrome-top, channel info, avatar, and Cairo refresh badges) is hidden BEFORE DOM layout or rendering
-        let userScriptStartPage = WKUserScript(source: cleanScript, injectionTime: .atDocumentStart, forMainFrameOnly: false, in: .page)
-        contentController.addUserScript(userScriptStartPage)
-        let userScriptStartClient = WKUserScript(source: cleanScript, injectionTime: .atDocumentStart, forMainFrameOnly: false, in: .defaultClient)
-        contentController.addUserScript(userScriptStartClient)
-        let userScriptStartDefault = WKUserScript(source: cleanScript, injectionTime: .atDocumentStart, forMainFrameOnly: false)
-        contentController.addUserScript(userScriptStartDefault)
-        
-        let userScriptEndPage = WKUserScript(source: cleanScript, injectionTime: .atDocumentEnd, forMainFrameOnly: false, in: .page)
-        contentController.addUserScript(userScriptEndPage)
-        let userScriptEndClient = WKUserScript(source: cleanScript, injectionTime: .atDocumentEnd, forMainFrameOnly: false, in: .defaultClient)
-        contentController.addUserScript(userScriptEndClient)
-        let userScriptEndDefault = WKUserScript(source: cleanScript, injectionTime: .atDocumentEnd, forMainFrameOnly: false)
-        contentController.addUserScript(userScriptEndDefault)
+        let userScriptStart = WKUserScript(source: cleanScript, injectionTime: .atDocumentStart, forMainFrameOnly: false)
+        contentController.addUserScript(userScriptStart)
+        let userScriptEnd = WKUserScript(source: cleanScript, injectionTime: .atDocumentEnd, forMainFrameOnly: false)
+        contentController.addUserScript(userScriptEnd)
         config.userContentController = contentController
         
         let webView = ScrollForwardingWKWebView(frame: .zero, configuration: config)
         webView.customUserAgent = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.4 Safari/605.1.15"
         webView.setValue(false, forKey: "drawsBackground")
         webView.navigationDelegate = context.coordinator
+        
+        webView.wantsLayer = true
+        webView.layer?.cornerRadius = cornerRadius
+        webView.layer?.maskedCorners = maskedCorners
+        webView.layer?.masksToBounds = cornerRadius > 0
         
         MainWebPlayerPool.shared.webView = webView
         context.coordinator.targetWebView = webView
@@ -107,22 +113,49 @@ public struct NativePlayerView: NSViewRepresentable {
         playerManager.onPlayPause = { [weak webView] shouldPlay in
             let cmd = shouldPlay ? "playVideo" : "pauseVideo"
             let js = """
-            var ifr = document.getElementById('ytPlayer');
-            if (ifr && ifr.contentWindow) {
-                ifr.contentWindow.postMessage(JSON.stringify({event: "command", func: "\(cmd)", args: []}), '*');
-            }
+            (function() {
+                try {
+                    var ifr = document.getElementById('ytPlayer') || document.querySelector('iframe');
+                    if (ifr && ifr.contentWindow) {
+                        ifr.contentWindow.postMessage(JSON.stringify({event: "command", func: "\(cmd)", args: []}), '*');
+                        ifr.contentWindow.postMessage(JSON.stringify({type: "\(cmd)"}), '*');
+                    }
+                    var v = document.querySelector('video');
+                    if (v) {
+                        if (\(shouldPlay)) { v.play().catch(function(){}); }
+                        else { v.pause(); }
+                    }
+                    var p = document.getElementById('movie_player') || document.querySelector('.html5-video-player');
+                    if (p) {
+                        if (\(shouldPlay) && typeof p.playVideo === 'function') { p.playVideo(); }
+                        else if (!\(shouldPlay) && typeof p.pauseVideo === 'function') { p.pauseVideo(); }
+                    }
+                } catch(e) {}
+            })();
             """
             webView?.evaluateJavaScript(js, completionHandler: nil)
         }
         
         playerManager.onSeek = { [weak webView] targetSeconds in
             let js = """
-            currentTime = \(targetSeconds);
-            var ifr = document.getElementById('ytPlayer');
-            if (ifr && ifr.contentWindow) {
-                ifr.contentWindow.postMessage(JSON.stringify({event: "command", func: "seekTo", args: [\(targetSeconds), true]}), '*');
-            }
-            if (typeof postSync === 'function') { postSync(); }
+            (function() {
+                try {
+                    currentTime = \(targetSeconds);
+                    var ifr = document.getElementById('ytPlayer') || document.querySelector('iframe');
+                    if (ifr && ifr.contentWindow) {
+                        ifr.contentWindow.postMessage(JSON.stringify({event: "command", func: "seekTo", args: [\(targetSeconds), true]}), '*');
+                        ifr.contentWindow.postMessage(JSON.stringify({type: "seekTo", seconds: \(targetSeconds)}), '*');
+                    }
+                    var v = document.querySelector('video');
+                    if (v) {
+                        v.currentTime = \(targetSeconds);
+                    }
+                    var p = document.getElementById('movie_player') || document.querySelector('.html5-video-player');
+                    if (p && typeof p.seekTo === 'function') {
+                        p.seekTo(\(targetSeconds), true);
+                    }
+                } catch(e) {}
+            })();
             """
             webView?.evaluateJavaScript(js, completionHandler: nil)
         }
@@ -191,6 +224,11 @@ public struct NativePlayerView: NSViewRepresentable {
     }
     
     public func updateNSView(_ nsView: WKWebView, context: Context) {
+        nsView.wantsLayer = true
+        nsView.layer?.cornerRadius = cornerRadius
+        nsView.layer?.maskedCorners = maskedCorners
+        nsView.layer?.masksToBounds = cornerRadius > 0
+        
         if !playerManager.hasActiveMainPlayer {
             playerManager.hasActiveMainPlayer = true
         }
@@ -246,13 +284,15 @@ public struct NativePlayerView: NSViewRepresentable {
         <meta name="referrer" content="origin">
         <style>
           * { margin: 0; padding: 0; box-sizing: border-box; }
-          html, body { width: 100%; height: 100%; overflow: hidden; background: #000 !important; }
+          html, body { width: 100%; height: 100%; overflow: hidden !important; background: #000 !important; }
           .player-wrapper {
             position: relative;
             width: 100%;
             height: 100%;
-            overflow: hidden;
+            overflow: hidden !important;
             background: #000;
+            transform: translateZ(0);
+            -webkit-transform: translateZ(0);
           }
           #ytPlayer, iframe {
             position: absolute;
@@ -262,6 +302,29 @@ public struct NativePlayerView: NSViewRepresentable {
             height: 100% !important;
             border: none;
             display: block;
+            transform: translateZ(0);
+            -webkit-transform: translateZ(0);
+            will-change: transform;
+          }
+          #player, #movie_player, .html5-video-player, .html5-video-container {
+            width: 100% !important;
+            height: 100% !important;
+            position: absolute !important;
+            top: 0 !important;
+            left: 0 !important;
+            overflow: hidden !important;
+            background: #000 !important;
+          }
+          .ytp-fit-cover-video,
+          .ytp-fit-cover-video video,
+          .ytp-fit-cover-video .html5-main-video,
+          .html5-video-player .html5-main-video,
+          video.video-stream.html5-main-video,
+          video.html5-main-video,
+          video {
+            object-fit: contain !important;
+            object-position: center center !important;
+            background: #000 !important;
           }
           .ytp-large-play-button,
           .ytp-large-play-button-bg,
@@ -306,7 +369,7 @@ public struct NativePlayerView: NSViewRepresentable {
         <div class="player-wrapper">
         <iframe 
             id="ytPlayer"
-            src="https://www.youtube.com/embed/\(video.id)?autoplay=1&mute=1&playsinline=1&controls=0&enablejsapi=1&rel=0&modestbranding=1&fs=1&origin=https://auratube.app&widget_referrer=https://auratube.app&start=\(startPos)&vq=\(qParam)" 
+            src="https://www.youtube.com/embed/\(video.id)?autoplay=1&mute=1&playsinline=1&controls=0&enablejsapi=1&rel=0&modestbranding=1&fs=0&origin=https://auratube.app&widget_referrer=https://auratube.app&start=\(startPos)&vq=\(qParam)" 
             allow="autoplay; encrypted-media; picture-in-picture; fullscreen" 
             allowfullscreen="true">
         </iframe>
@@ -382,6 +445,12 @@ public struct NativePlayerView: NSViewRepresentable {
               var data = typeof e.data === 'string' ? JSON.parse(e.data) : e.data;
               if (!data) return;
               var ifr = document.getElementById('ytPlayer');
+
+              if (data.type === 'videoDimensions') {
+                if (window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.playerBridge) {
+                  window.webkit.messageHandlers.playerBridge.postMessage(data);
+                }
+              }
 
               if (data.type === 'availableQualities' && data.levels && data.levels.length > 0) {
                 if (window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.playerBridge) {
@@ -556,6 +625,56 @@ public struct NativePlayerView: NSViewRepresentable {
                     }
                     
                     /* 4. Clean top chrome, channel info, avatar, title, top details renderer and top gradient */
+                    embedded-player-video-details,
+                    player-top-controls,
+                    player-fullscreen-controls,
+                    player-fullscreen-top-controls,
+                    ytm-watch-player-controls,
+                    video-cover,
+                    cued-overlay,
+                    ytm-custom-control,
+                    ytm-button-renderer,
+                    .new-controls,
+                    .player-controls-content,
+                    .player-controls-background-container,
+                    .player-controls-background,
+                    .ytPlayerControlsContainerHost,
+                    .ytmVideoInfoHost,
+                    .ytmVideoInfoVideoDetailsContainer,
+                    .ytmVideoInfoVideoTitleContainer,
+                    .ytmVideoInfoVideoTitle,
+                    .ytmVideoInfoChannelTitle,
+                    .ytmVideoInfoChannelContainer,
+                    .ytmVideoInfoChannelAvatar,
+                    .ytmVideoInfoChannelLogo,
+                    .ytmVideoInfoOverlay,
+                    .ytmVideoInfoChannelInfo,
+                    .ytmVideoInfoFlyoutChannelTitle,
+                    .ytmVideoInfoFlyoutChannelSubtitle,
+                    .ytwPlayerTopControlsHost,
+                    .ytwPlayerFullscreenTopControlsHost,
+                    .ytwPlayerFullscreenTopControlsFullscreenControlsVideoTitle,
+                    .ytwPlayerFullscreenTopControlsFullscreenCloseButtonWrapper,
+                    .ytwPlayerFullscreenControlsHost,
+                    .ytwPlayerTopControlsContainerWithLeftContent,
+                    .ytmWatchPlayerControlsHost,
+                    .ytmWatchPlayerControlsBackgroundActionItems,
+                    .action-menu-engagement-buttons-wrapper,
+                    .watch-on-youtube-button-wrapper,
+                    .circle-buttons,
+                    .icon-share_arrow,
+                    .icon-close,
+                    [class*="VideoInfo"],
+                    [class*="ytmVideoInfo"],
+                    [class*="ytwPlayer"],
+                    [class*="ytmWatch"],
+                    [class*="player-controls"],
+                    [class*="fullscreen-controls"],
+                    [class*="FullscreenTopControls"],
+                    [class*="engagement-buttons"],
+                    [class*="circle-buttons"],
+                    [class*="share_arrow"],
+                    [class*="icon-share"],
                     .ytPlayerOverlayVideoDetailsRendererHost,
                     .ytPlayerOverlayVideoDetailsRendererTitle,
                     .ytPlayerOverlayVideoDetailsRendererSubtitle,
@@ -705,69 +824,35 @@ public struct NativePlayerView: NSViewRepresentable {
                         width: 0 !important;
                         height: 0 !important;
                     }
+                    
+                    /* 8. Always contain video without cropping or zoom distortion */
+                    #player, #movie_player, .html5-video-player, .html5-video-container {
+                        width: 100% !important;
+                        height: 100% !important;
+                        position: absolute !important;
+                        top: 0 !important;
+                        left: 0 !important;
+                        overflow: hidden !important;
+                        background: #000 !important;
+                    }
+                    .ytp-fit-cover-video,
+                    .ytp-fit-cover-video .html5-main-video,
+                    .html5-video-player .html5-main-video,
+                    video.video-stream.html5-main-video,
+                    video.html5-main-video,
+                    video {
+                        object-fit: contain !important;
+                        object-position: center center !important;
+                        background: #000 !important;
+                    }
                 `;
                     target.appendChild(s);
                 }
             } catch(e) {}
-
-            // Fast targeted cleanup of badges, top channel branding, pause cards and native controls
-            try {
-                var badges = document.querySelectorAll(
-                    '.ytPlayerOverlayVideoDetailsRendererHost, .ytPlayerOverlayVideoDetailsRendererTitle, .ytPlayerOverlayVideoDetailsRendererSubtitle, .ytPlayerOverlayVideoDetailsRendererChannelAvatarContainer, .ytPlayerOverlayVideoDetailsRendererTextContainer, .ytPlayerOverlayVideoDetailsRendererFrostedGlass, [class*="ytPlayerOverlayVideoDetailsRenderer"], [class*="ytwPlayerTopControls"], [class*="ytmWatchPlayerControls"], [class*="ytmVideoInfo"], [class*="VideoDetailsRenderer"], ytw-player-top-controls, yt-player-overlay-video-details-renderer, ytm-video-info-flyout, .ytwPlayerTopControlsHost, .ytmWatchPlayerControlsHost, ' +
-                    '.ytp-paid-content-overlay, .ytp-paid-content-overlay-link, [class*="paid-content"], [class*="paid-promotion"], ' +
-                    'a[href*="support.google.com/youtube?p=ppp"], a[href*="support.google.com/youtube/answer/154235"], ' +
-                    '.ytp-suggested-action-badge, .ytp-suggested-action, .ytp-ai-info-dialog, .ytp-content-disclosure, ' +
-                    '[class*="ai-disclosure"], [class*="content-disclosure"], [class*="suggested-action"], [aria-label*="AI" i], ' +
-                    '.ytp-popup, .ytp-panel-popup, .ytp-pause-overlay, .ytp-bezel, .ytp-large-play-button, .ytp-large-play-button-bg, ' +
-                    '.ytp-chrome-top, .ytp-gradient-top, .ytp-gradient-bottom, .ytp-title, .ytp-title-channel, .ytp-title-channel-logo, .ytp-title-channel-text, .ytp-title-text, .ytp-title-subtext, .ytp-title-link, ' +
-                    '.ytp-chrome-bottom, .ytp-progress-bar-container, .ytp-fullscreen-button, ' +
-                    '[class*="title-channel"], [class*="channel-logo"], [class*="channel-name"], [class*="channel-avatar"], [class*="channel-subscribers"], [class*="chrome-top"], [class*="cairo-refresh"], ' +
-                    '.ytp-cairo-refresh-header, .ytp-cairo-refresh-signature-moments, .ytp-cairo-refresh-channel-avatar, .ytp-cairo-refresh-channel-name'
-                );
-                for (var b = 0; b < badges.length; b++) {
-                    var el = badges[b];
-                    try {
-                        el.style.setProperty('display', 'none', 'important');
-                        el.style.setProperty('opacity', '0', 'important');
-                        el.style.setProperty('visibility', 'hidden', 'important');
-                        el.style.setProperty('pointer-events', 'none', 'important');
-                        el.style.setProperty('height', '0', 'important');
-                        el.style.setProperty('width', '0', 'important');
-                        el.style.setProperty('max-height', '0', 'important');
-                        el.style.setProperty('position', 'absolute', 'important');
-                        el.style.setProperty('top', '-9999px', 'important');
-                        el.style.setProperty('left', '-9999px', 'important');
-                        el.remove();
-                    } catch(err) {}
-                }
-            } catch(err) {}
         }
-        try { applyStyles(); } catch(e) {}
-        try { document.addEventListener('DOMContentLoaded', applyStyles); } catch(e) {}
-        try { window.addEventListener('load', applyStyles); } catch(e) {}
-        try { document.addEventListener('pointermove', applyStyles); } catch(e) {}
-        try { document.addEventListener('mousemove', applyStyles); } catch(e) {}
-
-        var fastInterval = setInterval(applyStyles, 60);
-        setTimeout(function() {
-            clearInterval(fastInterval);
-            setInterval(applyStyles, 180);
-        }, 4000);
-
-        try {
-            var mo = new MutationObserver(function() {
-                applyStyles();
-            });
-            if (document.documentElement) {
-                mo.observe(document.documentElement, { childList: true, subtree: true });
-            } else {
-                document.addEventListener('DOMContentLoaded', function() {
-                    try {
-                        if (document.documentElement) mo.observe(document.documentElement, { childList: true, subtree: true });
-                    } catch(e) {}
-                });
-            }
-        } catch(e) {}
+        applyStyles();
+        document.addEventListener('DOMContentLoaded', applyStyles);
+        window.addEventListener('load', applyStyles);
 
         // Pointer event simulation to satisfy modern browser user activation
         function simulatePointerClick(elem) {
@@ -923,12 +1008,12 @@ public struct NativePlayerView: NSViewRepresentable {
                     }
                 });
                 
-                // High-precision clock tick while playing (every 120ms) to ensure continuous frame-accurate stream
+                // High-precision clock tick while playing (every 45ms) to ensure continuous frame-accurate stream
                 setInterval(function() {
                     if (!v.paused && !v.ended) {
                         emitDirectSync();
                     }
-                }, 120);
+                }, 45);
             } catch(err) {}
         }
         hookVideoDirect();
@@ -936,9 +1021,9 @@ public struct NativePlayerView: NSViewRepresentable {
 
         // Intercept Fullscreen clicks to toggle native macOS window fullscreen
         function triggerFullscreen(e) {
-            e.preventDefault();
-            e.stopPropagation();
-            e.stopImmediatePropagation();
+            if (e) {
+                try { e.preventDefault(); e.stopPropagation(); e.stopImmediatePropagation(); } catch(err) {}
+            }
             try {
                 if (window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.playerBridge) {
                     window.webkit.messageHandlers.playerBridge.postMessage({ type: 'toggleFullscreen' });
@@ -946,6 +1031,7 @@ public struct NativePlayerView: NSViewRepresentable {
                 window.parent.postMessage(JSON.stringify({ type: 'toggleFullscreen' }), '*');
             } catch(err) {}
         }
+
 
         function isFsTarget(target) {
             if (!target) return false;
@@ -1010,6 +1096,7 @@ public struct NativePlayerView: NSViewRepresentable {
                         width: v.videoWidth,
                         height: v.videoHeight
                     };
+                    try { window.parent.postMessage(JSON.stringify(payload), '*'); } catch(e) {}
                     if (window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.playerBridge) {
                         window.webkit.messageHandlers.playerBridge.postMessage(payload);
                     }
@@ -1196,6 +1283,27 @@ public struct NativePlayerView: NSViewRepresentable {
                         }
                     }
                 }
+                if (data.type === 'seekTo' || (data.event === 'command' && data.func === 'seekTo')) {
+                    var sec = typeof data.seconds === 'number' ? data.seconds : (data.args && typeof data.args[0] === 'number' ? data.args[0] : parseFloat(data.args ? data.args[0] : (data.seconds || 0)));
+                    if (!isNaN(sec)) {
+                        var v = document.querySelector('video');
+                        if (v) { v.currentTime = sec; }
+                        var player = document.getElementById('movie_player') || document.querySelector('.html5-video-player');
+                        if (player && typeof player.seekTo === 'function') { player.seekTo(sec, true); }
+                    }
+                }
+                if (data.type === 'playVideo' || (data.event === 'command' && data.func === 'playVideo')) {
+                    var v = document.querySelector('video');
+                    if (v) { v.play().catch(function(){}); }
+                    var player = document.getElementById('movie_player') || document.querySelector('.html5-video-player');
+                    if (player && typeof player.playVideo === 'function') { player.playVideo(); }
+                }
+                if (data.type === 'pauseVideo' || (data.event === 'command' && data.func === 'pauseVideo')) {
+                    var v = document.querySelector('video');
+                    if (v) { v.pause(); }
+                    var player = document.getElementById('movie_player') || document.querySelector('.html5-video-player');
+                    if (player && typeof player.pauseVideo === 'function') { player.pauseVideo(); }
+                }
             } catch(err) {}
         });
     })();
@@ -1252,10 +1360,26 @@ public struct NativePlayerView: NSViewRepresentable {
             
             DispatchQueue.main.async {
                 if let type = body["type"] as? String, type == "videoDimensions" {
-                    let isVertical = body["isVertical"] as? Bool ?? false
-                    let width = body["width"] as? Double ?? 16
-                    let height = body["height"] as? Double ?? 9
-                    PlayerManager.shared.updateVideoDimensions(isVertical: isVertical, width: width, height: height)
+                    let isVertical = (body["isVertical"] as? Bool) 
+                        ?? ((body["isVertical"] as? NSNumber)?.boolValue) 
+                        ?? false
+                    let width: Double = {
+                        if let d = body["width"] as? Double { return d }
+                        if let n = body["width"] as? NSNumber { return n.doubleValue }
+                        if let i = body["width"] as? Int { return Double(i) }
+                        return 16.0
+                    }()
+                    let height: Double = {
+                        if let d = body["height"] as? Double { return d }
+                        if let n = body["height"] as? NSNumber { return n.doubleValue }
+                        if let i = body["height"] as? Int { return Double(i) }
+                        return 9.0
+                    }()
+                    PlayerManager.shared.updateVideoDimensions(
+                        isVertical: isVertical || (height > width && height > 0),
+                        width: width,
+                        height: height
+                    )
                     return
                 }
                 

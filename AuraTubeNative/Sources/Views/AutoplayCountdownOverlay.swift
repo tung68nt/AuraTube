@@ -44,7 +44,7 @@ public struct AutoplayCountdownOverlay: View {
                                 .animation(.linear(duration: 1.0), value: countdown)
                             
                             Text("\(countdown)")
-                                .font(.system(size: 13, weight: .bold, design: .rounded))
+                                .font(.system(size: 13, weight: .bold))
                                 .foregroundColor(.white)
                         }
                         

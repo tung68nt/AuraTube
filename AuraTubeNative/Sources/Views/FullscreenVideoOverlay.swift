@@ -19,38 +19,78 @@ public struct FullscreenVideoOverlay: View {
         self.video = video
     }
     
+    private var isVertical: Bool {
+        // 1. Kiểm tra video prop
+        if video.isShort || video.isExplicitShort == true || video.durationFormatted == "Shorts" { return true }
+        let vt = video.title.lowercased()
+        if vt.contains("short") || vt.contains("tiktok") || vt.contains("reels") { return true }
+        if let d = video.duration, d > 0 && d <= 240 { return true }
+        
+        // 2. Kiểm tra PlayerManager.currentVideo
+        if let cur = playerManager.currentVideo {
+            if cur.isShort || cur.isExplicitShort == true || cur.durationFormatted == "Shorts" { return true }
+            let ct = cur.title.lowercased()
+            if ct.contains("short") || ct.contains("tiktok") || ct.contains("reels") { return true }
+            if let d = cur.duration, d > 0 && d <= 240 { return true }
+        }
+        
+        // 3. Kiểm tra cờ PlayerManager
+        if playerManager.isCurrentVideoVertical { return true }
+        if playerManager.duration > 0 && playerManager.duration <= 240 { return true }
+        
+        // 4. Nếu tỷ lệ player hiện tại < 1.45 (bao gồm cả 4:3 SD của shorts embed, 1:1, 9:16)
+        if playerManager.currentVideoAspectRatio < 1.45 { return true }
+        
+        return false
+    }
+    
+    private var currentRatio: Double {
+        if isVertical {
+            return 9.0 / 16.0
+        }
+        // Chỉ chấp nhận tỷ lệ ngang chuẩn 16:9
+        if playerManager.currentVideoAspectRatio >= 1.5 && playerManager.currentVideoAspectRatio <= 2.6 {
+            return playerManager.currentVideoAspectRatio
+        }
+        return 16.0 / 9.0
+    }
+    
     public var body: some View {
         ZStack(alignment: .center) {
             // Pure black background covering whole display
             Color.black
                 .ignoresSafeArea()
             
-            // Video Player centered with adaptive aspect ratio
-            if playerManager.isCurrentVideoVertical {
+            
+            // Video Player centered with exact aspect ratio (Clean containment, no zoom crop)
+            GeometryReader { geo in
+                let screenW = geo.size.width
+                let screenH = geo.size.height
+                
+                // Khi là video dọc/shorts, ép chuẩn 9:16 vừa vặn chiều cao màn hình, tuyệt đối không zoom crop
+                let targetH: CGFloat = isVertical ? screenH : min(screenH, screenW / CGFloat(currentRatio))
+                let targetW: CGFloat = isVertical ? (screenH * 9.0 / 16.0) : (targetH * CGFloat(currentRatio))
+                
                 ZStack {
-                    // Ambient glow backdrop for vertical video in fullscreen
-                    AsyncImage(url: URL(string: video.thumbnail)) { phase in
-                        if let img = phase.image {
-                            img.resizable()
-                                .scaledToFill()
-                        } else {
-                            Color.black
-                        }
-                    }
-                    .blur(radius: 60)
-                    .opacity(0.32)
-                    .scaleEffect(1.2)
-                    .ignoresSafeArea()
+                    NativePlayerView(cornerRadius: 0)
+                        .frame(width: targetW, height: targetH)
                     
-                    NativePlayerView()
-                        .aspectRatio(playerManager.currentVideoAspectRatio, contentMode: .fit)
-                        .frame(maxHeight: .infinity)
-                        .shadow(color: .black.opacity(0.85), radius: 30)
+                    // Click to play/pause, double click to exit fullscreen
+                    Color.black.opacity(0.001)
+                        .contentShape(Rectangle())
+                        .frame(width: targetW, height: targetH)
+                        .onTapGesture(count: 2) {
+                            playerManager.toggleFullscreen()
+                        }
+                        .simultaneousGesture(
+                            TapGesture(count: 1).onEnded {
+                                playerManager.togglePlayPause()
+                                showControlsAndResetTimer()
+                            }
+                        )
                 }
-            } else {
-                NativePlayerView()
-                    .aspectRatio(16/9, contentMode: .fit)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .frame(width: targetW, height: targetH)
+                .position(x: screenW / 2, y: screenH / 2)
             }
             
             // Autoplay Countdown Overlay in Fullscreen

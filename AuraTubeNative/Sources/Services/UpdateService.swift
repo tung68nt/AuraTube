@@ -69,15 +69,13 @@ public final class UpdateService: NSObject, ObservableObject, @preconcurrency UR
                     self.showUpdateBanner = false
                     self.status = .upToDate(currentVersion: currentVersion)
                     if isUserInitiated {
-                        self.scanFeedbackMessage = "Bạn đang dùng AuraTube v\(currentVersion) mới nhất! Trải nghiệm âm thanh và video đã được tối ưu hoàn toàn."
-                        scheduleDismissFeedback()
+                        self.showUpdateSheet = true
                     }
                 }
             } else {
                 self.status = .error(message: "Không thể kết nối máy chủ cập nhật. Vui lòng kiểm tra lại kết nối mạng.")
                 if isUserInitiated {
-                    self.scanFeedbackMessage = "Không thể kết nối máy chủ cập nhật. Vui lòng kiểm tra lại kết nối mạng."
-                    scheduleDismissFeedback()
+                    self.showUpdateSheet = true
                 }
             }
             self.isScanning = false
@@ -98,18 +96,7 @@ public final class UpdateService: NSObject, ObservableObject, @preconcurrency UR
     // MARK: - Remote Version Fetcher
     
     private func fetchLatestVersionInfo() async -> AppUpdateInfo? {
-        // Remote Attempt 1: Fetch custom version.json manifest from GitHub
-        if let update = await fetchFromManifest(url: updateFeedUrl) {
-            return update
-        }
-        
-        // Remote Attempt 2: Fetch GitHub Release API
-        if let update = await fetchFromGitHubReleases(url: githubReleaseUrl) {
-            return update
-        }
-        
-        #if DEBUG
-        // Local developer fallback (only when network/server is unavailable during offline dev)
+        // 1. Check local version.json manifest if present in development environment
         let localPath = "/Users/tungnguyen/Code/Youtube/version.json"
         if let localData = try? Data(contentsOf: URL(fileURLWithPath: localPath)),
            let json = try? JSONSerialization.jsonObject(with: localData) as? [String: Any],
@@ -124,7 +111,16 @@ public final class UpdateService: NSObject, ObservableObject, @preconcurrency UR
                 fileSize: json["fileSize"] as? String
             )
         }
-        #endif
+        
+        // 2. Remote Attempt 1: Fetch custom version.json manifest from GitHub
+        if let update = await fetchFromManifest(url: updateFeedUrl) {
+            return update
+        }
+        
+        // 3. Remote Attempt 2: Fetch GitHub Release API
+        if let update = await fetchFromGitHubReleases(url: githubReleaseUrl) {
+            return update
+        }
         
         return nil
     }
@@ -133,7 +129,7 @@ public final class UpdateService: NSObject, ObservableObject, @preconcurrency UR
         var req = URLRequest(url: url)
         req.httpMethod = "GET"
         req.cachePolicy = .reloadIgnoringLocalCacheData
-        req.timeoutInterval = 2.5
+        req.timeoutInterval = 10.0
         
         guard let (data, response) = try? await URLSession.shared.data(for: req),
               let http = response as? HTTPURLResponse, http.statusCode == 200,
@@ -166,7 +162,7 @@ public final class UpdateService: NSObject, ObservableObject, @preconcurrency UR
         req.setValue("application/vnd.github.v3+json", forHTTPHeaderField: "Accept")
         req.setValue("AuraTube-AppUpdater", forHTTPHeaderField: "User-Agent")
         req.cachePolicy = .reloadIgnoringLocalCacheData
-        req.timeoutInterval = 6.0
+        req.timeoutInterval = 10.0
         
         guard let (data, response) = try? await URLSession.shared.data(for: req),
               let http = response as? HTTPURLResponse, http.statusCode == 200,
@@ -355,8 +351,16 @@ public final class UpdateService: NSObject, ObservableObject, @preconcurrency UR
             MOUNT_OUT=$(hdiutil attach "$ARCHIVE" -nobrowse -readonly -noautofsck -noverify 2>&1)
             echo "$MOUNT_OUT" >> "$LOG_FILE"
             MOUNT_DIR=$(echo "$MOUNT_OUT" | grep "/Volumes/" | awk -F '\t' '{print $NF}' | tr -d '\n')
+            if [ -z "$MOUNT_DIR" ] || [ ! -d "$MOUNT_DIR/AuraTube.app" ]; then
+                MOUNT_DIR=$(echo "$MOUNT_OUT" | grep -o '/Volumes/[^[:cntrl:]]*' | head -n 1)
+            fi
+            if [ -z "$MOUNT_DIR" ] || [ ! -d "$MOUNT_DIR/AuraTube.app" ]; then
+                if [ -d "/Volumes/AuraTube/AuraTube.app" ]; then
+                    MOUNT_DIR="/Volumes/AuraTube"
+                fi
+            fi
             if [ -n "$MOUNT_DIR" ] && [ -d "$MOUNT_DIR/AuraTube.app" ]; then
-                echo "Copying app from DMG..." >> "$LOG_FILE"
+                echo "Copying app from DMG at $MOUNT_DIR..." >> "$LOG_FILE"
                 rm -rf "$TARGET_APP"
                 cp -R "$MOUNT_DIR/AuraTube.app" "$TARGET_APP"
                 xattr -cr "$TARGET_APP" 2>/dev/null || true

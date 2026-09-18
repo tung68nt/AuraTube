@@ -12,6 +12,8 @@ public final class RecommendationService: ObservableObject {
     @Published public private(set) var hasPersonalizedProfile: Bool = false
     @Published public private(set) var topChannels: [String] = []
     @Published public private(set) var topKeywords: [String] = []
+    @Published public private(set) var recentSearches: [String] = []
+    @Published public private(set) var dynamicInterestTags: [String] = []
     
     private init() {
         refreshProfileMetrics()
@@ -37,8 +39,8 @@ public final class RecommendationService: ObservableObject {
             UserDefaults.standard.set(channelCounts, forKey: channelsKey)
         }
         
-        // Extract meaningful topic keywords from title
-        let keywords = extractKeywords(from: video.title)
+        // Extract meaningful topic keywords & intact phrases from title
+        let keywords = extractKeywordsAndPhrases(from: video.title)
         if !keywords.isEmpty {
             var topicCounts = UserDefaults.standard.dictionary(forKey: topicsKey) as? [String: Int] ?? [:]
             for kw in keywords {
@@ -60,18 +62,18 @@ public final class RecommendationService: ObservableObject {
         var searches = UserDefaults.standard.stringArray(forKey: searchesKey) ?? []
         searches.removeAll(where: { $0.caseInsensitiveCompare(trimmed) == .orderedSame })
         searches.insert(trimmed, at: 0)
-        if searches.count > 15 { searches.removeLast() }
+        if searches.count > 20 { searches.removeLast() }
         UserDefaults.standard.set(searches, forKey: searchesKey)
         
-        // Also boost keywords from search
-        let keywords = extractKeywords(from: trimmed)
-        if !keywords.isEmpty {
-            var topicCounts = UserDefaults.standard.dictionary(forKey: topicsKey) as? [String: Int] ?? [:]
-            for kw in keywords {
-                topicCounts[kw] = (topicCounts[kw] ?? 0) + 2 // Search carries double weight
-            }
-            UserDefaults.standard.set(topicCounts, forKey: topicsKey)
+        // Boost keywords and the search phrase itself
+        var topicCounts = UserDefaults.standard.dictionary(forKey: topicsKey) as? [String: Int] ?? [:]
+        topicCounts[trimmed.lowercased()] = (topicCounts[trimmed.lowercased()] ?? 0) + 3 // High weight for full search phrase
+        
+        let keywords = extractKeywordsAndPhrases(from: trimmed)
+        for kw in keywords {
+            topicCounts[kw] = (topicCounts[kw] ?? 0) + 2
         }
+        UserDefaults.standard.set(topicCounts, forKey: topicsKey)
         
         refreshProfileMetrics()
     }
@@ -79,125 +81,239 @@ public final class RecommendationService: ObservableObject {
     public func refreshProfileMetrics() {
         let channelCounts = UserDefaults.standard.dictionary(forKey: channelsKey) as? [String: Int] ?? [:]
         let sortedChannels = channelCounts.sorted(by: { $0.value > $1.value }).map { $0.key }
-        self.topChannels = Array(sortedChannels.prefix(5))
+        self.topChannels = Array(sortedChannels.prefix(6))
         
         let topicCounts = UserDefaults.standard.dictionary(forKey: topicsKey) as? [String: Int] ?? [:]
         let sortedTopics = topicCounts.sorted(by: { $0.value > $1.value }).map { $0.key }
-        self.topKeywords = Array(sortedTopics.prefix(6))
+        self.topKeywords = Array(sortedTopics.prefix(8))
+        
+        self.recentSearches = UserDefaults.standard.stringArray(forKey: searchesKey) ?? []
         
         let subCount = ChannelSubscriptionManager.shared.subscribedChannels.count
-        self.hasPersonalizedProfile = !topChannels.isEmpty || !topKeywords.isEmpty || subCount > 0
+        self.hasPersonalizedProfile = !topChannels.isEmpty || !topKeywords.isEmpty || !recentSearches.isEmpty || subCount > 0
+        
+        buildDynamicInterestTags()
     }
     
-    // MARK: - Keyword Extraction
+    // MARK: - Dynamic Interest Tags Generation
     
-    private func extractKeywords(from text: String) -> [String] {
+    private func buildDynamicInterestTags() {
+        var tags: [String] = []
+        var seen = Set<String>()
+        
+        func addTag(_ t: String) {
+            let clean = t.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard clean.count >= 2 else { return }
+            let lower = clean.lowercased()
+            if !seen.contains(lower) {
+                seen.insert(lower)
+                // Capitalize first letter nicely
+                let formatted = clean.prefix(1).uppercased() + clean.dropFirst()
+                tags.append(formatted)
+            }
+        }
+        
+        // 1. Top recent search queries
+        for s in recentSearches.prefix(3) {
+            addTag(s)
+        }
+        
+        // 2. Top watched channels
+        for ch in topChannels.prefix(3) {
+            addTag(ch)
+        }
+        
+        // 3. Top interest keywords
+        for kw in topKeywords.prefix(3) {
+            addTag(kw)
+        }
+        
+        // 4. Semantic ecosystem suggestions
+        for kw in topKeywords.prefix(2) {
+            if let ecosystem = SemanticClusterEngine.suggestTag(for: kw) {
+                addTag(ecosystem)
+            }
+        }
+        
+        self.dynamicInterestTags = Array(tags.prefix(6))
+    }
+    
+    // MARK: - Keyword & Entity Extraction
+    
+    private func extractKeywordsAndPhrases(from text: String) -> [String] {
         let stopWords: Set<String> = [
             "và", "của", "các", "những", "cho", "trong", "với", "tập", "full", "video",
             "official", "lyrics", "audio", "nhạc", "bài", "hát", "trailer", "teaser",
             "preview", "review", "mới", "nhất", "hôm", "nay", "2024", "2025", "2026",
             "hd", "4k", "vietsub", "thuyết", "minh", "lồng", "tiếng", "trên", "tại",
             "một", "người", "được", "không", "này", "khi", "làm", "thế", "nào", "gì",
-            "hay", "cực", "quá", "về", "như", "đã", "có", "sẽ", "phải", "đến"
+            "hay", "cực", "quá", "về", "như", "đã", "có", "sẽ", "phải", "đến", "chính",
+            "thức", "bởi", "từ", "nhiều", "lại", "ra", "vào", "ngày", "năm", "tháng"
         ]
         
-        // Clean special characters
         let cleaned = text.lowercased()
             .replacingOccurrences(of: "[^a-z0-9a-zà-ỹ\\s]", with: " ", options: .regularExpression)
         
-        let words = cleaned.components(separatedBy: .whitespacesAndNewlines)
+        let tokens = cleaned.components(separatedBy: .whitespacesAndNewlines)
             .map { $0.trimmingCharacters(in: .whitespaces) }
-            .filter { $0.count >= 3 && !stopWords.contains($0) }
+            .filter { !$0.isEmpty }
         
-        return Array(Set(words))
+        var results: [String] = []
+        
+        // 1. Single keywords
+        for token in tokens {
+            if token.count >= 3 && !stopWords.contains(token) && Double(token) == nil {
+                results.append(token)
+            }
+        }
+        
+        // 2. Recognized bigrams / tech phrases (e.g. "iphone 16", "apple watch", "vision pro")
+        if tokens.count >= 2 {
+            for i in 0..<(tokens.count - 1) {
+                let bi = "\(tokens[i]) \(tokens[i+1])"
+                if bi.contains("iphone") || bi.contains("macbook") || bi.contains("apple") ||
+                   bi.contains("samsung") || bi.contains("galaxy") || bi.contains("vision pro") ||
+                   bi.contains("tai nghe") || bi.contains("bàn phím") || bi.contains("pc gaming") {
+                    results.append(bi)
+                }
+            }
+        }
+        
+        return Array(Set(results))
     }
     
     // MARK: - Smart Recommendation Algorithm
     
-    /// Generates tailored recommendations based on user interests, subscriptions, and balanced discovery
+    /// Generates multi-stream recommendations balancing:
+    /// 1. Channel Loyalty (videos from favorite channels & related creators)
+    /// 2. Direct Topic Affinity (exact user search & watch interests)
+    /// 3. Semantic Ecosystem Expansion (e.g. iPhone -> accessories, cases, MacBooks, AR/VR glasses)
+    /// 4. Fresh Serendipitous Discovery (non-music quality content)
     public func fetchRecommendations() async -> [Video] {
         refreshProfileMetrics()
         
         let history = PlayerManager.shared.historyVideos
-        let watchedIds = Set(history.prefix(15).map { $0.id })
+        let watchedIds = Set(history.prefix(20).map { $0.id })
         
         if hasPersonalizedProfile {
-            return await fetchPersonalizedFeed(watchedIds: watchedIds)
+            return await fetchPersonalizedMultiStreamFeed(watchedIds: watchedIds)
         } else {
             return await fetchDiverseColdStartFeed()
         }
-    }
+        }
     
-    /// Fetch personalized feed tailored to user's favorite channels, subscriptions, and topics
-    private func fetchPersonalizedFeed(watchedIds: Set<String>) async -> [Video] {
-        // Collect candidate query sources
-        var queries: [String] = []
+    /// Multi-stream personalized recommendation engine
+    private func fetchPersonalizedMultiStreamFeed(watchedIds: Set<String>) async -> [Video] {
+        // Stream 1: Channel Loyalty & Peer Creators (30% weight)
+        var stream1Queries: [String] = []
         
-        // 1. Subscribed channels
+        // Favorite watched channels
+        for ch in topChannels.prefix(2) {
+            stream1Queries.append("\(ch) mới nhất")
+            // Peer creators in the same niche
+            if let peers = PeerCreatorGraph.findPeers(for: ch) {
+                stream1Queries.append("\(peers) mới nhất")
+            }
+        }
+        
+        // Subscriptions if available
         let subs = ChannelSubscriptionManager.shared.subscribedChannels
-        if !subs.isEmpty {
-            for ch in subs.prefix(3) {
-                let q = (ch.handle?.hasPrefix("@") == true) ? ch.handle! : ch.title
-                queries.append(q)
-            }
-        }
-        
-        // 2. Favorite watched channels
-        for ch in topChannels.prefix(3) {
-            if !queries.contains(ch) {
-                queries.append(ch)
-            }
-        }
-        
-        // 3. Favorite topics / keywords
-        for kw in topKeywords.prefix(2) {
-            queries.append("\(kw) mới nhất")
-        }
-        
-        // 4. Always add a high-quality non-music baseline for fresh discovery
-        queries.append("công nghệ tin tức đời sống hay nhất")
-        
-        // Concurrently search up to 4 distinct streams
-        let selectedQueries = Array(queries.prefix(4))
-        
-        var streams: [[Video]] = []
-        await withTaskGroup(of: [Video].self) { group in
-            for q in selectedQueries {
-                group.addTask {
-                    let results = await YTDLPService.shared.searchVideos(query: q, limit: 12)
-                    return results
-                }
-            }
-            for await res in group {
-                if !res.isEmpty {
-                    streams.append(res)
+        if !subs.isEmpty && stream1Queries.count < 3 {
+            for sub in subs.prefix(2) {
+                let q = (sub.handle?.hasPrefix("@") == true) ? sub.handle! : sub.title
+                if !stream1Queries.contains(where: { $0.contains(q) }) {
+                    stream1Queries.append("\(q) mới nhất")
                 }
             }
         }
         
-        // Interleave streams to ensure rich variety
+        // Stream 2: Direct Search & Topic Intent (25% weight)
+        var stream2Queries: [String] = []
+        if let latestSearch = recentSearches.first {
+            stream2Queries.append("\(latestSearch) review đánh giá mới nhất")
+        }
+        if let topKw = topKeywords.first {
+            stream2Queries.append("\(topKw) mới nhất")
+        }
+        if stream2Queries.isEmpty && recentSearches.count > 1 {
+            stream2Queries.append(recentSearches[1])
+        }
+        
+        // Stream 3: Semantic Ecosystem Expansion (25% weight)
+        // E.g.: "iPhone" -> "phụ kiện case ốp lưng", "kính thực tế ảo vr ar", "laptop macbook"
+        var stream3Queries: [String] = []
+        let seedKeywords = Array((recentSearches + topKeywords).prefix(4))
+        for seed in seedKeywords {
+            let expanded = SemanticClusterEngine.expand(query: seed)
+            for exp in expanded {
+                if !stream3Queries.contains(exp) && stream3Queries.count < 3 {
+                    stream3Queries.append(exp)
+                }
+            }
+            if stream3Queries.count >= 3 { break }
+        }
+        
+        // Stream 4: Fresh Discovery & Serendipity (20% weight)
+        let stream4Queries: [String] = [
+            "công nghệ đột phá tương lai review hay nhất",
+            "khám phá khoa học đời sống tài liệu chất lượng cao"
+        ]
+        
+        // Assemble target search tasks (2 queries per stream = 8 parallel fast queries)
+        let s1 = Array(stream1Queries.prefix(2))
+        let s2 = Array(stream2Queries.prefix(2))
+        let s3 = Array(stream3Queries.prefix(2))
+        let s4 = Array(stream4Queries.prefix(2))
+        
+        // Concurrent multi-stream execution
+        async let fetchStream1 = fetchBatch(queries: s1, limitPerQuery: 8)
+        async let fetchStream2 = fetchBatch(queries: s2, limitPerQuery: 8)
+        async let fetchStream3 = fetchBatch(queries: s3, limitPerQuery: 8)
+        async let fetchStream4 = fetchBatch(queries: s4, limitPerQuery: 6)
+        
+        let (v1, v2, v3, v4) = await (fetchStream1, fetchStream2, fetchStream3, fetchStream4)
+        
+        // Weighted Interleaving: 2 from S1, 2 from S2, 2 from S3, 1 from S4
         var combined: [Video] = []
         var seenIds = Set<String>()
         
-        let maxLen = streams.map { $0.count }.max() ?? 0
-        for i in 0..<maxLen {
-            for stream in streams {
-                if i < stream.count {
-                    let v = stream[i]
-                    // Do not repeat videos, and avoid showing videos user just finished watching
-                    if !seenIds.contains(v.id) && !watchedIds.contains(v.id) {
-                        seenIds.insert(v.id)
-                        combined.append(v)
-                    }
-                }
+        var i1 = 0, i2 = 0, i3 = 0, i4 = 0
+        let totalCount = v1.count + v2.count + v3.count + v4.count
+        
+        func appendIfValid(_ video: Video) {
+            if !seenIds.contains(video.id) && !watchedIds.contains(video.id) {
+                seenIds.insert(video.id)
+                combined.append(video)
             }
         }
         
-        // If results are low (e.g. strict filters), supplement with diverse cold start
-        if combined.count < 10 {
+        while combined.count < totalCount && (i1 < v1.count || i2 < v2.count || i3 < v3.count || i4 < v4.count) {
+            // Pick from Stream 1 (Channel loyalty)
+            for _ in 0..<2 {
+                if i1 < v1.count { appendIfValid(v1[i1]); i1 += 1 }
+            }
+            // Pick from Stream 2 (Direct intent)
+            for _ in 0..<2 {
+                if i2 < v2.count { appendIfValid(v2[i2]); i2 += 1 }
+            }
+            // Pick from Stream 3 (Ecosystem expansion)
+            for _ in 0..<2 {
+                if i3 < v3.count { appendIfValid(v3[i3]); i3 += 1 }
+            }
+            // Pick from Stream 4 (Discovery)
+            if i4 < v4.count { appendIfValid(v4[i4]); i4 += 1 }
+            
+            // Safety break if no advancement
+            if i1 >= v1.count && i2 >= v2.count && i3 >= v3.count && i4 >= v4.count {
+                break
+            }
+        }
+        
+        // If results are low, supplement with cold start
+        if combined.count < 12 {
             let fallback = await fetchDiverseColdStartFeed()
             for v in fallback {
-                if !seenIds.contains(v.id) {
+                if !seenIds.contains(v.id) && !watchedIds.contains(v.id) {
                     seenIds.insert(v.id)
                     combined.append(v)
                 }
@@ -205,6 +321,22 @@ public final class RecommendationService: ObservableObject {
         }
         
         return combined
+    }
+    
+    private func fetchBatch(queries: [String], limitPerQuery: Int) async -> [Video] {
+        guard !queries.isEmpty else { return [] }
+        var results: [Video] = []
+        await withTaskGroup(of: [Video].self) { group in
+            for q in queries {
+                group.addTask {
+                    return await YTDLPService.shared.searchVideos(query: q, limit: limitPerQuery)
+                }
+            }
+            for await res in group {
+                results.append(contentsOf: res)
+            }
+        }
+        return results
     }
     
     /// Diverse multi-pillar feed for new users (Zero pure-music bias)
@@ -230,7 +362,6 @@ public final class RecommendationService: ObservableObject {
             }
         }
         
-        // 1:1:1:1 Balanced interleave
         var combined: [Video] = []
         var seenIds = Set<String>()
         
@@ -250,3 +381,154 @@ public final class RecommendationService: ObservableObject {
         return combined
     }
 }
+
+// MARK: - Semantic Topic & Ecosystem Expansion Engine
+
+private struct SemanticClusterEngine {
+    /// Expand a query or keyword into rich ecosystem exploration queries
+    static func expand(query: String) -> [String] {
+        let q = query.lowercased()
+        
+        // 1. Apple & iPhone Ecosystem
+        if q.contains("iphone") || q.contains("apple") || q.contains("ios") || q.contains("airpod") || q.contains("ipad") {
+            return [
+                "phụ kiện iphone case ốp lưng sạc magsafe đẹp nhất",
+                "hệ sinh thái macbook air pro m3 m4 bàn phím",
+                "kính thực tế ảo apple vision pro vr ar trải nghiệm",
+                "so sánh camera iphone flagship công nghệ mới"
+            ]
+        }
+        
+        // 2. Android & Smartphones
+        if q.contains("samsung") || q.contains("galaxy") || q.contains("xiaomi") || q.contains("pixel") || q.contains("oppo") || q.contains("android") {
+            return [
+                "phụ kiện đồ chơi công nghệ điện thoại thông minh",
+                "so sánh hiệu năng camera smartphone flagship mới",
+                "smartwatch tai nghe không dây bluetooth chống ồn",
+                "đánh giá công nghệ màn hình gập mới nhất"
+            ]
+        }
+        
+        // 3. PC, Laptop, Setup & Desk Decor
+        if q.contains("laptop") || q.contains("macbook") || q.contains("pc") || q.contains("bàn phím") || q.contains("setup") || q.contains("chuột") {
+            return [
+                "setup góc làm việc tối giản công nghệ desk setup",
+                "bàn phím cơ bluetooth chuột công thái học",
+                "đánh giá laptop ultrabook mỏng nhẹ pin trâu",
+                "màn hình đồ họa rời góc làm việc hiện đại"
+            ]
+        }
+        
+        // 4. VR / AR & Artificial Intelligence (AI)
+        if q.contains("vr") || q.contains("ar") || q.contains("vision pro") || q.contains("ai") || q.contains("chatgpt") || q.contains("thực tế ảo") {
+            return [
+                "kính thực tế ảo VR AR Apple Vision Pro Meta Quest 3",
+                "trí tuệ nhân tạo AI đột phá công nghệ mới nhất",
+                "đồ chơi công nghệ thông minh tương lai",
+                "tiện ích AI thay đổi cuộc sống và công việc"
+            ]
+        }
+        
+        // 5. Gaming & Esports
+        if q.contains("game") || q.contains("gaming") || q.contains("gta") || q.contains("fifa") || q.contains("lien quan") || q.contains("pubg") || q.contains("wukong") {
+            return [
+                "highlight khoảnh khắc gaming đỉnh cao hài hước",
+                "đánh giá game bom tấn đồ họa đỉnh cao mới nhất",
+                "tay cầm máy chơi game console ps5 nintendo switch",
+                "tin tức làng game cập nhật mới nhất"
+            ]
+        }
+        
+        // 6. Automotive & Electric Vehicles
+        if q.contains("xe") || q.contains("ô tô") || q.contains("vinfast") || q.contains("tesla") || q.contains("xe điện") {
+            return [
+                "trải nghiệm lái thử xe điện thông minh công nghệ mới",
+                "phụ kiện đồ chơi xe hơi tiện ích thông minh",
+                "so sánh ô tô suv sedan gia đình công nghệ an toàn"
+            ]
+        }
+        
+        // 7. Cinema & Movies
+        if q.contains("phim") || q.contains("cinema") || q.contains("movie") || q.contains("review phim") {
+            return [
+                "phân tích phim chi tiết easter egg ý nghĩa ẩn giấu",
+                "top phim điện ảnh bom tấn xuất sắc nhất",
+                "hậu trường kỹ xảo điện ảnh hollywood hậu trường phim"
+            ]
+        }
+        
+        // 8. Travel, Food & Culture
+        if q.contains("du lịch") || q.contains("ẩm thực") || q.contains("ăn") || q.contains("món") || q.contains("khoai") {
+            return [
+                "ẩm thực đường phố ký sự du lịch trải nghiệm",
+                "khám phá cảnh đẹp văn hóa đời sống con người",
+                "món ngon vùng miền đặc sản việt nam"
+            ]
+        }
+        
+        // Generic Tech / Gadget expansion
+        return [
+            "đồ chơi công nghệ review sản phẩm mới thông minh",
+            "top tiện ích thiết bị công nghệ đáng mua nhất"
+        ]
+    }
+    
+    /// Suggest dynamic chip tag from keyword
+    static func suggestTag(for keyword: String) -> String? {
+        let k = keyword.lowercased()
+        if k.contains("iphone") || k.contains("apple") {
+            return "Hệ sinh thái Apple"
+        } else if k.contains("laptop") || k.contains("macbook") || k.contains("setup") {
+            return "Setup góc làm việc"
+        } else if k.contains("vr") || k.contains("ar") || k.contains("ai") {
+            return "Kính VR & AI"
+        } else if k.contains("game") || k.contains("gaming") {
+            return "Gaming Gear"
+        } else if k.contains("xe") || k.contains("ô tô") {
+            return "Xe & Công nghệ"
+        }
+        return nil
+    }
+}
+
+// MARK: - Peer Creator & Related Channels Graph
+
+private struct PeerCreatorGraph {
+    /// Mapping of top creator niches to related creators
+    static func findPeers(for channel: String) -> String? {
+        let c = channel.lowercased()
+        
+        // Tech Reviewers
+        if c.contains("schannel") || c.contains("duy thẩm") || c.contains("vật vờ") || c.contains("thinkview") || c.contains("tony phùng") || c.contains("relab") || c.contains("hải triều") {
+            return "ThinkView Schannel Vật Vờ Studio công nghệ"
+        }
+        
+        // Gaming / Streamers
+        if c.contains("mixigaming") || c.contains("cris devil") || c.contains("rambo") || c.contains("bomman") || c.contains("dũng ct") || c.contains("độ mixi") {
+            return "MixiGaming Cris Devil Gamer giải trí game"
+        }
+        
+        // Travel / Food
+        if c.contains("khoai lang thang") || c.contains("chan la cà") || c.contains("fahoka") || c.contains("ninh titô") {
+            return "Khoai Lang Thang Chan La Cà du lịch ẩm thực"
+        }
+        
+        // Cinema
+        if c.contains("phê phim") || c.contains("w2w") || c.contains("cuồng phim") {
+            return "Phê Phim W2W Movie review phim điện ảnh"
+        }
+        
+        // News
+        if c.contains("vtv24") || c.contains("thanh niên") || c.contains("tuổi trẻ") || c.contains("vnexpress") {
+            return "VTV24 Chuyển động 24h tin tức thời sự"
+        }
+        
+        // Science & Knowledge
+        if c.contains("monster box") || c.contains("spiderum") || c.contains("dế mèn") {
+            return "Monster Box Spiderum kiến thức khoa học đời sống"
+        }
+        
+        return nil
+    }
+}
+

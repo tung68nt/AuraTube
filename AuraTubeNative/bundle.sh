@@ -31,8 +31,17 @@ if [ -d "/Users/tungnguyen/Code/Youtube/AuraTubeNative/Resources/Fonts" ]; then
     cp -R /Users/tungnguyen/Code/Youtube/AuraTubeNative/Resources/Fonts/* "${RESOURCES_DIR}/Fonts/"
 fi
 
-echo "==> Writing Info.plist..."
-cat << 'EOF' > "${CONTENTS_DIR}/Info.plist"
+VERSION="2.0.61"
+BUILD="62"
+if [ -f "/Users/tungnguyen/Code/Youtube/version.json" ]; then
+    V_PARSED=$(grep '"version":' "/Users/tungnguyen/Code/Youtube/version.json" | head -n1 | sed -E 's/.*"version": "([^"]+)".*/\1/')
+    B_PARSED=$(grep '"build":' "/Users/tungnguyen/Code/Youtube/version.json" | head -n1 | sed -E 's/.*"build": ([0-9]+).*/\1/')
+    if [ -n "$V_PARSED" ]; then VERSION="$V_PARSED"; fi
+    if [ -n "$B_PARSED" ]; then BUILD="$B_PARSED"; fi
+fi
+
+echo "==> Writing Info.plist for version ${VERSION} (build ${BUILD})..."
+cat << EOF > "${CONTENTS_DIR}/Info.plist"
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
@@ -52,9 +61,9 @@ cat << 'EOF' > "${CONTENTS_DIR}/Info.plist"
     <key>CFBundlePackageType</key>
     <string>APPL</string>
     <key>CFBundleShortVersionString</key>
-    <string>2.0.46</string>
+    <string>${VERSION}</string>
     <key>CFBundleVersion</key>
-    <string>47</string>
+    <string>${BUILD}</string>
     <key>NSHumanReadableCopyright</key>
     <string>Copyright © 2026 Tung Nguyen. All rights reserved.</string>
     <key>LSMinimumSystemVersion</key>

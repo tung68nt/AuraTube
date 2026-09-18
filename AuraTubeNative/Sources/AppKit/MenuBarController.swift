@@ -45,17 +45,16 @@ public final class MenuBarController: NSObject, NSPopoverDelegate {
         popover.contentSize = initialSize
         popover.behavior = .transient
         popover.animates = true
-        popover.appearance = NSAppearance(named: .darkAqua)
+        popover.appearance = ThemeManager.shared.appearance
         popover.delegate = self
         popover.setValue(true, forKeyPath: "shouldHideAnchor")
         
         let contentView = MenuBarView { [weak self] in
             self?.openMainWindow()
         }
-        .preferredColorScheme(.dark)
         
         let hostingController = NSHostingController(rootView: contentView)
-        hostingController.view.appearance = NSAppearance(named: .darkAqua)
+        hostingController.view.appearance = ThemeManager.shared.appearance
         popover.contentViewController = hostingController
         self.popover = popover
         
@@ -66,6 +65,30 @@ public final class MenuBarController: NSObject, NSPopoverDelegate {
                 self?.updatePopoverSize(isVertical: isVertical)
             }
             .store(in: &cancellables)
+            
+        // 4. Observe theme changes to synchronize MenuBar popover with Main App
+        ThemeManager.shared.$currentTheme
+            .receive(on: RunLoop.main)
+            .sink { [weak self] _ in
+                self?.syncTheme()
+            }
+            .store(in: &cancellables)
+            
+        NotificationCenter.default.publisher(for: NSNotification.Name("AuraTubeThemeDidChange"))
+            .receive(on: RunLoop.main)
+            .sink { [weak self] _ in
+                self?.syncTheme()
+            }
+            .store(in: &cancellables)
+    }
+    
+    public func syncTheme() {
+        let app = ThemeManager.shared.appearance
+        popover?.appearance = app
+        popover?.contentViewController?.view.appearance = app
+        if let window = popover?.contentViewController?.view.window {
+            window.appearance = app
+        }
     }
     
     public func updatePopoverSize(isVertical: Bool) {
@@ -84,12 +107,12 @@ public final class MenuBarController: NSObject, NSPopoverDelegate {
             closePopover()
         } else {
             updatePopoverSize(isVertical: PlayerManager.shared.isCurrentVideoVertical)
+            syncTheme()
             NSApp.activate(ignoringOtherApps: true)
-            popover.appearance = NSAppearance(named: .darkAqua)
             popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
             
             if let window = popover.contentViewController?.view.window {
-                window.appearance = NSAppearance(named: .darkAqua)
+                window.appearance = ThemeManager.shared.appearance
                 window.makeKeyAndOrderFront(nil)
                 DispatchQueue.main.async {
                     window.makeKey()

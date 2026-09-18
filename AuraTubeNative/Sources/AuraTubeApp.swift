@@ -21,7 +21,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         
         NotificationCenter.default.addObserver(forName: NSWindow.didBecomeKeyNotification, object: nil, queue: .main) { notif in
             if let window = notif.object as? NSWindow {
-                AppDelegate.configureTitlebar(for: window)
+                Task { @MainActor in
+                    AppDelegate.configureTitlebar(for: window)
+                }
             }
         }
         
@@ -67,6 +69,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         NSApplication.shared.orderFrontStandardAboutPanel(options)
     }
     
+    @MainActor
     public static func configureTitlebar(for window: NSWindow) {
         // Only configure primary resizable main windows (prevent injecting into about dialogs, popovers, sheets)
         guard !(window is NSPanel), !window.isSheet, window.styleMask.contains(.resizable) else { return }
@@ -75,26 +78,29 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         window.titleVisibility = .hidden
         window.titlebarAppearsTransparent = true
         window.titlebarSeparatorStyle = .none
-        window.styleMask.insert(.fullSizeContentView)
         window.isOpaque = true
+        window.hasShadow = true
         
-        let isDark = (window.effectiveAppearance.name == .darkAqua || window.effectiveAppearance.name == .vibrantDark)
-        window.backgroundColor = isDark ? NSColor(calibratedWhite: 0.11, alpha: 1.0) : NSColor(calibratedWhite: 0.96, alpha: 1.0)
-        
-        // Hide opaque titlebar background views so SwiftUI liquid glass renders without cutoff
-        if let closeButton = window.standardWindowButton(.closeButton),
-           let titlebarView = closeButton.superview {
-            for v in titlebarView.subviews {
-                if !(v is NSButton) && !v.subviews.contains(where: { $0 is NSButton }) {
-                    v.isHidden = true
-                }
-            }
-            if let container = titlebarView.superview {
-                for v in container.subviews where v !== titlebarView {
-                    v.isHidden = true
-                }
-            }
+        if PlayerManager.shared.isVideoFullscreen || window.styleMask.contains(.fullScreen) {
+            window.backgroundColor = .black
+            window.contentView?.wantsLayer = true
+            window.contentView?.layer?.cornerRadius = 0
+            window.contentView?.layer?.masksToBounds = false
+            return
         }
+        
+        let isDark: Bool
+        if let appearance = window.effectiveAppearance.bestMatch(from: [.darkAqua, .aqua]) {
+            isDark = appearance == .darkAqua
+        } else {
+            isDark = NSApp.effectiveAppearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
+        }
+        
+        let bgColor = isDark ?
+            NSColor(red: 16/255, green: 16/255, blue: 20/255, alpha: 1.0) :
+            NSColor(red: 250/255, green: 250/255, blue: 252/255, alpha: 1.0)
+            
+        window.backgroundColor = bgColor
         
         // Ensure standard window buttons (traffic lights) are always visible and properly layered
         for buttonType in [NSWindow.ButtonType.closeButton, .miniaturizeButton, .zoomButton] {
@@ -102,6 +108,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 button.isHidden = false
             }
         }
+        
+        // Ensure the window's content view clips cleanly to smooth macOS rounded corners (16px)
+        window.contentView?.wantsLayer = true
+        window.contentView?.layer?.cornerRadius = 16
+        window.contentView?.layer?.masksToBounds = true
     }
 }
 
@@ -173,7 +184,7 @@ struct AuraTubeApp: App {
                 Button("Phát / Tạm dừng") {
                     playerManager.togglePlayPause()
                 }
-                .keyboardShortcut(.space, modifiers: [])
+                .keyboardShortcut(.space, modifiers: .command)
                 
                 Button("Tua tới 10s") {
                     playerManager.seekRelative(10)
@@ -193,14 +204,13 @@ struct AuraTubeApp: App {
                 Button("Toàn màn hình") {
                     PlayerManager.shared.toggleFullscreen()
                 }
-                .keyboardShortcut("f", modifiers: [])
+                .keyboardShortcut("f", modifiers: [.control, .command])
                 
                 Button("Thoát toàn màn hình") {
                     if PlayerManager.shared.isVideoFullscreen {
                         PlayerManager.shared.toggleFullscreen()
                     }
                 }
-                .keyboardShortcut(.escape, modifiers: [])
                 
                 Button(playerManager.isPictureInPictureActive ? "Tắt Picture-in-Picture" : "Bật Picture-in-Picture") {
                     playerManager.togglePictureInPicture()

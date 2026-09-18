@@ -254,9 +254,19 @@ public struct LiquidGlassCapsuleModifier: ViewModifier {
                                     )
                                 )
                         } else {
-                            // Light Mode: Clean YouTube pill
+                            // Light Mode: Authentic Liquid Glass Capsule
+                            Capsule().fill(.ultraThinMaterial)
                             Capsule()
-                                .fill(isHovered ? Color(white: 0.90) : Color(white: 0.94))
+                                .fill(
+                                    LinearGradient(
+                                        colors: [
+                                            Color.white.opacity(isHovered ? 0.72 : 0.52),
+                                            Color.white.opacity(isHovered ? 0.48 : 0.28)
+                                        ],
+                                        startPoint: .top,
+                                        endPoint: .bottom
+                                    )
+                                )
                         }
                     }
                 }
@@ -280,8 +290,8 @@ public struct LiquidGlassCapsuleModifier: ViewModifier {
                                 ) :
                                 LinearGradient(
                                     colors: [
-                                        Color.black.opacity(isHovered ? 0.15 : 0.08),
-                                        Color.black.opacity(isHovered ? 0.10 : 0.04)
+                                        Color.white.opacity(isHovered ? 0.95 : 0.85),
+                                        Color.black.opacity(isHovered ? 0.12 : 0.07)
                                     ],
                                     startPoint: .top,
                                     endPoint: .bottom
@@ -504,14 +514,13 @@ public struct LiquidGlassCapsuleButton<Content: View>: View {
                                         )
                                     )
                             } else {
-                                Capsule()
-                                    .fill(Color(white: hoverVm.isHovered ? 0.87 : 0.93))
+                                Capsule().fill(.ultraThinMaterial)
                                 Capsule()
                                     .fill(
                                         LinearGradient(
                                             colors: [
-                                                Color.white.opacity(hoverVm.isHovered ? 0.65 : 0.45),
-                                                Color.clear
+                                                Color.white.opacity(hoverVm.isHovered ? 0.72 : 0.52),
+                                                Color.white.opacity(hoverVm.isHovered ? 0.48 : 0.28)
                                             ],
                                             startPoint: .top,
                                             endPoint: .bottom
@@ -540,7 +549,7 @@ public struct LiquidGlassCapsuleButton<Content: View>: View {
                                     ) :
                                     LinearGradient(
                                         colors: [
-                                            Color.black.opacity(hoverVm.isHovered ? 0.16 : 0.10),
+                                            Color.white.opacity(hoverVm.isHovered ? 0.95 : 0.85),
                                             Color.black.opacity(hoverVm.isHovered ? 0.12 : 0.07)
                                         ],
                                         startPoint: .top,
@@ -682,9 +691,20 @@ public struct LiquidGlassSearchBarModifier: ViewModifier {
                         RoundedRectangle(cornerRadius: 16, style: .continuous)
                             .fill(Color.white.opacity(isHovered ? 0.12 : 0.075))
                     } else {
-                        // YouTube Light Clean Search Bar
+                        // YouTube Light Liquid Glass Search Bar
                         RoundedRectangle(cornerRadius: 16, style: .continuous)
-                            .fill(Color.white)
+                            .fill(.ultraThinMaterial)
+                        RoundedRectangle(cornerRadius: 16, style: .continuous)
+                            .fill(
+                                LinearGradient(
+                                    colors: [
+                                        Color.white.opacity(isHovered ? 0.78 : 0.62),
+                                        Color.white.opacity(isHovered ? 0.58 : 0.42)
+                                    ],
+                                    startPoint: .top,
+                                    endPoint: .bottom
+                                )
+                            )
                     }
                 }
             )
@@ -702,8 +722,8 @@ public struct LiquidGlassSearchBarModifier: ViewModifier {
                             ) :
                             LinearGradient(
                                 colors: [
-                                    Color.black.opacity(isHovered ? 0.28 : 0.16),
-                                    Color.black.opacity(isHovered ? 0.22 : 0.12)
+                                    Color.white.opacity(0.95),
+                                    Color.black.opacity(isHovered ? 0.16 : 0.10)
                                 ],
                                 startPoint: .top,
                                 endPoint: .bottom

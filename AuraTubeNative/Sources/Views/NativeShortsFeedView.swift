@@ -7,6 +7,7 @@ final class NativeShortsViewModel: ObservableObject {
     @Published var shorts: [Video] = []
     @Published var currentIndex: Int = 0
     @Published var isLoading: Bool = false
+    @Published var isRefreshing: Bool = false
     @Published var continuationToken: String? = nil
     @Published var likedShorts: Set<String> = []
     @Published var dislikedShorts: Set<String> = []
@@ -14,14 +15,33 @@ final class NativeShortsViewModel: ObservableObject {
     @Published var isAutoScrollEnabled: Bool = false
     @Published var isCommentsOpen: Bool = false
     
-    private let queryPool = [
-        "#shorts việt nam",
-        "#shorts trending",
-        "#shorts hài hước",
-        "#shorts ca nhạc",
-        "#shorts khám phá"
+    // Persistent anti-repetition memory: remember recently seen short IDs across app sessions
+    private var seenShortIds: Set<String> {
+        get {
+            Set(UserDefaults.standard.stringArray(forKey: "auratube_seen_shorts_ids_v2") ?? [])
+        }
+        set {
+            var arr = Array(newValue)
+            if arr.count > 300 { arr = Array(arr.suffix(200)) }
+            UserDefaults.standard.set(arr, forKey: "auratube_seen_shorts_ids_v2")
+        }
+    }
+    
+    private let smartDiscoverySeeds = [
+        "#shorts trending việt nam",
+        "#shorts hài hước vui nhộn",
+        "#shorts công nghệ review hay",
+        "#shorts ẩm thực nấu ăn ngon",
+        "#shorts đời sống thường ngày",
+        "#shorts giải trí triệu view",
+        "#shorts khám phá thế giới bí ẩn",
+        "#shorts tin tức hot hôm nay",
+        "#shorts khoa học đời sống thú vị",
+        "#shorts âm nhạc xu hướng",
+        "#shorts mẹo vặt cuộc sống",
+        "#shorts gaming highlight đỉnh"
     ]
-    private var poolIndex = 0
+    private var streamIndex: Int = Int.random(in: 0...11)
     private var snapSettleTask: Task<Void, Never>? = nil
     private var eventMonitor: Any? = nil
     private var lastScrollDate: Date = Date()
@@ -59,33 +79,103 @@ final class NativeShortsViewModel: ObservableObject {
         }
     }
     
-    func loadInitialShorts(preferredInitial: Video? = nil) async {
+    // Smart AI/Personalized Recommendation Engine (No manual tags needed)
+    func loadInitialShorts(preferredInitial: Video? = nil, forceRefresh: Bool = false) async {
         if let initial = preferredInitial, shorts.isEmpty {
             shorts = [initial]
             currentIndex = 0
             playCurrentShort()
         }
-        guard shorts.count <= 1 else { return }
+        if !forceRefresh && shorts.count > 1 { return }
+        
         isLoading = true
+        if forceRefresh { isRefreshing = true }
         
-        let result = await YTDLPService.shared.searchVideosWithContinuation(query: "#shorts việt nam")
-        var loaded = result.shorts
-        if loaded.isEmpty {
-            loaded = result.videos.filter { ($0.duration ?? 0) <= 65 }
-        }
-        if loaded.isEmpty {
-            loaded = await YTDLPService.shared.searchVideos(query: "#shorts trending", limit: 20)
+        var queriesToFetch: [String] = []
+        
+        if let initial = preferredInitial {
+            queriesToFetch.append("#shorts " + initial.uploader)
         }
         
+        // 1. Channel & Creator Affinity: Favorite channels watched or subscribed
+        let topChannels = RecommendationService.shared.topChannels
+        let subs = ChannelSubscriptionManager.shared.subscribedChannels
+        if let ch = topChannels.randomElement() {
+            queriesToFetch.append("#shorts \(ch)")
+        } else if let sub = subs.randomElement() {
+            let name = sub.handle ?? sub.title
+            queriesToFetch.append("#shorts \(name)")
+        }
+        
+        // 2. Interest & Search Intent: Topics user searches for or watches
+        let topKw = RecommendationService.shared.topKeywords
+        let recentSearches = RecommendationService.shared.recentSearches
+        if let kw = topKw.randomElement() ?? recentSearches.randomElement() {
+            queriesToFetch.append("#shorts \(kw)")
+        }
+        
+        // 3. Dynamic Viral Discovery: Pick varied seeds
+        let seed = smartDiscoverySeeds.shuffled().first ?? "#shorts trending việt nam"
+        if !queriesToFetch.contains(seed) {
+            queriesToFetch.append(seed)
+        }
+        
+        var candidateVideos: [Video] = []
+        var primaryContinuation: String? = nil
+        
+        for (idx, q) in queriesToFetch.prefix(3).enumerated() {
+            let res = await YTDLPService.shared.searchVideosWithContinuation(query: q, limit: 16)
+            var extracted = res.shorts
+            if extracted.isEmpty {
+                extracted = res.videos.filter { ($0.duration ?? 0) <= 65 }
+            }
+            if idx == 0 {
+                primaryContinuation = res.continuationToken
+            }
+            candidateVideos.append(contentsOf: extracted)
+        }
+        
+        if candidateVideos.isEmpty {
+            let fallbackRes = await YTDLPService.shared.searchVideos(query: smartDiscoverySeeds.randomElement() ?? "#shorts việt nam", limit: 20)
+            candidateVideos.append(contentsOf: fallbackRes.filter { $0.isShort || ($0.duration ?? 0) <= 65 })
+        }
+        
+        // Smart Deduplication & Non-Repetition against past sessions
         let existingIds = Set(self.shorts.map { $0.id })
-        let filtered = loaded.filter { !existingIds.contains($0.id) }
-        self.shorts.append(contentsOf: filtered)
-        self.continuationToken = result.continuationToken
-        self.isLoading = false
+        var freshSeen = self.seenShortIds
         
-        if self.currentIndex == 0 && preferredInitial == nil, !self.shorts.isEmpty {
-            playCurrentShort()
+        var unseenVideos = candidateVideos.filter { !existingIds.contains($0.id) && !freshSeen.contains($0.id) }
+        if unseenVideos.count < 8 {
+            unseenVideos = candidateVideos.filter { !existingIds.contains($0.id) }
         }
+        
+        unseenVideos.shuffle()
+        for v in unseenVideos.prefix(15) {
+            freshSeen.insert(v.id)
+        }
+        self.seenShortIds = freshSeen
+        
+        if forceRefresh {
+            if let initial = preferredInitial {
+                let filtered = unseenVideos.filter { $0.id != initial.id }
+                self.shorts = [initial] + filtered
+            } else {
+                self.shorts = unseenVideos
+            }
+            self.currentIndex = 0
+            if !self.shorts.isEmpty {
+                playCurrentShort()
+            }
+        } else {
+            self.shorts.append(contentsOf: unseenVideos)
+            if self.currentIndex == 0 && preferredInitial == nil, !self.shorts.isEmpty {
+                playCurrentShort()
+            }
+        }
+        
+        self.continuationToken = primaryContinuation
+        self.isLoading = false
+        self.isRefreshing = false
     }
     
     func loadMoreShorts() async {
@@ -93,22 +183,44 @@ final class NativeShortsViewModel: ObservableObject {
         isLoading = true
         
         var newShorts: [Video] = []
+        let nextQuery = smartDiscoverySeeds[streamIndex % smartDiscoverySeeds.count]
+        
         if let token = continuationToken {
-            let res = await YTDLPService.shared.searchVideosWithContinuation(query: "#shorts việt nam", continuationToken: token)
+            let res = await YTDLPService.shared.searchVideosWithContinuation(query: nextQuery, continuationToken: token)
             newShorts = res.shorts.isEmpty ? res.videos.filter { ($0.duration ?? 0) <= 65 } : res.shorts
             self.continuationToken = res.continuationToken
         }
         
         if newShorts.isEmpty {
-            poolIndex = (poolIndex + 1) % queryPool.count
-            let fallbackQuery = queryPool[poolIndex]
+            streamIndex = (streamIndex + 1) % smartDiscoverySeeds.count
+            let fallbackQuery = smartDiscoverySeeds[streamIndex]
             newShorts = await YTDLPService.shared.searchVideos(query: fallbackQuery, limit: 16)
         }
         
         let existingIds = Set(self.shorts.map { $0.id })
+        var freshSeen = self.seenShortIds
         let filtered = newShorts.filter { !existingIds.contains($0.id) }
+        
+        for v in filtered {
+            freshSeen.insert(v.id)
+        }
+        self.seenShortIds = freshSeen
+        
         self.shorts.append(contentsOf: filtered)
         self.isLoading = false
+    }
+    
+    func refreshFeed(proxy: ScrollViewProxy? = nil) {
+        showToast("🔀 Đang đổi gợi ý Shorts mới...")
+        Task {
+            streamIndex = (streamIndex + 1) % smartDiscoverySeeds.count
+            await loadInitialShorts(forceRefresh: true)
+            if let p = proxy, let first = shorts.first {
+                withAnimation {
+                    p.scrollTo(first.id, anchor: .center)
+                }
+            }
+        }
     }
     
     // MARK: - Ultra-responsive Mouse Wheel & Trackpad Magnetic Snap (YouTube Shorts Engine)
@@ -369,90 +481,168 @@ public struct NativeShortsFeedView: View {
                     HStack(spacing: 0) {
                         // Column 1: Video Feed (Always perfectly centered within available width)
                         ScrollViewReader { proxy in
-                            ScrollView(.vertical, showsIndicators: false) {
-                                LazyVStack(spacing: 32) {
-                                    ForEach(Array(vm.shorts.enumerated()), id: \.element.id) { index, short in
-                                        let isActive = (index == vm.currentIndex)
-                                        
-                                        ShortFeedRowView(
-                                            short: short,
-                                            index: index,
-                                            totalCount: vm.shorts.count,
-                                            isActive: isActive,
-                                            cardWidth: cardWidth,
-                                            cardHeight: cardHeight,
-                                            isAutoScrollEnabled: vm.isAutoScrollEnabled,
-                                            subManager: subManager,
-                                            playerManager: playerManager,
-                                            vm: vm,
-                                            onSelectVideo: onSelectVideo,
-                                            onGoPrev: { vm.goToPrev(proxy: proxy) },
-                                            onGoNext: { vm.goToNext(proxy: proxy) },
-                                            onTapCard: {
-                                                if !isActive {
-                                                    vm.snapToCard(index: index, proxy: proxy)
+                            ZStack(alignment: .top) {
+                                ScrollView(.vertical, showsIndicators: false) {
+                                    LazyVStack(spacing: 32) {
+                                        ForEach(Array(vm.shorts.enumerated()), id: \.element.id) { index, short in
+                                            let isActive = (index == vm.currentIndex)
+                                            
+                                            ShortFeedRowView(
+                                                short: short,
+                                                index: index,
+                                                totalCount: vm.shorts.count,
+                                                isActive: isActive,
+                                                cardWidth: cardWidth,
+                                                cardHeight: cardHeight,
+                                                isAutoScrollEnabled: vm.isAutoScrollEnabled,
+                                                subManager: subManager,
+                                                playerManager: playerManager,
+                                                vm: vm,
+                                                onSelectVideo: onSelectVideo,
+                                                onGoPrev: { vm.goToPrev(proxy: proxy) },
+                                                onGoNext: { vm.goToNext(proxy: proxy) },
+                                                onTapCard: {
+                                                    if !isActive {
+                                                        vm.snapToCard(index: index, proxy: proxy)
+                                                    }
                                                 }
-                                            }
+                                            )
+                                            .id(short.id)
+                                        }
+                                    }
+                                    .padding(.top, max(24, (containerHeight - cardHeight) / 2) + 24)
+                                    .padding(.bottom, max(20, (containerHeight - cardHeight) / 2))
+                                    .frame(maxWidth: .infinity)
+                                }
+                                .onAppear {
+                                    vm.startScrollMonitor(proxy: proxy)
+                                    if !vm.shorts.isEmpty && vm.currentIndex < vm.shorts.count {
+                                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
+                                            proxy.scrollTo(vm.shorts[vm.currentIndex].id, anchor: .center)
+                                        }
+                                    }
+                                }
+                                .onDisappear {
+                                    vm.stopScrollMonitor()
+                                }
+                                .onChange(of: containerHeight) { _ in
+                                    if !vm.shorts.isEmpty && vm.currentIndex < vm.shorts.count {
+                                        proxy.scrollTo(vm.shorts[vm.currentIndex].id, anchor: .center)
+                                    }
+                                }
+                                .onChange(of: vm.shorts.count) { count in
+                                    if count > 0 && vm.currentIndex < vm.shorts.count {
+                                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
+                                            proxy.scrollTo(vm.shorts[vm.currentIndex].id, anchor: .center)
+                                        }
+                                    }
+                                }
+                                .onChange(of: playerManager.currentTime) { curTime in
+                                    vm.checkAutoScroll(
+                                        currentTime: curTime,
+                                        duration: playerManager.duration,
+                                        proxy: proxy
+                                    )
+                                }
+                                .overlay(
+                                    // Hidden keyboard shortcuts for Up / Down arrows, Auto-Scroll, Refresh & Comments
+                                    Group {
+                                        Button("") { vm.goToNext(proxy: proxy) }
+                                            .keyboardShortcut(.downArrow, modifiers: [])
+                                            .opacity(0)
+                                        Button("") { vm.goToPrev(proxy: proxy) }
+                                            .keyboardShortcut(.upArrow, modifiers: [])
+                                            .opacity(0)
+                                        Button("") { vm.toggleAutoScroll() }
+                                            .keyboardShortcut("a", modifiers: [])
+                                            .opacity(0)
+                                        Button("") { vm.refreshFeed(proxy: proxy) }
+                                            .keyboardShortcut("r", modifiers: [])
+                                            .opacity(0)
+                                        Button("") { vm.toggleComments() }
+                                            .keyboardShortcut("c", modifiers: [])
+                                            .opacity(0)
+                                        Button("") { PlayerManager.shared.toggleFullscreen() }
+                                            .keyboardShortcut("f", modifiers: [])
+                                            .opacity(0)
+                                        if vm.isCommentsOpen {
+                                            Button("") { vm.toggleComments() }
+                                                .keyboardShortcut(.escape, modifiers: [])
+                                                .opacity(0)
+                                        }
+                                    }
+                                    .frame(width: 0, height: 0)
+                                )
+                                
+                                // Floating Clean Control Bar (Minimalist & Unobtrusive)
+                                HStack {
+                                    // Refresh / Shuffle Recommendations Button
+                                    Button(action: {
+                                        vm.refreshFeed(proxy: proxy)
+                                    }) {
+                                        HStack(spacing: 5) {
+                                            Image(systemName: "arrow.triangle.2.circlepath")
+                                                .font(.system(size: 11, weight: .bold))
+                                                .rotationEffect(.degrees(vm.isRefreshing ? 360 : 0))
+                                                .animation(vm.isRefreshing ? .linear(duration: 0.8).repeatForever(autoreverses: false) : .default, value: vm.isRefreshing)
+                                            Text("Đổi gợi ý")
+                                                .font(.system(size: 11.5, weight: .semibold))
+                                        }
+                                        .padding(.horizontal, 11)
+                                        .padding(.vertical, 6)
+                                        .background(
+                                            Capsule()
+                                                .fill(Color(white: 0.16).opacity(0.85))
+                                                .overlay(
+                                                    Capsule()
+                                                        .strokeBorder(Color.white.opacity(0.18), lineWidth: 0.6)
+                                                )
                                         )
-                                        .id(short.id)
+                                        .foregroundColor(.white)
                                     }
-                                }
-                                .padding(.vertical, max(20, (containerHeight - cardHeight) / 2))
-                                .frame(maxWidth: .infinity)
-                            }
-                            .onAppear {
-                                vm.startScrollMonitor(proxy: proxy)
-                                if !vm.shorts.isEmpty && vm.currentIndex < vm.shorts.count {
-                                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
-                                        proxy.scrollTo(vm.shorts[vm.currentIndex].id, anchor: .center)
+                                    .buttonStyle(.plain)
+                                    .help("Tải danh sách Shorts gợi ý mới ngẫu nhiên (Phím tắt: R)")
+                                    
+                                    Spacer()
+                                    
+                                    // Auto Scroll Switch
+                                    Button(action: { vm.toggleAutoScroll() }) {
+                                        HStack(spacing: 5) {
+                                            Image(systemName: vm.isAutoScrollEnabled ? "arrow.triangle.2.circlepath.circle.fill" : "arrow.triangle.2.circlepath")
+                                                .font(.system(size: 12, weight: .bold))
+                                                .foregroundColor(vm.isAutoScrollEnabled ? .green : Color.white.opacity(0.8))
+                                            Text(vm.isAutoScrollEnabled ? "Tự cuộn: BẬT" : "Tự cuộn")
+                                                .font(.system(size: 11.5, weight: vm.isAutoScrollEnabled ? .bold : .medium))
+                                                .foregroundColor(vm.isAutoScrollEnabled ? .white : Color.white.opacity(0.85))
+                                        }
+                                        .padding(.horizontal, 12)
+                                        .padding(.vertical, 6)
+                                        .background(
+                                            Capsule()
+                                                .fill(vm.isAutoScrollEnabled ? Color.green.opacity(0.28) : Color(white: 0.14).opacity(0.8))
+                                        )
+                                        .overlay(
+                                            Capsule()
+                                                .strokeBorder(vm.isAutoScrollEnabled ? Color.green.opacity(0.7) : Color.white.opacity(0.18), lineWidth: 0.6)
+                                        )
+                                        .shadow(color: Color.black.opacity(0.35), radius: 6, y: 2)
                                     }
+                                    .buttonStyle(.plain)
+                                    .help("Bật/Tắt tự động chuyển sang video tiếp theo khi xem xong (Phím tắt: A)")
                                 }
-                            }
-                            .onDisappear {
-                                vm.stopScrollMonitor()
-                            }
-                            .onChange(of: containerHeight) { _ in
-                                if !vm.shorts.isEmpty && vm.currentIndex < vm.shorts.count {
-                                    proxy.scrollTo(vm.shorts[vm.currentIndex].id, anchor: .center)
-                                }
-                            }
-                            .onChange(of: vm.shorts.count) { count in
-                                if count > 0 && vm.currentIndex < vm.shorts.count {
-                                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
-                                        proxy.scrollTo(vm.shorts[vm.currentIndex].id, anchor: .center)
-                                    }
-                                }
-                            }
-                            .onChange(of: playerManager.currentTime) { curTime in
-                                vm.checkAutoScroll(
-                                    currentTime: curTime,
-                                    duration: playerManager.duration,
-                                    proxy: proxy
+                                .padding(.horizontal, 20)
+                                .padding(.top, 14)
+                                .background(
+                                    LinearGradient(
+                                        colors: [Color.black.opacity(0.8), Color.black.opacity(0.2), Color.clear],
+                                        startPoint: .top,
+                                        endPoint: .bottom
+                                    )
+                                    .frame(height: 70)
+                                    .allowsHitTesting(false),
+                                    alignment: .top
                                 )
                             }
-                            .overlay(
-                                // Hidden keyboard shortcuts for Up / Down arrows, Auto-Scroll & Comments
-                                Group {
-                                    Button("") { vm.goToNext(proxy: proxy) }
-                                        .keyboardShortcut(.downArrow, modifiers: [])
-                                        .opacity(0)
-                                    Button("") { vm.goToPrev(proxy: proxy) }
-                                        .keyboardShortcut(.upArrow, modifiers: [])
-                                        .opacity(0)
-                                    Button("") { vm.toggleAutoScroll() }
-                                        .keyboardShortcut("a", modifiers: [])
-                                        .opacity(0)
-                                    Button("") { vm.toggleComments() }
-                                        .keyboardShortcut("c", modifiers: [])
-                                        .opacity(0)
-                                    if vm.isCommentsOpen {
-                                        Button("") { vm.toggleComments() }
-                                            .keyboardShortcut(.escape, modifiers: [])
-                                            .opacity(0)
-                                    }
-                                }
-                                .frame(width: 0, height: 0)
-                            )
                         }
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
                         
@@ -467,41 +657,6 @@ public struct NativeShortsFeedView: View {
                         }
                     }
                     .animation(.spring(response: 0.38, dampingFraction: 0.85), value: vm.isCommentsOpen)
-                    
-                    // Top Header Quick Action Dock: Auto Scroll Switch (Pinned cleanly to top right)
-                    VStack {
-                        HStack {
-                            Spacer()
-                            
-                            Button(action: { vm.toggleAutoScroll() }) {
-                                HStack(spacing: 6) {
-                                    Image(systemName: vm.isAutoScrollEnabled ? "arrow.triangle.2.circlepath.circle.fill" : "arrow.triangle.2.circlepath")
-                                        .font(.system(size: 13, weight: .bold))
-                                        .foregroundColor(vm.isAutoScrollEnabled ? .green : Color.white.opacity(0.8))
-                                    Text(vm.isAutoScrollEnabled ? "Tự động cuộn: BẬT" : "Tự động cuộn")
-                                        .font(.system(size: 12, weight: vm.isAutoScrollEnabled ? .bold : .medium))
-                                        .foregroundColor(vm.isAutoScrollEnabled ? .white : Color.white.opacity(0.85))
-                                }
-                                .padding(.horizontal, 14)
-                                .padding(.vertical, 7)
-                                .background(
-                                    Capsule()
-                                        .fill(vm.isAutoScrollEnabled ? Color.green.opacity(0.28) : Color.black.opacity(0.65))
-                                )
-                                .overlay(
-                                    Capsule()
-                                        .strokeBorder(vm.isAutoScrollEnabled ? Color.green.opacity(0.7) : Color.white.opacity(0.18), lineWidth: 1)
-                                )
-                                .shadow(color: Color.black.opacity(0.35), radius: 6, y: 2)
-                            }
-                            .buttonStyle(.plain)
-                            .help("Bật/Tắt tự động chuyển sang video tiếp theo khi xem xong (Phím tắt: A)")
-                            .padding(.trailing, vm.isCommentsOpen ? (commentsDrawerWidth + 20) : 24)
-                            .padding(.top, 16)
-                            .animation(.spring(response: 0.38, dampingFraction: 0.85), value: vm.isCommentsOpen)
-                        }
-                        Spacer()
-                    }
                 }
                 
                 // Toast Notification Overlay
@@ -625,14 +780,68 @@ struct ShortsCardPlayerView: NSViewRepresentable {
                 width: 100% !important;
                 height: 100% !important;
             }
-            video, .html5-main-video {
+            video, .html5-main-video,
+            .ytp-fit-cover-video video,
+            .html5-video-player.ytp-fit-cover-video video {
                 display: block !important;
                 visibility: visible !important;
                 opacity: 1 !important;
-                width: 100% !important;
-                height: 100% !important;
-                object-fit: cover !important;
+                object-fit: contain !important;
+                object-position: center center !important;
             }
+            /* 1. YouTube Mobile & Embedded Player Controls, Info, and Overlays */
+            embedded-player-video-details,
+            player-top-controls,
+            player-fullscreen-controls,
+            player-fullscreen-top-controls,
+            ytm-watch-player-controls,
+            video-cover,
+            cued-overlay,
+            ytm-custom-control,
+            ytm-button-renderer,
+            .new-controls,
+            .player-controls-content,
+            .player-controls-background-container,
+            .player-controls-background,
+            .ytPlayerControlsContainerHost,
+            .ytmVideoInfoHost,
+            .ytmVideoInfoVideoDetailsContainer,
+            .ytmVideoInfoVideoTitleContainer,
+            .ytmVideoInfoVideoTitle,
+            .ytmVideoInfoChannelTitle,
+            .ytmVideoInfoChannelContainer,
+            .ytmVideoInfoChannelAvatar,
+            .ytmVideoInfoChannelLogo,
+            .ytmVideoInfoOverlay,
+            .ytmVideoInfoChannelInfo,
+            .ytmVideoInfoFlyoutChannelTitle,
+            .ytmVideoInfoFlyoutChannelSubtitle,
+            .ytwPlayerTopControlsHost,
+            .ytwPlayerFullscreenTopControlsHost,
+            .ytwPlayerFullscreenTopControlsFullscreenControlsVideoTitle,
+            .ytwPlayerFullscreenTopControlsFullscreenCloseButtonWrapper,
+            .ytwPlayerFullscreenControlsHost,
+            .ytwPlayerTopControlsContainerWithLeftContent,
+            .ytmWatchPlayerControlsHost,
+            .ytmWatchPlayerControlsBackgroundActionItems,
+            .action-menu-engagement-buttons-wrapper,
+            .watch-on-youtube-button-wrapper,
+            .circle-buttons,
+            .icon-share_arrow,
+            .icon-close,
+            [class*="VideoInfo"],
+            [class*="ytmVideoInfo"],
+            [class*="ytwPlayer"],
+            [class*="ytmWatch"],
+            [class*="player-controls"],
+            [class*="fullscreen-controls"],
+            [class*="FullscreenTopControls"],
+            [class*="engagement-buttons"],
+            [class*="circle-buttons"],
+            [class*="share_arrow"],
+            [class*="icon-share"],
+            
+            /* 2. YouTube Desktop Player Controls, Overlays, and Metadata */
             .ytp-shorts-title,
             .ytp-shorts-channel-name,
             .ytp-shorts-channel-avatar,
@@ -648,15 +857,10 @@ struct ShortsCardPlayerView: NSViewRepresentable {
             .ytPlayerOverlayVideoDetailsRendererTextContainer,
             .ytPlayerOverlayVideoDetailsRendererFrostedGlass,
             [class*="ytPlayerOverlayVideoDetailsRenderer"],
-            [class*="ytwPlayerTopControls"],
-            [class*="ytmWatchPlayerControls"],
-            [class*="ytmVideoInfo"],
             [class*="VideoDetailsRenderer"],
             ytw-player-top-controls,
             yt-player-overlay-video-details-renderer,
             ytm-video-info-flyout,
-            .ytwPlayerTopControlsHost,
-            .ytmWatchPlayerControlsHost,
             .ytp-chrome-top,
             .ytp-chrome-bottom,
             .ytp-gradient-top,
@@ -684,6 +888,10 @@ struct ShortsCardPlayerView: NSViewRepresentable {
             .ytp-cairo-refresh-signature-moments,
             .ytp-cairo-refresh-signature-moments-title,
             .ytp-unmute,
+            .ytp-unmute-inner,
+            .ytp-unmute-icon,
+            .ytp-unmute-text,
+            .ytp-unmute-box,
             .ytp-volume-control,
             .annotation,
             .iv-branding,
@@ -696,43 +904,98 @@ struct ShortsCardPlayerView: NSViewRepresentable {
                 pointer-events: none !important;
                 width: 0 !important;
                 height: 0 !important;
+                max-width: 0 !important;
+                max-height: 0 !important;
+                position: absolute !important;
+                left: -9999px !important;
+                top: -9999px !important;
+                z-index: -9999 !important;
             }
         `;
 
         function applyShortsStyles() {
             try {
-                if (!document.getElementById('__auratube_shorts_styles')) {
+                var target = document.head || document.documentElement || document.body;
+                if (target && !document.getElementById('__auratube_shorts_styles')) {
                     var s = document.createElement('style');
                     s.id = '__auratube_shorts_styles';
                     s.textContent = css;
-                    (document.head || document.documentElement).appendChild(s);
+                    target.appendChild(s);
                 }
-                var targets = document.querySelectorAll(
-                    '.ytp-large-play-button, .ytp-large-play-button-bg, .ytp-large-play-button-red-bg, button.ytp-large-play-button, ' +
-                    '.ytp-bezel, .ytp-bezel-container, .ytp-pause-overlay, ' +
-                    '.ytp-cairo-refresh-signature-moments, .ytp-shorts-title, ' +
-                    '.ytp-shorts-channel-name, .ytp-shorts-channel-avatar, .ytp-modern-title, .ytp-chrome-top, ' +
-                    '.ytp-gradient-top, .ytp-gradient-bottom, .ytp-title, .ytp-title-channel, .ytp-watermark'
-                );
-                for (var i = 0; i < targets.length; i++) {
-                    var el = targets[i];
-                    if (el && !el.classList.contains('html5-video-player') && !el.classList.contains('html5-main-video') && el.id !== 'movie_player' && el.tagName !== 'VIDEO') {
-                        el.remove();
-                    }
+            } catch(e) {}
+        }
+
+        function removeEmbedOverlays() {
+            try {
+                var selectors = [
+                    'embedded-player-video-details',
+                    'player-top-controls',
+                    'player-fullscreen-controls',
+                    'player-fullscreen-top-controls',
+                    'ytm-watch-player-controls',
+                    'video-cover',
+                    'cued-overlay',
+                    'ytm-custom-control',
+                    'ytm-button-renderer',
+                    '.new-controls',
+                    '.player-controls-content',
+                    '.player-controls-background-container',
+                    '.ytPlayerControlsContainerHost',
+                    '.ytmVideoInfoHost',
+                    '.ytwPlayerTopControlsHost',
+                    '.ytwPlayerFullscreenTopControlsHost',
+                    '.action-menu-engagement-buttons-wrapper',
+                    '.watch-on-youtube-button-wrapper',
+                    '.circle-buttons',
+                    '.icon-share_arrow',
+                    '.icon-close',
+                    '.ytp-unmute',
+                    '.ytp-chrome-top',
+                    '.ytp-chrome-bottom',
+                    '.ytp-pause-overlay',
+                    '.ytp-pause-overlay-container',
+                    '.ytp-large-play-button',
+                    '.ytp-gradient-top',
+                    '.ytp-gradient-bottom',
+                    '.ytp-title',
+                    '.ytp-title-channel'
+                ];
+                var els = document.querySelectorAll(selectors.join(','));
+                for (var i = 0; i < els.length; i++) {
+                    var el = els[i];
+                    el.style.setProperty('display', 'none', 'important');
+                    el.style.setProperty('opacity', '0', 'important');
+                    el.style.setProperty('visibility', 'hidden', 'important');
+                    el.style.setProperty('pointer-events', 'none', 'important');
+                    el.style.setProperty('width', '0px', 'important');
+                    el.style.setProperty('height', '0px', 'important');
                 }
             } catch(e) {}
         }
 
         applyShortsStyles();
-        document.addEventListener('DOMContentLoaded', applyShortsStyles);
-        window.addEventListener('load', applyShortsStyles);
-        setInterval(applyShortsStyles, 200);
+        removeEmbedOverlays();
+        document.addEventListener('DOMContentLoaded', function() {
+            applyShortsStyles();
+            removeEmbedOverlays();
+        });
+        window.addEventListener('load', function() {
+            applyShortsStyles();
+            removeEmbedOverlays();
+        });
+        setInterval(function() {
+            applyShortsStyles();
+            removeEmbedOverlays();
+        }, 150);
         
         if (window.MutationObserver) {
             var observer = new MutationObserver(function() {
                 applyShortsStyles();
+                removeEmbedOverlays();
             });
-            observer.observe(document.documentElement || document.body, { childList: true, subtree: true });
+            try {
+                observer.observe(document.documentElement || document.body, { childList: true, subtree: true });
+            } catch(e) {}
         }
     })();
     """
@@ -770,16 +1033,18 @@ struct ShortsCardPlayerView: NSViewRepresentable {
         contentController.add(context.coordinator, contentWorld: .page, name: "playerBridge")
         contentController.add(context.coordinator, contentWorld: .defaultClient, name: "playerBridge")
         
-        // Inject shorts cleanup scripts directly at document start into both worlds
+        // Inject shorts cleanup scripts directly at document start and document end into both worlds
         let shortsScript = WKUserScript(source: ShortsCardPlayerView.cleanShortsScriptSource, injectionTime: .atDocumentStart, forMainFrameOnly: false, in: .page)
         contentController.addUserScript(shortsScript)
         
         let clientShortsScript = WKUserScript(source: ShortsCardPlayerView.cleanShortsScriptSource, injectionTime: .atDocumentStart, forMainFrameOnly: false, in: .defaultClient)
         contentController.addUserScript(clientShortsScript)
         
-        let cleanScript = NativePlayerView.cleanScriptSource
-        let userScript = WKUserScript(source: cleanScript, injectionTime: .atDocumentStart, forMainFrameOnly: false, in: .page)
-        contentController.addUserScript(userScript)
+        let shortsScriptEnd = WKUserScript(source: ShortsCardPlayerView.cleanShortsScriptSource, injectionTime: .atDocumentEnd, forMainFrameOnly: false, in: .page)
+        contentController.addUserScript(shortsScriptEnd)
+        
+        let clientShortsScriptEnd = WKUserScript(source: ShortsCardPlayerView.cleanShortsScriptSource, injectionTime: .atDocumentEnd, forMainFrameOnly: false, in: .defaultClient)
+        contentController.addUserScript(clientShortsScriptEnd)
         config.userContentController = contentController
         
         let webView = ScrollForwardingWKWebView(frame: .zero, configuration: config)
@@ -862,7 +1127,7 @@ struct ShortsCardPlayerView: NSViewRepresentable {
           * { margin: 0; padding: 0; box-sizing: border-box; overflow: hidden; }
           html, body { width: 100%; height: 100%; background: #000 !important; }
           #ytPlayer, iframe { width: 100% !important; height: 100% !important; border: none; display: block; }
-          .ytPlayerOverlayVideoDetailsRendererHost, .ytPlayerOverlayVideoDetailsRendererTitle, .ytPlayerOverlayVideoDetailsRendererSubtitle, .ytPlayerOverlayVideoDetailsRendererChannelAvatarContainer, .ytPlayerOverlayVideoDetailsRendererTextContainer, .ytPlayerOverlayVideoDetailsRendererFrostedGlass, [class*="ytPlayerOverlayVideoDetailsRenderer"], [class*="ytwPlayerTopControls"], [class*="ytmWatchPlayerControls"], [class*="ytmVideoInfo"], [class*="VideoDetailsRenderer"], ytw-player-top-controls, yt-player-overlay-video-details-renderer, ytm-video-info-flyout, .ytwPlayerTopControlsHost, .ytmWatchPlayerControlsHost, .ytp-shorts-title, .ytp-shorts-channel-name, .ytp-modern-title, .ytp-suggested-action-badge, .ytp-popup, .ytp-ai-info-dialog, [class*="ai-disclosure"], .ytp-paid-content-overlay, [class*="paid-content"], [class*="paid-promotion"], .ytp-chrome-top, [class*="title-channel"], .ytp-bezel, .ytp-bezel-container, .ytp-pause-overlay, .ytp-pause-overlay-container, .ytp-large-play-button, .ytp-large-play-button-bg, .ytp-large-play-button-red-bg, button.ytp-large-play-button, svg.ytp-large-play-button-svg, .ytp-impression-link, .ytp-title, .ytp-title-text, .ytp-title-channel, .ytp-title-channel-logo, .ytp-cairo-refresh-signature-moments, .ytp-cairo-refresh-signature-moments-title { display: none !important; opacity: 0 !important; visibility: hidden !important; pointer-events: none !important; width: 0 !important; height: 0 !important; }
+          embedded-player-video-details, player-top-controls, player-fullscreen-controls, player-fullscreen-top-controls, ytm-watch-player-controls, video-cover, cued-overlay, ytm-custom-control, ytm-button-renderer, .new-controls, .player-controls-content, .player-controls-background-container, .player-controls-background, .ytPlayerControlsContainerHost, .ytmVideoInfoHost, .ytmVideoInfoVideoDetailsContainer, .ytmVideoInfoVideoTitleContainer, .ytmVideoInfoVideoTitle, .ytmVideoInfoChannelTitle, .ytmVideoInfoChannelContainer, .ytmVideoInfoChannelAvatar, .ytmVideoInfoChannelLogo, .ytmVideoInfoOverlay, .ytmVideoInfoChannelInfo, .ytmVideoInfoFlyoutChannelTitle, .ytmVideoInfoFlyoutChannelSubtitle, .ytwPlayerTopControlsHost, .ytwPlayerFullscreenTopControlsHost, .ytwPlayerFullscreenControlsHost, .ytwPlayerTopControlsContainerWithLeftContent, .ytmWatchPlayerControlsHost, .action-menu-engagement-buttons-wrapper, .watch-on-youtube-button-wrapper, .circle-buttons, .icon-share_arrow, .icon-close, [class*="VideoInfo"], [class*="ytmVideoInfo"], [class*="ytwPlayer"], [class*="ytmWatch"], [class*="player-controls"], [class*="fullscreen-controls"], [class*="engagement-buttons"], [class*="circle-buttons"], [class*="share_arrow"], .ytPlayerOverlayVideoDetailsRendererHost, .ytPlayerOverlayVideoDetailsRendererTitle, .ytPlayerOverlayVideoDetailsRendererSubtitle, .ytPlayerOverlayVideoDetailsRendererChannelAvatarContainer, .ytPlayerOverlayVideoDetailsRendererTextContainer, .ytPlayerOverlayVideoDetailsRendererFrostedGlass, [class*="ytPlayerOverlayVideoDetailsRenderer"], [class*="VideoDetailsRenderer"], ytw-player-top-controls, yt-player-overlay-video-details-renderer, ytm-video-info-flyout, .ytp-shorts-title, .ytp-shorts-channel-name, .ytp-modern-title, .ytp-suggested-action-badge, .ytp-popup, .ytp-ai-info-dialog, [class*="ai-disclosure"], .ytp-paid-content-overlay, [class*="paid-content"], [class*="paid-promotion"], .ytp-chrome-top, .ytp-chrome-bottom, [class*="title-channel"], .ytp-bezel, .ytp-bezel-container, .ytp-pause-overlay, .ytp-pause-overlay-container, .ytp-large-play-button, .ytp-large-play-button-bg, .ytp-large-play-button-red-bg, button.ytp-large-play-button, svg.ytp-large-play-button-svg, .ytp-impression-link, .ytp-title, .ytp-title-text, .ytp-title-channel, .ytp-title-channel-logo, .ytp-cairo-refresh-signature-moments, .ytp-cairo-refresh-signature-moments-title, .ytp-unmute, .ytp-unmute-inner, .ytp-unmute-icon, .ytp-unmute-text, .ytp-unmute-box { display: none !important; opacity: 0 !important; visibility: hidden !important; pointer-events: none !important; width: 0 !important; height: 0 !important; max-width: 0 !important; max-height: 0 !important; position: absolute !important; left: -9999px !important; top: -9999px !important; z-index: -9999 !important; }
         </style>
         </head>
         <body>
@@ -937,7 +1202,11 @@ struct ShortsCardPlayerView: NSViewRepresentable {
 
           window.addEventListener('message', function(e) {
             try {
-              var data = JSON.parse(e.data);
+              var data = e.data;
+              if (typeof data === 'string') {
+                try { data = JSON.parse(data); } catch(ex) { return; }
+              }
+              if (!data || typeof data !== 'object') return;
               if (data.event === 'onReady') {
                 if (isActive) {
                   triggerPlayback();
@@ -1027,6 +1296,10 @@ struct ShortsCardPlayerView: NSViewRepresentable {
             guard isActive else { return }
             
             if let type = body["type"] as? String {
+                if type == "toggleFullscreen" {
+                    PlayerManager.shared.toggleFullscreen()
+                    return
+                }
                 if type == "actuallyPlaying" {
                     isActuallyPlaying = true
                     PlayerManager.shared.isPlaying = true
@@ -1236,10 +1509,22 @@ struct ShortFeedRowView: View {
                     .animation(.easeInOut(duration: 0.18), value: playerManager.isPlaying)
                 }
                 
-                // Top Bar inside Video: Sound Mute Button
+                // Top Bar inside Video: Fullscreen & Sound Mute Button
                 if isActive {
                     VStack {
                         HStack {
+                            Button(action: { PlayerManager.shared.toggleFullscreen() }) {
+                                Image(systemName: "arrow.up.left.and.arrow.down.right")
+                                    .font(.system(size: 12, weight: .semibold))
+                                    .foregroundColor(.white)
+                                    .frame(width: 34, height: 34)
+                                    .background(Color.black.opacity(0.6))
+                                    .clipShape(Circle())
+                            }
+                            .buttonStyle(.plain)
+                            .help("Toàn màn hình (F)")
+                            .padding([.top, .leading], 14)
+
                             Spacer()
                             Button(action: { playerManager.isMuted.toggle() }) {
                                 Image(systemName: playerManager.isMuted ? "speaker.slash.fill" : "speaker.wave.2.fill")

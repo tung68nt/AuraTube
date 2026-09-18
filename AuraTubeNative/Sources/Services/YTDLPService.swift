@@ -509,7 +509,7 @@ public final class YTDLPService: @unchecked Sendable {
                         publishedTime: publishedStr,
                         thumbnail: thumb,
                         description: desc,
-                        isShort: false,
+                        isShort: nil,
                         channelAvatarUrl: channelAvatar
                     ))
                 }

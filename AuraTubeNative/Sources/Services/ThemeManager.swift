@@ -63,6 +63,14 @@ public final class ThemeManager: ObservableObject {
         }
     }
     
+    public var appearance: NSAppearance? {
+        switch currentTheme {
+        case .system: return nil
+        case .light: return NSAppearance(named: .aqua)
+        case .dark: return NSAppearance(named: .darkAqua)
+        }
+    }
+    
     public func cycleTheme() {
         switch currentTheme {
         case .system:
@@ -91,5 +99,7 @@ public final class ThemeManager: ObservableObject {
         for window in NSApp.windows {
             AppDelegate.configureTitlebar(for: window)
         }
+        
+        NotificationCenter.default.post(name: NSNotification.Name("AuraTubeThemeDidChange"), object: nil)
     }
 }

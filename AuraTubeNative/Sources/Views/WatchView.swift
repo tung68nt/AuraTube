@@ -43,7 +43,7 @@ public struct WatchView: View {
     public var body: some View {
         Group {
             if playerManager.isVideoFullscreen {
-                FullscreenVideoOverlay(video: displayVideo)
+                Color.black.ignoresSafeArea()
             } else {
                 ScrollView {
                     VStack(alignment: .leading, spacing: 20) {
@@ -259,7 +259,12 @@ public struct WatchView: View {
                         }
                         .padding(14)
                         .frame(maxWidth: .infinity, alignment: .leading)
-                        .liquidGlass(cornerRadius: 12, elevation: 2.5)
+                        .background(ThemeColor.cardBackground(for: colorScheme))
+                        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                                .strokeBorder(ThemeColor.cardBorder(for: colorScheme), lineWidth: 0.75)
+                        )
                         .contentShape(Rectangle())
                         .onTapGesture {
                             withAnimation(.easeInOut(duration: 0.2)) {
@@ -502,12 +507,17 @@ public struct WatchView: View {
                         }
                         .padding(16)
                         .frame(maxWidth: .infinity, alignment: .leading)
-                        .liquidGlass(cornerRadius: 14, elevation: 3)
+                        .background(ThemeColor.cardBackground(for: colorScheme))
+                        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                                .strokeBorder(ThemeColor.cardBorder(for: colorScheme), lineWidth: 0.75)
+                        )
                     }
                     .frame(maxWidth: .infinity)
                     
-                    // Right Column: Related Videos
-                    VStack(alignment: .leading, spacing: 14) {
+                    // Right Column: Related Videos (Hardware-Accelerated LazyVStack for Butter-Smooth 120Hz Scrolling)
+                    LazyVStack(alignment: .leading, spacing: 12) {
                         Text("Video liên quan")
                             .font(.system(size: 16, weight: .bold))
                             .foregroundColor(ThemeColor.textPrimary(for: colorScheme))
@@ -597,6 +607,11 @@ public struct WatchView: View {
         .sheet(isPresented: $vm.showDownloadSheet) {
             DownloadSheetView(video: displayVideo)
         }
+        .onAppear {
+            DispatchQueue.main.async {
+                NSApp.keyWindow?.makeFirstResponder(nil)
+            }
+        }
         .task(id: displayVideo.id) {
             // Load related videos
             let related = await YTDLPService.shared.searchVideos(query: displayVideo.uploader)
@@ -621,15 +636,42 @@ final class WatchPlayerViewModel: ObservableObject {
     @Published var isMouseOverPlayer: Bool = false
     var hideTimer: Timer? = nil
     var mouseMonitor: Any? = nil
+    var keyMonitor: Any? = nil
     weak var playerManager: PlayerManager?
+    
+    // Animated HUD State (Space / Arrow Seek Feedback)
+    @Published var hudIcon: String = ""
+    @Published var hudText: String = ""
+    @Published var isHudVisible: Bool = false
+    private var hudTimer: Timer? = nil
+    
+    func flashFeedback(icon: String, text: String) {
+        hudTimer?.invalidate()
+        hudIcon = icon
+        hudText = text
+        withAnimation(.easeOut(duration: 0.12)) {
+            isHudVisible = true
+        }
+        hudTimer = Timer.scheduledTimer(withTimeInterval: 0.85, repeats: false) { [weak self] _ in
+            Task { @MainActor in
+                withAnimation(.easeIn(duration: 0.2)) {
+                    self?.isHudVisible = false
+                }
+            }
+        }
+    }
     
     func scheduleAutoHide(delay: Double = 1.8) {
         hideTimer?.invalidate()
+        hideTimer = nil
+        // Khi chuột đang đặt trong frame player, TUYỆT ĐỐI không tự auto-hide toolbar
+        guard !isMouseOverPlayer else { return }
         guard playerManager?.isPlaying == true else { return }
         
         let timer = Timer(timeInterval: delay, repeats: false) { [weak self] _ in
             Task { @MainActor in
                 guard let self = self else { return }
+                guard !self.isMouseOverPlayer else { return }
                 if self.playerManager?.isPlaying == true {
                     withAnimation(.easeInOut(duration: 0.2)) {
                         self.isControlsVisible = false
@@ -647,7 +689,12 @@ final class WatchPlayerViewModel: ObservableObject {
                 isControlsVisible = true
             }
         }
-        scheduleAutoHide(delay: 1.8)
+        if !isMouseOverPlayer {
+            scheduleAutoHide(delay: 1.8)
+        } else {
+            hideTimer?.invalidate()
+            hideTimer = nil
+        }
     }
     
     func hideControlsImmediately() {
@@ -673,20 +720,147 @@ final class WatchPlayerViewModel: ObservableObject {
         }
     }
     
+    func setupKeyMonitor() {
+        guard keyMonitor == nil else { return }
+        keyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
+            guard let self = self, let pm = self.playerManager else { return event }
+            
+            // Check if user is currently typing in search bar or any text input
+            if pm.isSearchFocused || self.isUserTyping(in: event) {
+                if event.keyCode == 53 {
+                    pm.isSearchFocused = false
+                    DispatchQueue.main.async {
+                        NSApp.keyWindow?.makeFirstResponder(nil)
+                    }
+                    return nil
+                }
+                // Khi người dùng đang nhập văn bản, vô hiệu hóa toàn bộ phím tắt video
+                return event
+            }
+            
+            guard pm.currentVideo != nil else { return event }
+            
+            switch event.keyCode {
+            case 49, 40: // Space (49) or K (40): Toggle Play / Pause
+                pm.togglePlayPause()
+                Task { @MainActor in
+                    self.wakeControls()
+                    self.flashFeedback(
+                        icon: pm.isPlaying ? "play.fill" : "pause.fill",
+                        text: pm.isPlaying ? "Đang phát" : "Tạm dừng"
+                    )
+                }
+                return nil
+                
+            case 123, 38: // Left Arrow (123) or J (38): Seek -5s
+                pm.seekRelative(-5)
+                Task { @MainActor in
+                    self.wakeControls()
+                    self.flashFeedback(icon: "gobackward.5", text: "-5 giây")
+                }
+                return nil
+                
+            case 124, 37: // Right Arrow (124) or L (37): Seek +5s
+                pm.seekRelative(5)
+                Task { @MainActor in
+                    self.wakeControls()
+                    self.flashFeedback(icon: "goforward.5", text: "+5 giây")
+                }
+                return nil
+                
+            case 126: // Up Arrow (126): Volume Up
+                let newVol = min(1.0, pm.volume + 0.05)
+                pm.volume = newVol
+                pm.isMuted = false
+                Task { @MainActor in
+                    self.wakeControls()
+                    self.flashFeedback(icon: "speaker.wave.3.fill", text: "\(Int(newVol * 100))%")
+                }
+                return nil
+                
+            case 125: // Down Arrow (125): Volume Down
+                let newVol = max(0.0, pm.volume - 0.05)
+                pm.volume = newVol
+                let iconName = newVol <= 0.01 ? "speaker.slash.fill" : (newVol < 0.5 ? "speaker.wave.1.fill" : "speaker.wave.2.fill")
+                Task { @MainActor in
+                    self.wakeControls()
+                    self.flashFeedback(icon: iconName, text: "\(Int(newVol * 100))%")
+                }
+                return nil
+                
+            case 46: // M: Mute
+                pm.isMuted.toggle()
+                Task { @MainActor in
+                    self.wakeControls()
+                    self.flashFeedback(
+                        icon: pm.isMuted ? "speaker.slash.fill" : "speaker.wave.2.fill",
+                        text: pm.isMuted ? "Đã tắt tiếng" : "Bật âm thanh"
+                    )
+                }
+                return nil
+                
+            case 3: // F: Fullscreen
+                pm.toggleFullscreen()
+                return nil
+                
+            case 35: // P: Picture-in-Picture
+                pm.togglePictureInPicture()
+                return nil
+                
+            case 29: pm.seek(to: 0); return nil // 0
+            case 18: pm.seek(to: pm.duration * 0.1); return nil // 1
+            case 19: pm.seek(to: pm.duration * 0.2); return nil // 2
+            case 20: pm.seek(to: pm.duration * 0.3); return nil // 3
+            case 21: pm.seek(to: pm.duration * 0.4); return nil // 4
+            case 23: pm.seek(to: pm.duration * 0.5); return nil // 5
+            case 22: pm.seek(to: pm.duration * 0.6); return nil // 6
+            case 26: pm.seek(to: pm.duration * 0.7); return nil // 7
+            case 28: pm.seek(to: pm.duration * 0.8); return nil // 8
+            case 25: pm.seek(to: pm.duration * 0.9); return nil // 9
+                
+            default:
+                return event
+            }
+        }
+    }
+    
     func cleanup() {
         if let mm = mouseMonitor {
             NSEvent.removeMonitor(mm)
             mouseMonitor = nil
         }
+        if let km = keyMonitor {
+            NSEvent.removeMonitor(km)
+            keyMonitor = nil
+        }
         hideTimer?.invalidate()
         hideTimer = nil
+        hudTimer?.invalidate()
+        hudTimer = nil
+    }
+    
+    private func isUserTyping(in event: NSEvent) -> Bool {
+        guard let window = event.window ?? NSApp.keyWindow else { return false }
+        guard let responder = window.firstResponder else { return false }
+        if responder is NSTextView || responder is NSTextField || responder is NSText {
+            return true
+        }
+        let name = String(describing: type(of: responder))
+        if name.contains("Text") || name.contains("Field") || name.contains("Editor") {
+            return true
+        }
+        return false
     }
     
     deinit {
         if let mm = mouseMonitor {
             NSEvent.removeMonitor(mm)
         }
+        if let km = keyMonitor {
+            NSEvent.removeMonitor(km)
+        }
         hideTimer?.invalidate()
+        hudTimer?.invalidate()
     }
 }
 
@@ -697,7 +871,14 @@ struct WatchPlayerContainerView: View {
     @StateObject private var vm = WatchPlayerViewModel()
     
     var body: some View {
-        let isVertical = playerManager.isCurrentVideoVertical || displayVideo.isShort
+        let isVertical = playerManager.isCurrentVideoVertical 
+            || displayVideo.isShort
+            || displayVideo.isExplicitShort == true
+            || displayVideo.durationFormatted == "Shorts"
+            || displayVideo.title.lowercased().contains("#short")
+            || displayVideo.title.lowercased().contains("tiktok")
+            || displayVideo.title.lowercased().contains("reels")
+            || (playerManager.currentVideoAspectRatio > 0 && playerManager.currentVideoAspectRatio < 0.95)
         
         Group {
             if playerManager.isPictureInPictureActive {
@@ -708,10 +889,17 @@ struct WatchPlayerContainerView: View {
                 horizontalPlayer
             }
         }
+        .frame(maxWidth: .infinity)
         .onHover { isHovered in
             vm.isMouseOverPlayer = isHovered
             if isHovered {
                 vm.wakeControls()
+                if PlayerManager.shared.isSearchFocused {
+                    PlayerManager.shared.isSearchFocused = false
+                    DispatchQueue.main.async {
+                        NSApp.keyWindow?.makeFirstResponder(nil)
+                    }
+                }
             } else {
                 vm.hideControlsImmediately()
             }
@@ -719,6 +907,7 @@ struct WatchPlayerContainerView: View {
         .onAppear {
             vm.playerManager = playerManager
             vm.setupMouseMonitor()
+            vm.setupKeyMonitor()
             vm.scheduleAutoHide(delay: 2.0)
         }
         .onDisappear {
@@ -735,32 +924,49 @@ struct WatchPlayerContainerView: View {
                 vm.hideTimer = nil
             }
         }
-        .onChange(of: playerManager.currentTime) { _ in
-            if playerManager.isPlaying && vm.isControlsVisible && vm.hideTimer == nil {
-                vm.scheduleAutoHide(delay: 1.8)
-            }
-        }
     }
     
-    // MARK: - Picture-in-Picture Placeholder
+    // MARK: - Picture-in-Picture Placeholder (Exact 1:1 Match with Native Player Frame & Rounded Corners)
     private var pipPlaceholder: some View {
-        ZStack {
-            Color.black
+        let isVertical = playerManager.isCurrentVideoVertical || displayVideo.isShort
+        
+        let content = ZStack {
+            // 1. Dark Base
+            Color(red: 16/255, green: 16/255, blue: 18/255)
             
-            AsyncImage(url: URL(string: displayVideo.thumbnail)) { phase in
-                if let img = phase.image {
-                    img.resizable().scaledToFill()
-                } else {
-                    Color.black
+            // 2. Hardware-Constrained Blurred Thumbnail (Never overflows or distorts column layout)
+            GeometryReader { geo in
+                AsyncImage(url: URL(string: displayVideo.thumbnail)) { phase in
+                    if let img = phase.image {
+                        img.resizable()
+                            .scaledToFill()
+                            .frame(width: geo.size.width, height: geo.size.height)
+                            .clipped()
+                    }
                 }
+                .blur(radius: 28)
+                .opacity(0.32)
             }
-            .blur(radius: 20)
-            .opacity(0.35)
+            .allowsHitTesting(false)
             
-            VStack(spacing: 14) {
-                Image(systemName: "pip")
-                    .font(.system(size: 38))
-                    .foregroundColor(.white.opacity(0.9))
+            // 3. Cinematic Vignette
+            LinearGradient(
+                colors: [Color.black.opacity(0.4), Color.black.opacity(0.8)],
+                startPoint: .top,
+                endPoint: .bottom
+            )
+            .allowsHitTesting(false)
+            
+            // 4. Centered PiP Status & Action
+            VStack(spacing: 12) {
+                ZStack {
+                    Circle()
+                        .fill(Color.white.opacity(0.12))
+                        .frame(width: 60, height: 60)
+                    Image(systemName: "pip")
+                        .font(.system(size: 26, weight: .semibold))
+                        .foregroundColor(.white)
+                }
                 
                 Text("Video đang phát ở chế độ Picture-in-Picture")
                     .font(.system(size: 15, weight: .semibold))
@@ -768,7 +974,7 @@ struct WatchPlayerContainerView: View {
                 
                 Text("Cửa sổ nổi đang hiển thị trên màn hình của bạn")
                     .font(.system(size: 12.5))
-                    .foregroundColor(.white.opacity(0.65))
+                    .foregroundColor(.white.opacity(0.70))
                 
                 Button(action: {
                     playerManager.togglePictureInPicture()
@@ -784,136 +990,139 @@ struct WatchPlayerContainerView: View {
                     .padding(.vertical, 8.5)
                     .background(Color.red)
                     .clipShape(Capsule())
+                    .shadow(color: Color.red.opacity(0.4), radius: 8, y: 3)
                 }
                 .buttonStyle(.plain)
+                .padding(.top, 4)
+            }
+            .padding(20)
+        }
+        
+        return Group {
+            if isVertical {
+                content
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 580)
+            } else {
+                content
+                    .aspectRatio(16/9, contentMode: .fit)
             }
         }
-        .aspectRatio(playerManager.currentVideoAspectRatio, contentMode: .fit)
-        .frame(maxHeight: 580)
-        .cornerRadius(12)
+        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
         .overlay(
-            RoundedRectangle(cornerRadius: 12)
-                .strokeBorder(Color.white.opacity(0.15), lineWidth: 1)
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .stroke(Color.white.opacity(0.12), lineWidth: 1)
         )
+        .shadow(color: .black.opacity(0.35), radius: 16, y: 6)
     }
     
-    // MARK: - Vertical Player with Ambient Glow
+    // MARK: - Vertical Player (Strict 9:16 Centered Card, No Horizontal Zoom Fit)
     private var verticalPlayer: some View {
-        ZStack(alignment: .center) {
-            // Ambient Atmosphere
-            ZStack {
-                AsyncImage(url: URL(string: displayVideo.thumbnail)) { phase in
-                    if let img = phase.image {
-                        img.resizable().scaledToFill()
-                    } else {
-                        Color.black
-                    }
-                }
-                .blur(radius: 54)
-                .opacity(0.38)
-                .scaleEffect(1.2)
-                
-                LinearGradient(
-                    colors: [Color.black.opacity(0.5), Color.black.opacity(0.8)],
-                    startPoint: .top,
-                    endPoint: .bottom
-                )
-            }
-            .frame(maxWidth: .infinity, maxHeight: 580)
-            .clipped()
-            .cornerRadius(14)
+        let verticalRatio: CGFloat = 9.0 / 16.0
+        let playerHeight: CGFloat = 580
+        let playerWidth: CGFloat = playerHeight * verticalRatio
+        
+        return HStack {
+            Spacer(minLength: 0)
             
-            // Centered Video Frame
             ZStack(alignment: .bottom) {
-                NativePlayerView()
+                // Centered 9:16 Video Player
+                NativePlayerView(cornerRadius: 16)
+                    .frame(width: playerWidth, height: playerHeight)
                 
                 // Click to play/pause, double click for fullscreen
                 Color.black.opacity(0.001)
                     .contentShape(Rectangle())
+                    .frame(width: playerWidth, height: playerHeight)
                     .onTapGesture(count: 2) {
+                        DispatchQueue.main.async {
+                            NSApp.keyWindow?.makeFirstResponder(nil)
+                        }
                         playerManager.toggleFullscreen()
                     }
                     .simultaneousGesture(
                         TapGesture(count: 1).onEnded {
+                            DispatchQueue.main.async {
+                                NSApp.keyWindow?.makeFirstResponder(nil)
+                            }
                             playerManager.togglePlayPause()
                         }
                     )
                 
-                // Center Play/Pause Indicator (Synchronized with Timeline)
+                // Center Play/Pause Indicator
                 centerPlayPauseOverlay
-                
-                // Bottom Controls with YouTube Auto-Hide
-                PlayerControlOverlay()
-                    .opacity(vm.isControlsVisible ? 1.0 : 0.0)
-                    .animation(.easeInOut(duration: 0.18), value: vm.isControlsVisible)
-                    .allowsHitTesting(vm.isControlsVisible)
                 
                 // Autoplay Countdown Overlay
                 if playerManager.autoplayCountdown != nil, let next = playerManager.nextVideo {
                     AutoplayCountdownOverlay(video: next)
                 }
-            }
-            .aspectRatio(playerManager.currentVideoAspectRatio, contentMode: .fit)
-            .frame(maxHeight: 580)
-            .cornerRadius(12)
-            .overlay(
-                RoundedRectangle(cornerRadius: 12)
-                    .strokeBorder(
-                        LinearGradient(
-                            colors: [Color.white.opacity(0.3), Color.white.opacity(0.08)],
-                            startPoint: .top,
-                            endPoint: .bottom
-                        ),
-                        lineWidth: 1
-                    )
-            )
-            .shadow(color: .black.opacity(0.7), radius: 24, y: 8)
-            
-            // Top Corner Badge for Vertical Video
-            VStack {
-                HStack {
-                    HStack(spacing: 5) {
-                        Image(systemName: "rectangle.portrait.fill")
-                            .font(.system(size: 10.5))
-                        Text("Khổ dọc 9:16")
-                            .font(.system(size: 11, weight: .semibold))
+                
+                // Bottom Controls fitted to the 9:16 player frame
+                PlayerControlOverlay()
+                    .frame(width: playerWidth)
+                    .opacity(vm.isControlsVisible ? 1.0 : 0.0)
+                    .animation(.easeInOut(duration: 0.18), value: vm.isControlsVisible)
+                    .allowsHitTesting(vm.isControlsVisible)
+                
+                // Top Corner Badge for Vertical Video
+                VStack {
+                    HStack {
+                        HStack(spacing: 5) {
+                            Image(systemName: "rectangle.portrait.fill")
+                                .font(.system(size: 10.5))
+                            Text("Khổ dọc 9:16")
+                                .font(.system(size: 11, weight: .semibold))
+                        }
+                        .foregroundColor(Color.white.opacity(0.92))
+                        .padding(.horizontal, 9)
+                        .padding(.vertical, 4.5)
+                        .background(Color.black.opacity(0.65))
+                        .clipShape(Capsule())
+                        .overlay(
+                            Capsule().stroke(Color.white.opacity(0.18), lineWidth: 0.8)
+                        )
+                        .padding(12)
+                        
+                        Spacer()
                     }
-                    .foregroundColor(Color.white.opacity(0.92))
-                    .padding(.horizontal, 9)
-                    .padding(.vertical, 4.5)
-                    .background(Color.black.opacity(0.65))
-                    .clipShape(Capsule())
-                    .overlay(
-                        Capsule().stroke(Color.white.opacity(0.18), lineWidth: 0.8)
-                    )
-                    .padding(12)
-                    
                     Spacer()
                 }
-                Spacer()
+                .allowsHitTesting(false)
+                .opacity(vm.isControlsVisible ? 1.0 : 0.0)
+                .animation(.easeInOut(duration: 0.18), value: vm.isControlsVisible)
             }
-            .opacity(vm.isControlsVisible ? 1.0 : 0.0)
-            .animation(.easeInOut(duration: 0.18), value: vm.isControlsVisible)
+            .frame(width: playerWidth, height: playerHeight)
+            .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                    .stroke(Color.white.opacity(0.14), lineWidth: 1)
+            )
+            .shadow(color: .black.opacity(0.45), radius: 18, y: 6)
+            
+            Spacer(minLength: 0)
         }
         .frame(maxWidth: .infinity)
-        .frame(height: 580)
-        .cornerRadius(14)
-        .overlay(RoundedRectangle(cornerRadius: 14).stroke(Color.white.opacity(0.08), lineWidth: 1))
     }
     
     // MARK: - Horizontal 16:9 Player
     private var horizontalPlayer: some View {
         ZStack(alignment: .bottom) {
-            NativePlayerView()
+            NativePlayerView(cornerRadius: 16)
             
             // Click to play/pause, double click for fullscreen
             Color.black.opacity(0.001)
                 .contentShape(Rectangle())
                 .onTapGesture(count: 2) {
+                    DispatchQueue.main.async {
+                        NSApp.keyWindow?.makeFirstResponder(nil)
+                    }
                     playerManager.toggleFullscreen()
                 }
                 .simultaneousGesture(
                     TapGesture(count: 1).onEnded {
+                        DispatchQueue.main.async {
+                            NSApp.keyWindow?.makeFirstResponder(nil)
+                        }
                         playerManager.togglePlayPause()
                     }
                 )
@@ -934,14 +1143,41 @@ struct WatchPlayerContainerView: View {
             if playerManager.autoplayCountdown != nil, let next = playerManager.nextVideo {
                 AutoplayCountdownOverlay(video: next)
             }
+            
+            // HUD Feedback Badge (Space / Arrow Seek / Volume)
+            if vm.isHudVisible {
+                VStack(spacing: 6) {
+                    Image(systemName: vm.hudIcon)
+                        .font(.system(size: 28, weight: .bold))
+                        .foregroundColor(.white)
+                    if !vm.hudText.isEmpty {
+                        Text(vm.hudText)
+                            .font(.system(size: 13, weight: .semibold))
+                            .foregroundColor(.white)
+                    }
+                }
+                .padding(.horizontal, 20)
+                .padding(.vertical, 14)
+                .background(
+                    RoundedRectangle(cornerRadius: 14, style: .continuous)
+                        .fill(Color.black.opacity(0.80))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                                .strokeBorder(Color.white.opacity(0.24), lineWidth: 1)
+                        )
+                )
+                .transition(.scale(scale: 0.85).combined(with: .opacity))
+                .allowsHitTesting(false)
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
+            }
         }
         .aspectRatio(16/9, contentMode: .fit)
-        .cornerRadius(12)
+        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
         .overlay(
-            RoundedRectangle(cornerRadius: 12)
-                .stroke(Color.white.opacity(0.08), lineWidth: 1)
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .stroke(Color.white.opacity(0.12), lineWidth: 1)
         )
-        .shadow(color: .black.opacity(0.4), radius: 16, y: 6)
+        .shadow(color: .black.opacity(0.35), radius: 16, y: 6)
     }
     
     // MARK: - Top Channel Header Overlay (Clean Apple-Style Capsule)
