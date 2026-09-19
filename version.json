@@ -1,9 +1,9 @@
 {
-  "version": "2.0.79",
-  "build": 80,
-  "title": "AuraTube v2.0.79 (Nâng cấp bảng phím tắt đầy đủ & Layout Keycap 2 cột Liquid Glass)",
-  "releaseNotes": "• Bổ sung đầy đủ toàn bộ phím tắt điều khiển: phím mũi tên ← / → tua video (10s), ↑ / ↓ tăng giảm âm lượng, M bật/tắt tiếng (Mute), Space / K phát/tạm dừng, P bật/tắt PiP, F xem toàn màn hình, ⌘K tìm kiếm, ⌘, cài đặt, và 0-9 nhảy nhanh % video.\n• Nâng cấp giao diện phím tắt: Thiết kế layout 2 cột khoa học với các nút bấm Keycap chuẩn xúc giác macOS vật lý theo Apple Liquid Glass Design System, kích thước rộng rãi và cân đối hoàn hảo.",
-  "downloadUrl": "https://github.com/tung68nt/AuraTube/releases/download/v2.0.79/AuraTube-v2.0.79.dmg",
+  "version": "2.0.80",
+  "build": 81,
+  "title": "AuraTube v2.0.80 (Sửa lỗi chọn kích thước PiP mặc định trong Cài đặt)",
+  "releaseNotes": "• Sửa lỗi không chọn được các mức kích thước cửa sổ nổi (380p / 540p / 720p) trong Cài đặt: Lưu cấu hình defaultWidth vào UserDefaults và tự động cập nhật ngay lập tức dù PiP đang mở hay đóng.\n• Mở rộng vùng bấm cảm ứng (contentShape) cho toàn bộ từng thanh phân đoạn kích thước.",
+  "downloadUrl": "https://github.com/tung68nt/AuraTube/releases/download/v2.0.80/AuraTube-v2.0.80.dmg",
   "publishedAt": "2026-09-19",
   "minOSVersion": "13.0",
   "fileSize": "5.4 MB"

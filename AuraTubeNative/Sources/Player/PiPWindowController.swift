@@ -85,6 +85,14 @@ public final class PiPOverlayState: ObservableObject {
 public final class PiPWindowController: NSObject, ObservableObject, NSWindowDelegate {
     public static let shared = PiPWindowController()
     
+    private static let pipWidthKey = "auratube_default_pip_width"
+    
+    @Published public var defaultWidth: CGFloat {
+        didSet {
+            UserDefaults.standard.set(Double(defaultWidth), forKey: Self.pipWidthKey)
+        }
+    }
+    
     public private(set) var pipWindow: PiPPanel?
     public func isPipWindow(_ window: NSWindow?) -> Bool {
         guard let w = window else { return false }
@@ -93,6 +101,8 @@ public final class PiPWindowController: NSObject, ObservableObject, NSWindowDele
     private var eventMonitor: Any?
     
     public override init() {
+        let saved = UserDefaults.standard.double(forKey: Self.pipWidthKey)
+        self.defaultWidth = saved > 0 ? CGFloat(saved) : 540
         super.init()
     }
     
@@ -102,8 +112,8 @@ public final class PiPWindowController: NSObject, ObservableObject, NSWindowDele
             return
         }
         
-        let initialWidth: CGFloat = 460
-        let initialHeight: CGFloat = 460 * (9.0 / 16.0)
+        let initialWidth: CGFloat = defaultWidth
+        let initialHeight: CGFloat = defaultWidth * (9.0 / 16.0)
         
         // Position at bottom-right corner of main screen
         let screenFrame = NSScreen.main?.visibleFrame ?? NSRect(x: 0, y: 0, width: 1440, height: 900)
@@ -189,20 +199,27 @@ public final class PiPWindowController: NSObject, ObservableObject, NSWindowDele
     }
     
     public var currentWidth: CGFloat {
-        pipWindow?.frame.width ?? 540
+        pipWindow?.frame.width ?? defaultWidth
     }
     
     public func toggleSnapSize() {
-        guard let panel = pipWindow else { return }
-        let currentWidth = panel.frame.width
+        let currentW = currentWidth
         let targetWidth: CGFloat
-        if currentWidth < 420 {
+        if currentW < 420 {
             targetWidth = 540
-        } else if currentWidth < 600 {
+        } else if currentW < 600 {
             targetWidth = 720
         } else {
             targetWidth = 380
         }
+        setPipSize(width: targetWidth)
+    }
+    
+    public func setPipSize(width targetWidth: CGFloat) {
+        defaultWidth = targetWidth
+        objectWillChange.send()
+        
+        guard let panel = pipWindow else { return }
         let targetHeight = targetWidth * (9.0 / 16.0)
         let currentFrame = panel.frame
         let newX = currentFrame.maxX - targetWidth
@@ -214,18 +231,11 @@ public final class PiPWindowController: NSObject, ObservableObject, NSWindowDele
         PiPOverlayState.shared.triggerHUD(icon: "aspectratio", text: label)
     }
     
-    public func setPipSize(width targetWidth: CGFloat) {
-        guard let panel = pipWindow else { return }
-        objectWillChange.send()
-        let targetHeight = targetWidth * (9.0 / 16.0)
-        let currentFrame = panel.frame
-        let newX = currentFrame.maxX - targetWidth
-        let newY = currentFrame.minY
-        let newFrame = NSRect(x: newX, y: newY, width: targetWidth, height: targetHeight)
-        panel.setFrame(newFrame, display: true, animate: true)
-        
-        let label = targetWidth >= 700 ? "Lớn (720p)" : (targetWidth >= 500 ? "Trung bình (540p)" : "Nhỏ (380p)")
-        PiPOverlayState.shared.triggerHUD(icon: "aspectratio", text: label)
+    public func windowDidResize(_ notification: Notification) {
+        if let panel = pipWindow {
+            defaultWidth = panel.frame.width
+            objectWillChange.send()
+        }
     }
     
     @discardableResult

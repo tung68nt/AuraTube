@@ -1226,6 +1226,7 @@ public struct LiquidGlassSegmentedSizePicker: View {
                             .opacity(isSelected ? 0.95 : 0.7)
                     }
                     .frame(maxWidth: .infinity)
+                    .contentShape(Rectangle())
                     .padding(.vertical, 6)
                     .foregroundColor(
                         isSelected ?
