@@ -20,14 +20,22 @@ public final class MenuBarController: NSObject, NSPopoverDelegate {
         // 1. Create NSStatusItem in system status bar
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
         if let button = statusItem?.button {
-            if let img = NSImage(systemSymbolName: "play.rectangle", accessibilityDescription: "AuraTube") {
-                let config = NSImage.SymbolConfiguration(pointSize: 13.5, weight: .medium)
-                let configured = img.withSymbolConfiguration(config) ?? img
-                configured.isTemplate = true
-                button.image = configured
+            let svg = """
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 3.4 24 17.2" width="21.5" height="15.5">
+              <path fill="#ffffff" fill-rule="evenodd" d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z"/>
+            </svg>
+            """
+            if let data = svg.data(using: .utf8), let img = NSImage(data: data) {
+                img.size = NSSize(width: 21.5, height: 15.5)
+                img.isTemplate = true
+                button.image = img
+            } else if let img = NSImage(systemSymbolName: "play.rectangle.fill", accessibilityDescription: "AuraTube") {
+                img.isTemplate = true
+                button.image = img
             } else {
                 button.title = "▶"
             }
+            button.appearance = nil
             button.target = self
             button.action = #selector(togglePopover)
         }
@@ -82,6 +90,7 @@ public final class MenuBarController: NSObject, NSPopoverDelegate {
         if let window = popover?.contentViewController?.view.window {
             window.appearance = app
         }
+        statusItem?.button?.appearance = nil
     }
     
     public func updatePopoverSize(isVertical: Bool) {

@@ -1,9 +1,9 @@
 {
-  "version": "2.0.77",
-  "build": 78,
-  "title": "AuraTube v2.0.77 (Tinh chỉnh Icon Menu Bar thanh mảnh chuẩn Apple HIG)",
-  "releaseNotes": "• Sửa lỗi icon Menu Bar bị khối đen đặc gây cảm giác lộn màu: Thay thế mảng khối SVG đặc bằng SF Symbol 'play.rectangle' nét mảnh cao cấp, chuẩn kích thước và độ dày San Francisco Typography.\n• Tự động thích ứng màu sắc quang học: Nét viền mảnh đen tinh tế trên nền Menu Bar sáng và nét viền trắng sáng trên nền Menu Bar tối, đồng bộ hoàn hảo cùng các icon hệ thống của macOS (Pin, AirDrop, WiFi, Control Center).",
-  "downloadUrl": "https://github.com/tung68nt/AuraTube/releases/download/v2.0.77/AuraTube-v2.0.77.dmg",
+  "version": "2.0.78",
+  "build": 79,
+  "title": "AuraTube v2.0.78 (Khôi phục Icon Menu Bar YouTube & Thích ứng màu Hệ thống)",
+  "releaseNotes": "• Khôi phục lại icon Menu Bar YouTube SVG gốc quen thuộc theo đúng yêu cầu người dùng.\n• Tự động thích ứng màu icon hệ thống macOS: Cố định button.appearance = nil để icon hoàn toàn tuân theo thanh trạng thái của macOS (Menu Bar), không bị can thiệp hay tự động đổi màu đen/trắng khi thay đổi Theme trong ứng dụng.",
+  "downloadUrl": "https://github.com/tung68nt/AuraTube/releases/download/v2.0.78/AuraTube-v2.0.78.dmg",
   "publishedAt": "2026-09-19",
   "minOSVersion": "13.0",
   "fileSize": "5.4 MB"
