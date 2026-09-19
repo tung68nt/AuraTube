@@ -437,7 +437,7 @@ public struct LiquidGlassButton<Content: View>: View {
     }
 }
 
-// MARK: - 5. Interactive Liquid Glass Capsule Button
+// MARK: - 5. Interactive Liquid Glass Capsule Button (Chips, Pills & Tags)
 public struct LiquidGlassCapsuleButton<Content: View>: View {
     @Environment(\.colorScheme) private var colorScheme
     public let action: () -> Void
@@ -445,7 +445,9 @@ public struct LiquidGlassCapsuleButton<Content: View>: View {
     public var isProminent: Bool = false
     @ViewBuilder public let content: () -> Content
     
-    @StateObject private var hoverVm = LiquidHoverViewModel()
+    @State private var isHovered: Bool = false
+    @State private var isPressed: Bool = false
+    @State private var mouseLocation: CGPoint = .zero
     
     public init(
         action: @escaping () -> Void,
@@ -465,68 +467,101 @@ public struct LiquidGlassCapsuleButton<Content: View>: View {
         Button(action: action) {
             content()
                 .background(
-                    ZStack {
-                        if isSelected {
-                            if isDark {
+                    GeometryReader { geo in
+                        ZStack {
+                            if isSelected {
+                                if isDark {
+                                    Capsule()
+                                        .fill(
+                                            LinearGradient(
+                                                colors: [Color(white: 0.98), Color(white: 0.90)],
+                                                startPoint: .top,
+                                                endPoint: .bottom
+                                            )
+                                        )
+                                } else {
+                                    Capsule()
+                                        .fill(
+                                            LinearGradient(
+                                                colors: [Color(white: 0.18), Color(white: 0.08)],
+                                                startPoint: .top,
+                                                endPoint: .bottom
+                                            )
+                                        )
+                                }
+                            } else if isProminent {
                                 Capsule()
                                     .fill(
                                         LinearGradient(
-                                            colors: [Color(white: hoverVm.isHovered ? 0.98 : 0.94), Color(white: hoverVm.isHovered ? 0.90 : 0.86)],
-                                            startPoint: .top,
-                                            endPoint: .bottom
+                                            colors: [
+                                                Color(red: 0.08, green: 0.48, blue: 0.98).opacity(isHovered ? 0.95 : 0.85),
+                                                Color(red: 0.42, green: 0.18, blue: 0.92).opacity(isHovered ? 0.95 : 0.85)
+                                            ],
+                                            startPoint: .topLeading,
+                                            endPoint: .bottomTrailing
                                         )
                                     )
                             } else {
-                                Capsule()
-                                    .fill(
-                                        LinearGradient(
-                                            colors: [Color(white: hoverVm.isHovered ? 0.22 : 0.12), Color(white: hoverVm.isHovered ? 0.15 : 0.08)],
-                                            startPoint: .top,
-                                            endPoint: .bottom
+                                // Authentic Liquid Glass Material Base
+                                Capsule().fill(.ultraThinMaterial)
+                                
+                                if isDark {
+                                    Capsule()
+                                        .fill(
+                                            LinearGradient(
+                                                colors: [
+                                                    Color.white.opacity(isHovered ? 0.18 : 0.10),
+                                                    Color.white.opacity(isHovered ? 0.08 : 0.03)
+                                                ],
+                                                startPoint: .top,
+                                                endPoint: .bottom
+                                            )
                                         )
+                                } else {
+                                    Capsule()
+                                        .fill(
+                                            LinearGradient(
+                                                colors: [
+                                                    Color.white.opacity(isHovered ? 0.85 : 0.65),
+                                                    Color.white.opacity(isHovered ? 0.60 : 0.40)
+                                                ],
+                                                startPoint: .top,
+                                                endPoint: .bottom
+                                            )
+                                        )
+                                }
+                                
+                                // Dynamic Mouse-Tracking Specular Refraction
+                                if isHovered {
+                                    RadialGradient(
+                                        colors: [
+                                            (isDark ? Color.white.opacity(0.32) : Color.white.opacity(0.85)),
+                                            Color.clear
+                                        ],
+                                        center: UnitPoint(
+                                            x: max(0, min(1, mouseLocation.x / max(geo.size.width, 1))),
+                                            y: max(0, min(1, mouseLocation.y / max(geo.size.height, 1)))
+                                        ),
+                                        startRadius: 0,
+                                        endRadius: max(geo.size.width, geo.size.height) * 0.65
                                     )
+                                    .clipShape(Capsule())
+                                }
                             }
-                        } else if isProminent {
+                            
+                            // Inner Top Crescent Highlight (Specular Bevel)
                             Capsule()
-                                .fill(
+                                .strokeBorder(
                                     LinearGradient(
                                         colors: [
-                                            Color(red: 0.08, green: 0.48, blue: 0.98).opacity(hoverVm.isHovered ? 0.95 : 0.85),
-                                            Color(red: 0.42, green: 0.18, blue: 0.92).opacity(hoverVm.isHovered ? 0.95 : 0.85)
+                                            Color.white.opacity(isSelected ? 0.5 : (isDark ? (isHovered ? 0.55 : 0.30) : (isHovered ? 0.95 : 0.80))),
+                                            Color.white.opacity(0)
                                         ],
-                                        startPoint: .topLeading,
-                                        endPoint: .bottomTrailing
-                                    )
+                                        startPoint: .top,
+                                        endPoint: .center
+                                    ),
+                                    lineWidth: 1.0
                                 )
-                        } else {
-                            if isDark {
-                                Capsule()
-                                    .fill(Color(white: hoverVm.isHovered ? 0.26 : 0.18))
-                                Capsule()
-                                    .fill(
-                                        LinearGradient(
-                                            colors: [
-                                                Color.white.opacity(hoverVm.isHovered ? 0.12 : 0.06),
-                                                Color.clear
-                                            ],
-                                            startPoint: .top,
-                                            endPoint: .center
-                                        )
-                                    )
-                            } else {
-                                Capsule().fill(.ultraThinMaterial)
-                                Capsule()
-                                    .fill(
-                                        LinearGradient(
-                                            colors: [
-                                                Color.white.opacity(hoverVm.isHovered ? 0.72 : 0.52),
-                                                Color.white.opacity(hoverVm.isHovered ? 0.48 : 0.28)
-                                            ],
-                                            startPoint: .top,
-                                            endPoint: .bottom
-                                        )
-                                    )
-                            }
                         }
                     }
                 )
@@ -541,16 +576,16 @@ public struct LiquidGlassCapsuleButton<Content: View>: View {
                                 (isDark ?
                                     LinearGradient(
                                         colors: [
-                                            Color.white.opacity(hoverVm.isHovered ? 0.28 : 0.15),
-                                            Color.white.opacity(hoverVm.isHovered ? 0.10 : 0.05)
+                                            Color.white.opacity(isHovered ? 0.38 : 0.18),
+                                            Color.white.opacity(isHovered ? 0.12 : 0.05)
                                         ],
                                         startPoint: .top,
                                         endPoint: .bottom
                                     ) :
                                     LinearGradient(
                                         colors: [
-                                            Color.white.opacity(hoverVm.isHovered ? 0.95 : 0.85),
-                                            Color.black.opacity(hoverVm.isHovered ? 0.12 : 0.07)
+                                            Color.white.opacity(isHovered ? 0.98 : 0.88),
+                                            Color.black.opacity(isHovered ? 0.14 : 0.08)
                                         ],
                                         startPoint: .top,
                                         endPoint: .bottom
@@ -563,37 +598,55 @@ public struct LiquidGlassCapsuleButton<Content: View>: View {
                 .shadow(
                     color: isSelected ?
                         (isDark ? Color.white.opacity(0.18) : Color.black.opacity(0.16)) :
-                        (isProminent ? Color.blue.opacity(0.35) : Color.black.opacity(isDark ? (hoverVm.isHovered ? 0.24 : 0.12) : (hoverVm.isHovered ? 0.08 : 0.04))),
-                    radius: hoverVm.isHovered ? 5 : 2.5,
+                        (isProminent ? Color.blue.opacity(0.35) : Color.black.opacity(isDark ? (isHovered ? 0.30 : 0.12) : (isHovered ? 0.10 : 0.04))),
+                    radius: isHovered ? 5.5 : 2.5,
                     x: 0,
-                    y: hoverVm.isHovered ? 2 : 1
+                    y: isHovered ? 2.5 : 1
                 )
-                .scaleEffect(hoverVm.isHovered ? 1.012 : 1.0)
-                .animation(.spring(response: 0.22, dampingFraction: 0.82), value: hoverVm.isHovered)
+                .scaleEffect(isPressed ? 0.95 : (isHovered ? 1.035 : 1.0))
+                .animation(.spring(response: 0.26, dampingFraction: 0.68), value: isHovered)
+                .animation(.spring(response: 0.16, dampingFraction: 0.75), value: isPressed)
         }
         .buttonStyle(.plain)
-        .onHover { hovering in
-            hoverVm.isHovered = hovering
+        .onContinuousHover { phase in
+            switch phase {
+            case .active(let location):
+                mouseLocation = location
+                isHovered = true
+            case .ended:
+                isHovered = false
+            }
         }
+        ._onButtonGesture { pressing in
+            isPressed = pressing
+        } perform: {}
     }
 }
 
-// MARK: - 6. Interactive Liquid Glass Circle Button
+// MARK: - 6. Interactive Liquid Glass Circle Button (with Mouse-Tracking & Liquid Optics)
 public struct LiquidGlassCircleButton<Content: View>: View {
     @Environment(\.colorScheme) private var colorScheme
     public let action: () -> Void
     public var size: CGFloat = 28
+    public var isActive: Bool = false
+    public var activeTint: Color? = nil
     @ViewBuilder public let content: () -> Content
     
-    @StateObject private var hoverVm = LiquidHoverViewModel()
+    @State private var isHovered: Bool = false
+    @State private var isPressed: Bool = false
+    @State private var mouseLocation: CGPoint = .zero
     
     public init(
         action: @escaping () -> Void,
         size: CGFloat = 28,
+        isActive: Bool = false,
+        activeTint: Color? = nil,
         @ViewBuilder content: @escaping () -> Content
     ) {
         self.action = action
         self.size = size
+        self.isActive = isActive
+        self.activeTint = activeTint
         self.content = content
     }
     
@@ -605,14 +658,29 @@ public struct LiquidGlassCircleButton<Content: View>: View {
                 .frame(width: size, height: size)
                 .background(
                     ZStack {
+                        // 1. Frosted Material (Hardware-accelerated macOS blur)
                         Circle().fill(.ultraThinMaterial)
-                        if isDark {
+                        
+                        // 2. Liquid Glass Ambient Tint
+                        if isActive {
                             Circle()
                                 .fill(
                                     LinearGradient(
                                         colors: [
-                                            Color.white.opacity(hoverVm.isHovered ? 0.12 : 0.05),
-                                            Color.white.opacity(hoverVm.isHovered ? 0.03 : 0.01)
+                                            (activeTint ?? Color(red: 0.2, green: 0.65, blue: 1.0)),
+                                            (activeTint ?? Color(red: 0.2, green: 0.65, blue: 1.0)).opacity(0.82)
+                                        ],
+                                        startPoint: .topLeading,
+                                        endPoint: .bottomTrailing
+                                    )
+                                )
+                        } else if isDark {
+                            Circle()
+                                .fill(
+                                    LinearGradient(
+                                        colors: [
+                                            Color.white.opacity(isHovered ? 0.22 : 0.12),
+                                            Color.white.opacity(isHovered ? 0.08 : 0.03)
                                         ],
                                         startPoint: .top,
                                         endPoint: .bottom
@@ -623,53 +691,100 @@ public struct LiquidGlassCircleButton<Content: View>: View {
                                 .fill(
                                     LinearGradient(
                                         colors: [
-                                            Color.white.opacity(hoverVm.isHovered ? 0.85 : 0.70),
-                                            Color.white.opacity(hoverVm.isHovered ? 0.65 : 0.50)
+                                            Color.white.opacity(isHovered ? 0.96 : 0.88),
+                                            Color.white.opacity(isHovered ? 0.72 : 0.58)
                                         ],
                                         startPoint: .top,
                                         endPoint: .bottom
                                     )
                                 )
                         }
+                        
+                        // 3. Dynamic Mouse-Tracking Specular Refraction Glow
+                        if isHovered && !isPressed {
+                            RadialGradient(
+                                colors: [
+                                    (isDark ? Color.white.opacity(0.36) : Color.white.opacity(0.90)),
+                                    Color.clear
+                                ],
+                                center: UnitPoint(
+                                    x: max(0, min(1, mouseLocation.x / max(size, 1))),
+                                    y: max(0, min(1, mouseLocation.y / max(size, 1)))
+                                ),
+                                startRadius: 0,
+                                endRadius: size * 0.75
+                            )
+                            .clipShape(Circle())
+                        }
+                        
+                        // 4. Inner Top-Edge Specular Reflection (Glass Bevel)
+                        Circle()
+                            .strokeBorder(
+                                LinearGradient(
+                                    colors: [
+                                        Color.white.opacity(isActive ? 0.6 : (isDark ? (isHovered ? 0.65 : 0.38) : (isHovered ? 0.95 : 0.82))),
+                                        Color.white.opacity(0.0)
+                                    ],
+                                    startPoint: .top,
+                                    endPoint: .center
+                                ),
+                                lineWidth: 1.0
+                            )
                     }
                 )
                 .overlay(
+                    // 5. Outer Dual Hairline Refraction Rim
                     Circle()
                         .strokeBorder(
-                            isDark ?
-                                LinearGradient(
-                                    colors: [
-                                        Color.white.opacity(hoverVm.isHovered ? 0.22 : 0.11),
-                                        Color.white.opacity(hoverVm.isHovered ? 0.06 : 0.02)
-                                    ],
-                                    startPoint: .top,
-                                    endPoint: .bottom
-                                ) :
-                                LinearGradient(
-                                    colors: [
-                                        Color.white.opacity(hoverVm.isHovered ? 0.95 : 0.85),
-                                        Color.black.opacity(hoverVm.isHovered ? 0.12 : 0.06)
-                                    ],
-                                    startPoint: .top,
-                                    endPoint: .bottom
+                            isActive ?
+                                LinearGradient(colors: [Color.white.opacity(0.6), Color.white.opacity(0.2)], startPoint: .top, endPoint: .bottom) :
+                                (isDark ?
+                                    LinearGradient(
+                                        colors: [
+                                            Color.white.opacity(isHovered ? 0.45 : 0.22),
+                                            Color.black.opacity(isHovered ? 0.30 : 0.15)
+                                        ],
+                                        startPoint: .topLeading,
+                                        endPoint: .bottomTrailing
+                                    ) :
+                                    LinearGradient(
+                                        colors: [
+                                            Color.white.opacity(isHovered ? 0.98 : 0.85),
+                                            Color.black.opacity(isHovered ? 0.14 : 0.08)
+                                        ],
+                                        startPoint: .topLeading,
+                                        endPoint: .bottomTrailing
+                                    )
                                 ),
-                            lineWidth: 0.75
+                            lineWidth: 0.85
                         )
                 )
                 .clipShape(Circle())
                 .shadow(
-                    color: Color.black.opacity(isDark ? (hoverVm.isHovered ? 0.25 : 0.12) : (hoverVm.isHovered ? 0.08 : 0.04)),
-                    radius: hoverVm.isHovered ? 4 : 2,
+                    color: isActive ?
+                        (activeTint ?? Color.blue).opacity(0.4) :
+                        Color.black.opacity(isDark ? (isHovered ? 0.35 : 0.16) : (isHovered ? 0.12 : 0.05)),
+                    radius: isHovered ? 5.5 : 2.5,
                     x: 0,
-                    y: hoverVm.isHovered ? 1.5 : 1
+                    y: isHovered ? 2.5 : 1
                 )
-                .scaleEffect(hoverVm.isHovered ? 1.04 : 1.0)
-                .animation(.spring(response: 0.2, dampingFraction: 0.82), value: hoverVm.isHovered)
+                .scaleEffect(isPressed ? 0.91 : (isHovered ? 1.08 : 1.0))
+                .animation(.spring(response: 0.26, dampingFraction: 0.65), value: isHovered)
+                .animation(.spring(response: 0.16, dampingFraction: 0.75), value: isPressed)
         }
         .buttonStyle(.plain)
-        .onHover { hovering in
-            hoverVm.isHovered = hovering
+        .onContinuousHover { phase in
+            switch phase {
+            case .active(let location):
+                mouseLocation = location
+                isHovered = true
+            case .ended:
+                isHovered = false
+            }
         }
+        ._onButtonGesture { pressing in
+            isPressed = pressing
+        } perform: {}
     }
 }
 

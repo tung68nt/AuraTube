@@ -1,9 +1,9 @@
 {
-  "version": "2.0.63",
-  "build": 64,
-  "title": "AuraTube v2.0.63 (Khắc Phục Triệt Để Lệch Màu Theme & Chuyển Đổi Mượt Mà 60FPS)",
-  "releaseNotes": "• Khắc phục triệt để lỗi lệch màu Theme: Đồng bộ cưỡng bức NSWindow appearance và SwiftUI context khi chuyển đổi giữa Sáng, Tối và Tự động, chấm dứt hoàn toàn tình trạng thanh bar trắng nhưng nền đen.\n• Chuyển đổi giao diện mượt mà 60FPS: Bọc toàn bộ quá trình đổi màu bằng animation chuyển tiếp mượt mà, triệt tiêu khựng giật và nhấp nháy.\n• Toast thông báo trạng thái trực quan: Hiển thị badge kính mờ báo rõ chế độ đang kích hoạt (☀️ Sáng, 🌙 Tối, hoặc 🌓 Tự động theo hệ thống) cùng hiệu ứng xoay icon sinh động.\n• Hoàn thiện trải nghiệm Shorts thích ứng theme toàn diện và hiển thị chuẩn 9:16 nguyên bản.",
-  "downloadUrl": "https://github.com/tung68nt/AuraTube/releases/download/v2.0.63/AuraTube-v2.0.63.dmg",
+  "version": "2.0.64",
+  "build": 65,
+  "title": "AuraTube v2.0.64 (Nâng Cấp Chuẩn Apple Liquid Glass Toàn Diện)",
+  "releaseNotes": "• Nâng cấp Apple Liquid Glass toàn diện: Chuyển đổi toàn bộ hệ thống nút bấm từ giao diện phẳng sang kính lỏng sinh động theo ngôn ngữ thiết kế Liquid Glass của Apple.\n• Khúc xạ ánh sáng theo con trỏ chuột (Specular Refraction Glow): Tích hợp cảm biến vị trí chuột trên các nút bấm, tạo điểm sáng phản xạ chuyển động mượt mà theo góc nhìn.\n• Viền kính tán sắc quang học (Inner Crescent Bevel): Hiệu ứng vát mép khúc xạ ánh sáng trên nền chất liệu kính mờ siêu mỏng (.ultraThinMaterial) gia tốc phần cứng.\n• Hiệu ứng lò xo đàn hồi (Elastic Spring Physics): Phản hồi cơ học tự nhiên, nảy êm ái khi rê chuột (hover) và nhấn nút (press).\n• Áp dụng đồng bộ: Nút Header (Menu, Back, Forward, PiP, Theme, Downloads, Quét cập nhật, Info), nút Shorts (Mũi tên lên/xuống, Like, Share, Comments) và toàn bộ các thẻ lọc danh mục.",
+  "downloadUrl": "https://github.com/tung68nt/AuraTube/releases/download/v2.0.64/AuraTube-v2.0.64.dmg",
   "publishedAt": "2026-09-19",
   "minOSVersion": "13.0",
   "fileSize": "5.4 MB"

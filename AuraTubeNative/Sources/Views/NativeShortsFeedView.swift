@@ -1673,33 +1673,29 @@ struct ShortFeedRowView: View {
             // Right Side Action Buttons & Navigation Arrows (YouTube Web Layout)
             VStack(spacing: 14) {
                 // Navigation Up Arrow
-                Button(action: onGoPrev) {
+                LiquidGlassCircleButton(
+                    action: onGoPrev,
+                    size: 44
+                ) {
                     Image(systemName: "chevron.up")
                         .font(.system(size: 15, weight: .bold))
-                        .foregroundColor(index > 0 ? ThemeColor.textPrimary(for: colorScheme) : ThemeColor.textTertiary(for: colorScheme))
-                        .frame(width: 44, height: 44)
-                        .background(colorScheme == .dark ? Color(white: 0.18).opacity(0.9) : Color.white.opacity(0.92))
-                        .clipShape(Circle())
-                        .overlay(Circle().stroke(ThemeColor.divider(for: colorScheme), lineWidth: 1))
-                        .shadow(color: Color.black.opacity(colorScheme == .dark ? 0.35 : 0.08), radius: 6, y: 2)
+                        .foregroundColor(index > 0 ? ThemeColor.textPrimary(for: colorScheme) : ThemeColor.textTertiary(for: colorScheme).opacity(0.4))
                 }
-                .buttonStyle(.plain)
                 .disabled(index <= 0)
+                .opacity(index <= 0 ? 0.45 : 1.0)
                 .help("Short trước (Mũi tên lên)")
                 
                 // Navigation Down Arrow
-                Button(action: onGoNext) {
+                LiquidGlassCircleButton(
+                    action: onGoNext,
+                    size: 44
+                ) {
                     Image(systemName: "chevron.down")
                         .font(.system(size: 15, weight: .bold))
-                        .foregroundColor(index < totalCount - 1 ? ThemeColor.textPrimary(for: colorScheme) : ThemeColor.textTertiary(for: colorScheme))
-                        .frame(width: 44, height: 44)
-                        .background(colorScheme == .dark ? Color(white: 0.18).opacity(0.9) : Color.white.opacity(0.92))
-                        .clipShape(Circle())
-                        .overlay(Circle().stroke(ThemeColor.divider(for: colorScheme), lineWidth: 1))
-                        .shadow(color: Color.black.opacity(colorScheme == .dark ? 0.35 : 0.08), radius: 6, y: 2)
+                        .foregroundColor(index < totalCount - 1 ? ThemeColor.textPrimary(for: colorScheme) : ThemeColor.textTertiary(for: colorScheme).opacity(0.4))
                 }
-                .buttonStyle(.plain)
                 .disabled(index >= totalCount - 1)
+                .opacity(index >= totalCount - 1 ? 0.45 : 1.0)
                 .help("Short tiếp theo (Mũi tên xuống)")
                 
                 Spacer()
@@ -1799,24 +1795,23 @@ private struct ActionButton: View {
     @Environment(\.colorScheme) private var colorScheme
     
     var body: some View {
-        Button(action: action) {
-            VStack(spacing: 5) {
+        VStack(spacing: 5) {
+            LiquidGlassCircleButton(
+                action: action,
+                size: 44,
+                isActive: isActive,
+                activeTint: activeColor
+            ) {
                 Image(systemName: icon)
                     .font(.system(size: 17, weight: .semibold))
-                    .foregroundColor(isActive ? activeColor : ThemeColor.textPrimary(for: colorScheme))
-                    .frame(width: 44, height: 44)
-                    .background(colorScheme == .dark ? Color(white: 0.18).opacity(0.9) : Color.white.opacity(0.92))
-                    .clipShape(Circle())
-                    .overlay(Circle().stroke(ThemeColor.divider(for: colorScheme), lineWidth: 1))
-                    .shadow(color: Color.black.opacity(colorScheme == .dark ? 0.35 : 0.08), radius: 6, y: 2)
-                
-                Text(label)
-                    .font(.system(size: 11.5, weight: .medium))
-                    .foregroundColor(ThemeColor.textSecondary(for: colorScheme))
-                    .lineLimit(1)
+                    .foregroundColor(isActive ? (activeColor == .white ? .black : .white) : ThemeColor.textPrimary(for: colorScheme))
             }
+            
+            Text(label)
+                .font(.system(size: 11.5, weight: .medium))
+                .foregroundColor(ThemeColor.textSecondary(for: colorScheme))
+                .lineLimit(1)
         }
-        .buttonStyle(.plain)
     }
 }
 

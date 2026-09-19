@@ -349,19 +349,10 @@ public struct ContentView: View {
                     HStack(spacing: 0) {
                         HStack(spacing: 8) {
                             // Hamburger Toggle Button (Sidebar / Drawer)
-                            Button(action: toggleSidebar) {
-                                ZStack {
-                                    Circle()
-                                        .fill(ThemeColor.buttonBackground(for: colorScheme, isHovered: false))
-                                    Circle()
-                                        .strokeBorder(ThemeColor.buttonBorder(for: colorScheme, isHovered: false), lineWidth: 0.75)
-                                    Image(systemName: "line.3.horizontal")
-                                        .font(.system(size: 12.5, weight: .semibold))
-                                        .foregroundColor(ThemeColor.textPrimary(for: colorScheme).opacity(0.9))
-                                }
-                                .frame(width: 28, height: 28)
+                            LiquidGlassCircleButton(action: toggleSidebar, size: 28) {
+                                Image(systemName: "line.3.horizontal")
+                                    .font(.system(size: 12.5, weight: .semibold))
                             }
-                            .buttonStyle(.plain)
                             .help(sidebarToggleTooltip)
                             
                             // Brand Logo & Title (Clickable to return Home)
@@ -413,51 +404,33 @@ public struct ContentView: View {
                         // Navigation Controls (Back / Forward)
                         HStack(spacing: 6) {
                             let canGoBack = vm.watchingVideo != nil || vm.isSearching
-                            Button(action: {
-                                withAnimation(.easeInOut(duration: 0.18)) {
-                                    if vm.watchingVideo != nil {
-                                        vm.watchingVideo = nil
-                                    } else if vm.isSearching {
-                                        vm.isSearching = false
-                                        vm.searchQuery = ""
+                            LiquidGlassCircleButton(
+                                action: {
+                                    withAnimation(.easeInOut(duration: 0.18)) {
+                                        if vm.watchingVideo != nil {
+                                            vm.watchingVideo = nil
+                                        } else if vm.isSearching {
+                                            vm.isSearching = false
+                                            vm.searchQuery = ""
+                                        }
+                                        vm.isSidebarDrawerOpen = false
                                     }
-                                    vm.isSidebarDrawerOpen = false
-                                }
-                            }) {
+                                },
+                                size: 28
+                            ) {
                                 Image(systemName: "chevron.left")
                                     .font(.system(size: 11, weight: .bold))
-                                    .foregroundColor(canGoBack ? ThemeColor.textPrimary(for: colorScheme) : (colorScheme == .dark ? Color.white.opacity(0.25) : Color.black.opacity(0.22)))
-                                    .frame(width: 28, height: 28)
-                                    .background(
-                                        canGoBack ?
-                                            ThemeColor.buttonBackground(for: colorScheme, isHovered: false) :
-                                            (colorScheme == .dark ? Color.white.opacity(0.04) : Color.black.opacity(0.02))
-                                    )
-                                    .clipShape(Circle())
-                                    .overlay(
-                                        Circle().strokeBorder(
-                                            canGoBack ?
-                                                ThemeColor.buttonBorder(for: colorScheme, isHovered: false) :
-                                                (colorScheme == .dark ? Color.white.opacity(0.08) : Color.black.opacity(0.06)),
-                                            lineWidth: 0.75
-                                        )
-                                    )
                             }
-                            .buttonStyle(.plain)
                             .disabled(!canGoBack)
+                            .opacity(canGoBack ? 1.0 : 0.35)
                             .help(canGoBack ? "Quay lại" : "")
                             
-                            Button(action: {}) {
+                            LiquidGlassCircleButton(action: {}, size: 28) {
                                 Image(systemName: "chevron.right")
                                     .font(.system(size: 11, weight: .bold))
-                                    .foregroundColor(colorScheme == .dark ? Color.white.opacity(0.20) : Color.black.opacity(0.18))
-                                    .frame(width: 28, height: 28)
-                                    .background(colorScheme == .dark ? Color.white.opacity(0.04) : Color.black.opacity(0.02))
-                                    .clipShape(Circle())
-                                    .overlay(Circle().strokeBorder(colorScheme == .dark ? Color.white.opacity(0.08) : Color.black.opacity(0.06), lineWidth: 0.75))
                             }
-                            .buttonStyle(.plain)
                             .disabled(true)
+                            .opacity(0.35)
                         }
                         .padding(.leading, isSidebarVisible ? 12 : 0)
                         
@@ -470,58 +443,49 @@ public struct ContentView: View {
                         
                         // Main Window PiP Quick Button (Visible when watching a video)
                         if vm.watchingVideo != nil {
-                            Button(action: {
-                                playerManager.togglePictureInPicture()
-                            }) {
-                                ZStack {
-                                    Circle()
-                                        .fill(playerManager.isPictureInPictureActive ? Color.red.opacity(0.85) : ThemeColor.buttonBackground(for: colorScheme, isHovered: false))
-                                    Circle()
-                                        .strokeBorder(ThemeColor.buttonBorder(for: colorScheme, isHovered: false), lineWidth: 0.75)
-                                    Image(systemName: playerManager.isPictureInPictureActive ? "pip.exit" : "pip.enter")
-                                        .font(.system(size: 11.5, weight: .medium))
-                                        .foregroundColor(playerManager.isPictureInPictureActive ? .white : ThemeColor.textPrimary(for: colorScheme).opacity(0.85))
-                                }
-                                .frame(width: 28, height: 28)
+                            LiquidGlassCircleButton(
+                                action: {
+                                    playerManager.togglePictureInPicture()
+                                },
+                                size: 28,
+                                isActive: playerManager.isPictureInPictureActive,
+                                activeTint: Color.red.opacity(0.85)
+                            ) {
+                                Image(systemName: playerManager.isPictureInPictureActive ? "pip.exit" : "pip.enter")
+                                    .font(.system(size: 11.5, weight: .medium))
+                                    .foregroundColor(playerManager.isPictureInPictureActive ? .white : ThemeColor.textPrimary(for: colorScheme).opacity(0.85))
                             }
-                            .buttonStyle(.plain)
                             .help(playerManager.isPictureInPictureActive ? "Đưa video về cửa sổ chính (P)" : "Chuyển video sang cửa sổ nổi PiP (P)")
                         }
                         
                         // Theme Toggle Button (Light / Dark / Auto System)
-                        Button(action: {
-                            themeManager.cycleTheme()
-                        }) {
-                            ZStack {
-                                Circle()
-                                    .fill(ThemeColor.buttonBackground(for: colorScheme, isHovered: false))
-                                Circle()
-                                    .strokeBorder(ThemeColor.buttonBorder(for: colorScheme, isHovered: false), lineWidth: 0.75)
-                                Image(systemName: themeManager.currentTheme.iconName)
-                                    .font(.system(size: 12))
-                                    .foregroundColor(ThemeColor.textPrimary(for: colorScheme).opacity(0.85))
-                                    .rotationEffect(.degrees(themeManager.currentTheme == .light ? 0 : (themeManager.currentTheme == .dark ? 360 : 180)))
-                                    .animation(.spring(response: 0.35, dampingFraction: 0.7), value: themeManager.currentTheme)
-                            }
-                            .frame(width: 28, height: 28)
+                        LiquidGlassCircleButton(
+                            action: {
+                                themeManager.cycleTheme()
+                            },
+                            size: 28
+                        ) {
+                            Image(systemName: themeManager.currentTheme.iconName)
+                                .font(.system(size: 12))
+                                .foregroundColor(ThemeColor.textPrimary(for: colorScheme).opacity(0.85))
+                                .rotationEffect(.degrees(themeManager.currentTheme == .light ? 0 : (themeManager.currentTheme == .dark ? 360 : 180)))
+                                .animation(.spring(response: 0.35, dampingFraction: 0.7), value: themeManager.currentTheme)
                         }
-                        .buttonStyle(.plain)
                         .help("Giao diện: \(themeManager.currentTheme.title) (Bấm để đổi)")
                         
                         // Downloads Manager Quick Access Button
-                        Button(action: {
-                            withAnimation(.easeInOut(duration: 0.2)) {
-                                vm.watchingVideo = nil
-                                vm.isSearching = false
-                                vm.selectedSection = .downloads
-                            }
-                        }) {
+                        LiquidGlassCircleButton(
+                            action: {
+                                withAnimation(.easeInOut(duration: 0.2)) {
+                                    vm.watchingVideo = nil
+                                    vm.isSearching = false
+                                    vm.selectedSection = .downloads
+                                }
+                            },
+                            size: 28,
+                            isActive: vm.selectedSection == .downloads
+                        ) {
                             ZStack {
-                                Circle()
-                                    .fill(vm.selectedSection == .downloads ? ThemeColor.buttonBackground(for: colorScheme, isHovered: true) : ThemeColor.buttonBackground(for: colorScheme, isHovered: false))
-                                Circle()
-                                    .strokeBorder(ThemeColor.buttonBorder(for: colorScheme, isHovered: false), lineWidth: 0.75)
-                                
                                 Image(systemName: downloadManager.hasActiveDownloads ? "arrow.down.circle.fill" : "arrow.down.circle")
                                     .font(.system(size: 12.5))
                                     .foregroundColor(downloadManager.hasActiveDownloads ? Color(red: 0.2, green: 0.65, blue: 1.0) : ThemeColor.textPrimary(for: colorScheme).opacity(0.85))
@@ -529,13 +493,11 @@ public struct ContentView: View {
                                 if downloadManager.activeDownloadCount > 0 {
                                     Circle()
                                         .fill(Color(red: 0.2, green: 0.65, blue: 1.0))
-                                        .frame(width: 7, height: 7)
-                                        .offset(x: 7, y: -7)
+                                        .frame(width: 6, height: 6)
+                                        .offset(x: 6, y: -6)
                                 }
                             }
-                            .frame(width: 28, height: 28)
                         }
-                        .buttonStyle(.plain)
                         .help(downloadManager.hasActiveDownloads ? "Đang tải \(downloadManager.activeDownloadCount) tệp..." : "Tệp đã tải về")
                         
                         if updateService.isUpdateAvailable, let update = updateService.latestUpdate {
@@ -555,38 +517,28 @@ public struct ContentView: View {
                             }
                         } else {
                             // Refresh / Update Scan Icon Button
-                            Button(action: {
-                                updateService.scanForUpdates(isUserInitiated: true)
-                            }) {
-                                ZStack {
-                                    Circle()
-                                        .fill(ThemeColor.buttonBackground(for: colorScheme, isHovered: false))
-                                    Circle()
-                                        .strokeBorder(ThemeColor.buttonBorder(for: colorScheme, isHovered: false), lineWidth: 0.75)
-                                    SpinningRefreshIcon(isSpinning: updateService.isScanning, size: 11)
-                                        .foregroundColor(ThemeColor.textPrimary(for: colorScheme).opacity(0.85))
-                                }
-                                .frame(width: 28, height: 28)
+                            LiquidGlassCircleButton(
+                                action: {
+                                    updateService.scanForUpdates(isUserInitiated: true)
+                                },
+                                size: 28
+                            ) {
+                                SpinningRefreshIcon(isSpinning: updateService.isScanning, size: 11)
+                                    .foregroundColor(ThemeColor.textPrimary(for: colorScheme).opacity(0.85))
                             }
-                            .buttonStyle(.plain)
                             .help(updateService.isScanning ? "Đang quét bản mới..." : "Kiểm tra bản cập nhật")
                             
                             // App Info / About Button
-                            Button(action: {
-                                AppDelegate.showStandardAboutPanel()
-                            }) {
-                                ZStack {
-                                    Circle()
-                                        .fill(ThemeColor.buttonBackground(for: colorScheme, isHovered: false))
-                                    Circle()
-                                        .strokeBorder(ThemeColor.buttonBorder(for: colorScheme, isHovered: false), lineWidth: 0.75)
-                                    Image(systemName: "info.circle")
-                                        .font(.system(size: 12.5))
-                                        .foregroundColor(ThemeColor.textPrimary(for: colorScheme).opacity(0.85))
-                                }
-                                .frame(width: 28, height: 28)
+                            LiquidGlassCircleButton(
+                                action: {
+                                    AppDelegate.showStandardAboutPanel()
+                                },
+                                size: 28
+                            ) {
+                                Image(systemName: "info.circle")
+                                    .font(.system(size: 12.5))
+                                    .foregroundColor(ThemeColor.textPrimary(for: colorScheme).opacity(0.85))
                             }
-                            .buttonStyle(.plain)
                             .help("Thông tin AuraTube")
                         }
                     }
