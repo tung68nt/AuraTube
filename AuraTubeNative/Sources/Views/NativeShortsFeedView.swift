@@ -433,6 +433,7 @@ public struct NativeShortsFeedView: View {
     @Binding var selectedShort: Video?
     var onSelectVideo: (Video) -> Void
     
+    @Environment(\.colorScheme) private var colorScheme
     @StateObject private var vm = NativeShortsViewModel()
     @ObservedObject private var subManager = ChannelSubscriptionManager.shared
     @ObservedObject private var playerManager = PlayerManager.shared
@@ -453,7 +454,7 @@ public struct NativeShortsFeedView: View {
             let commentsDrawerWidth: CGFloat = min(390, max(300, containerWidth * 0.35))
             
             ZStack {
-                Color(white: 0.07).ignoresSafeArea()
+                Color(nsColor: ThemeColor.windowBackground(for: colorScheme)).ignoresSafeArea()
                 
                 if vm.isLoading && vm.shorts.isEmpty {
                     VStack(spacing: 14) {
@@ -461,16 +462,16 @@ public struct NativeShortsFeedView: View {
                             .controlSize(.large)
                         Text("Đang tải YouTube Shorts...")
                             .font(.system(size: 14, weight: .medium))
-                            .foregroundColor(Color(white: 0.65))
+                            .foregroundColor(ThemeColor.textSecondary(for: colorScheme))
                     }
                 } else if vm.shorts.isEmpty {
                     VStack(spacing: 12) {
                         Image(systemName: "play.square.stack")
                             .font(.system(size: 40))
-                            .foregroundColor(Color(white: 0.4))
+                            .foregroundColor(ThemeColor.textTertiary(for: colorScheme))
                         Text("Không tìm thấy Shorts nào")
                             .font(.system(size: 15, weight: .medium))
-                            .foregroundColor(Color(white: 0.7))
+                            .foregroundColor(ThemeColor.textPrimary(for: colorScheme))
                         Button("Thử lại") {
                             Task { await vm.loadInitialShorts() }
                         }
@@ -592,13 +593,14 @@ public struct NativeShortsFeedView: View {
                                         .padding(.vertical, 6)
                                         .background(
                                             Capsule()
-                                                .fill(Color(white: 0.16).opacity(0.85))
+                                                .fill(colorScheme == .dark ? Color(white: 0.16).opacity(0.85) : Color.white.opacity(0.92))
                                                 .overlay(
                                                     Capsule()
-                                                        .strokeBorder(Color.white.opacity(0.18), lineWidth: 0.6)
+                                                        .strokeBorder(colorScheme == .dark ? Color.white.opacity(0.18) : Color.black.opacity(0.12), lineWidth: 0.8)
                                                 )
                                         )
-                                        .foregroundColor(.white)
+                                        .foregroundColor(ThemeColor.textPrimary(for: colorScheme))
+                                        .shadow(color: Color.black.opacity(colorScheme == .dark ? 0.35 : 0.08), radius: 6, y: 2)
                                     }
                                     .buttonStyle(.plain)
                                     .help("Tải danh sách Shorts gợi ý mới ngẫu nhiên (Phím tắt: R)")
@@ -610,22 +612,22 @@ public struct NativeShortsFeedView: View {
                                         HStack(spacing: 5) {
                                             Image(systemName: vm.isAutoScrollEnabled ? "arrow.triangle.2.circlepath.circle.fill" : "arrow.triangle.2.circlepath")
                                                 .font(.system(size: 12, weight: .bold))
-                                                .foregroundColor(vm.isAutoScrollEnabled ? .green : Color.white.opacity(0.8))
+                                                .foregroundColor(vm.isAutoScrollEnabled ? .green : (colorScheme == .dark ? Color.white.opacity(0.8) : Color(red: 96/255, green: 96/255, blue: 96/255)))
                                             Text(vm.isAutoScrollEnabled ? "Tự cuộn: BẬT" : "Tự cuộn")
                                                 .font(.system(size: 11.5, weight: vm.isAutoScrollEnabled ? .bold : .medium))
-                                                .foregroundColor(vm.isAutoScrollEnabled ? .white : Color.white.opacity(0.85))
+                                                .foregroundColor(vm.isAutoScrollEnabled ? (colorScheme == .dark ? .white : .green) : ThemeColor.textPrimary(for: colorScheme))
                                         }
                                         .padding(.horizontal, 12)
                                         .padding(.vertical, 6)
                                         .background(
                                             Capsule()
-                                                .fill(vm.isAutoScrollEnabled ? Color.green.opacity(0.28) : Color(white: 0.14).opacity(0.8))
+                                                .fill(vm.isAutoScrollEnabled ? Color.green.opacity(colorScheme == .dark ? 0.28 : 0.18) : (colorScheme == .dark ? Color(white: 0.14).opacity(0.8) : Color.white.opacity(0.92)))
                                         )
                                         .overlay(
                                             Capsule()
-                                                .strokeBorder(vm.isAutoScrollEnabled ? Color.green.opacity(0.7) : Color.white.opacity(0.18), lineWidth: 0.6)
+                                                .strokeBorder(vm.isAutoScrollEnabled ? Color.green.opacity(0.7) : (colorScheme == .dark ? Color.white.opacity(0.18) : Color.black.opacity(0.12)), lineWidth: 0.8)
                                         )
-                                        .shadow(color: Color.black.opacity(0.35), radius: 6, y: 2)
+                                        .shadow(color: Color.black.opacity(colorScheme == .dark ? 0.35 : 0.08), radius: 6, y: 2)
                                     }
                                     .buttonStyle(.plain)
                                     .help("Bật/Tắt tự động chuyển sang video tiếp theo khi xem xong (Phím tắt: A)")
@@ -634,7 +636,11 @@ public struct NativeShortsFeedView: View {
                                 .padding(.top, 14)
                                 .background(
                                     LinearGradient(
-                                        colors: [Color.black.opacity(0.8), Color.black.opacity(0.2), Color.clear],
+                                        colors: [
+                                            (colorScheme == .dark ? Color.black.opacity(0.8) : Color(nsColor: ThemeColor.windowBackground(for: colorScheme)).opacity(0.95)),
+                                            (colorScheme == .dark ? Color.black.opacity(0.2) : Color(nsColor: ThemeColor.windowBackground(for: colorScheme)).opacity(0.4)),
+                                            Color.clear
+                                        ],
                                         startPoint: .top,
                                         endPoint: .bottom
                                     )
@@ -1452,6 +1458,8 @@ struct ShortFeedRowView: View {
     let onGoNext: () -> Void
     let onTapCard: () -> Void
     
+    @Environment(\.colorScheme) private var colorScheme
+    
     var body: some View {
         let isPreloadNext = (index == vm.currentIndex + 1)
         let isPreloadPrev = (index == vm.currentIndex - 1)
@@ -1668,11 +1676,12 @@ struct ShortFeedRowView: View {
                 Button(action: onGoPrev) {
                     Image(systemName: "chevron.up")
                         .font(.system(size: 15, weight: .bold))
-                        .foregroundColor(index > 0 ? .white : Color(white: 0.3))
+                        .foregroundColor(index > 0 ? ThemeColor.textPrimary(for: colorScheme) : ThemeColor.textTertiary(for: colorScheme))
                         .frame(width: 44, height: 44)
-                        .background(Color(white: 0.18).opacity(0.9))
+                        .background(colorScheme == .dark ? Color(white: 0.18).opacity(0.9) : Color.white.opacity(0.92))
                         .clipShape(Circle())
-                        .overlay(Circle().stroke(Color.white.opacity(0.12), lineWidth: 1))
+                        .overlay(Circle().stroke(ThemeColor.divider(for: colorScheme), lineWidth: 1))
+                        .shadow(color: Color.black.opacity(colorScheme == .dark ? 0.35 : 0.08), radius: 6, y: 2)
                 }
                 .buttonStyle(.plain)
                 .disabled(index <= 0)
@@ -1682,11 +1691,12 @@ struct ShortFeedRowView: View {
                 Button(action: onGoNext) {
                     Image(systemName: "chevron.down")
                         .font(.system(size: 15, weight: .bold))
-                        .foregroundColor(index < totalCount - 1 ? .white : Color(white: 0.3))
+                        .foregroundColor(index < totalCount - 1 ? ThemeColor.textPrimary(for: colorScheme) : ThemeColor.textTertiary(for: colorScheme))
                         .frame(width: 44, height: 44)
-                        .background(Color(white: 0.18).opacity(0.9))
+                        .background(colorScheme == .dark ? Color(white: 0.18).opacity(0.9) : Color.white.opacity(0.92))
                         .clipShape(Circle())
-                        .overlay(Circle().stroke(Color.white.opacity(0.12), lineWidth: 1))
+                        .overlay(Circle().stroke(ThemeColor.divider(for: colorScheme), lineWidth: 1))
+                        .shadow(color: Color.black.opacity(colorScheme == .dark ? 0.35 : 0.08), radius: 6, y: 2)
                 }
                 .buttonStyle(.plain)
                 .disabled(index >= totalCount - 1)
@@ -1786,20 +1796,23 @@ private struct ActionButton: View {
     let activeColor: Color
     let action: () -> Void
     
+    @Environment(\.colorScheme) private var colorScheme
+    
     var body: some View {
         Button(action: action) {
             VStack(spacing: 5) {
                 Image(systemName: icon)
                     .font(.system(size: 17, weight: .semibold))
-                    .foregroundColor(isActive ? activeColor : .white)
+                    .foregroundColor(isActive ? activeColor : ThemeColor.textPrimary(for: colorScheme))
                     .frame(width: 44, height: 44)
-                    .background(Color(white: 0.18).opacity(0.9))
+                    .background(colorScheme == .dark ? Color(white: 0.18).opacity(0.9) : Color.white.opacity(0.92))
                     .clipShape(Circle())
-                    .overlay(Circle().stroke(Color.white.opacity(0.12), lineWidth: 1))
+                    .overlay(Circle().stroke(ThemeColor.divider(for: colorScheme), lineWidth: 1))
+                    .shadow(color: Color.black.opacity(colorScheme == .dark ? 0.35 : 0.08), radius: 6, y: 2)
                 
                 Text(label)
                     .font(.system(size: 11.5, weight: .medium))
-                    .foregroundColor(Color(white: 0.85))
+                    .foregroundColor(ThemeColor.textSecondary(for: colorScheme))
                     .lineLimit(1)
             }
         }
@@ -1813,6 +1826,8 @@ struct ShortsCommentsDrawer: View {
     @ObservedObject var playerManager: PlayerManager
     let onClose: () -> Void
     
+    @Environment(\.colorScheme) private var colorScheme
+    
     var body: some View {
         VStack(spacing: 0) {
             // Header
@@ -1823,16 +1838,16 @@ struct ShortsCommentsDrawer: View {
                         .foregroundColor(.cyan)
                     Text("Bình luận")
                         .font(.system(size: 15.5, weight: .bold))
-                        .foregroundColor(.white)
+                        .foregroundColor(ThemeColor.textPrimary(for: colorScheme))
                     
                     if let total = playerManager.totalCommentsCountText, !total.isEmpty {
                         Text("(\(total))")
                             .font(.system(size: 12.5, weight: .medium))
-                            .foregroundColor(Color(white: 0.6))
+                            .foregroundColor(ThemeColor.textSecondary(for: colorScheme))
                     } else if !playerManager.comments.isEmpty {
                         Text("(\(playerManager.comments.count))")
                             .font(.system(size: 12.5, weight: .medium))
-                            .foregroundColor(Color(white: 0.6))
+                            .foregroundColor(ThemeColor.textSecondary(for: colorScheme))
                     }
                 }
                 
@@ -1866,10 +1881,10 @@ struct ShortsCommentsDrawer: View {
                             Image(systemName: "chevron.down")
                                 .font(.system(size: 8.5))
                         }
-                        .foregroundColor(Color(white: 0.8))
+                        .foregroundColor(ThemeColor.textPrimary(for: colorScheme))
                         .padding(.horizontal, 8)
                         .padding(.vertical, 4)
-                        .background(Color(white: 0.2))
+                        .background(colorScheme == .dark ? Color(white: 0.2) : Color.black.opacity(0.06))
                         .cornerRadius(6)
                     }
                     .menuStyle(BorderlessButtonMenuStyle())
@@ -1879,9 +1894,9 @@ struct ShortsCommentsDrawer: View {
                 Button(action: { playerManager.refreshComments() }) {
                     Image(systemName: "arrow.clockwise")
                         .font(.system(size: 12, weight: .medium))
-                        .foregroundColor(Color(white: 0.7))
+                        .foregroundColor(ThemeColor.textSecondary(for: colorScheme))
                         .frame(width: 28, height: 28)
-                        .background(Color(white: 0.18))
+                        .background(colorScheme == .dark ? Color(white: 0.18) : Color.black.opacity(0.06))
                         .clipShape(Circle())
                 }
                 .buttonStyle(.plain)
@@ -1891,9 +1906,9 @@ struct ShortsCommentsDrawer: View {
                 Button(action: onClose) {
                     Image(systemName: "xmark")
                         .font(.system(size: 11, weight: .bold))
-                        .foregroundColor(Color(white: 0.85))
+                        .foregroundColor(ThemeColor.textPrimary(for: colorScheme))
                         .frame(width: 28, height: 28)
-                        .background(Color(white: 0.22))
+                        .background(colorScheme == .dark ? Color(white: 0.22) : Color.black.opacity(0.08))
                         .clipShape(Circle())
                 }
                 .buttonStyle(.plain)
@@ -1901,10 +1916,10 @@ struct ShortsCommentsDrawer: View {
             }
             .padding(.horizontal, 16)
             .padding(.vertical, 14)
-            .background(Color(white: 0.12))
+            .background(colorScheme == .dark ? Color(white: 0.12) : Color.white.opacity(0.96))
             .overlay(
                 Rectangle()
-                    .fill(Color.white.opacity(0.08))
+                    .fill(ThemeColor.divider(for: colorScheme))
                     .frame(height: 1),
                 alignment: .bottom
             )
@@ -1918,7 +1933,7 @@ struct ShortsCommentsDrawer: View {
                             .controlSize(.regular)
                         Text("Đang tải bình luận Shorts...")
                             .font(.system(size: 13, weight: .medium))
-                            .foregroundColor(Color(white: 0.6))
+                            .foregroundColor(ThemeColor.textSecondary(for: colorScheme))
                         Spacer()
                     }
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -1927,13 +1942,13 @@ struct ShortsCommentsDrawer: View {
                         Spacer()
                         Image(systemName: "bubble.left.and.bubble.right")
                             .font(.system(size: 36))
-                            .foregroundColor(Color(white: 0.35))
+                            .foregroundColor(ThemeColor.textTertiary(for: colorScheme))
                         Text("Chưa có bình luận nào")
                             .font(.system(size: 14, weight: .semibold))
-                            .foregroundColor(Color(white: 0.75))
+                            .foregroundColor(ThemeColor.textPrimary(for: colorScheme))
                         Text("Video này chưa có bình luận hoặc tác giả đã tắt tính năng bình luận.")
                             .font(.system(size: 12))
-                            .foregroundColor(Color(white: 0.45))
+                            .foregroundColor(ThemeColor.textSecondary(for: colorScheme))
                             .multilineTextAlignment(.center)
                             .padding(.horizontal, 24)
                         Button("Thử tải lại") {
@@ -1960,7 +1975,7 @@ struct ShortsCommentsDrawer: View {
                                     .frame(width: 14, height: 14)
                                 Text("Đang tải thêm bình luận...")
                                     .font(.system(size: 12))
-                                    .foregroundColor(Color(white: 0.6))
+                                    .foregroundColor(ThemeColor.textSecondary(for: colorScheme))
                             }
                             .frame(maxWidth: .infinity)
                             .padding(.vertical, 12)
@@ -1975,7 +1990,7 @@ struct ShortsCommentsDrawer: View {
                                 .foregroundColor(.cyan)
                                 .frame(maxWidth: .infinity)
                                 .padding(.vertical, 8)
-                                .background(Color(white: 0.16))
+                                .background(colorScheme == .dark ? Color(white: 0.16) : Color.black.opacity(0.06))
                                 .cornerRadius(8)
                             }
                             .buttonStyle(.plain)
@@ -1989,21 +2004,22 @@ struct ShortsCommentsDrawer: View {
             }
         }
         .background(
-            Color(white: 0.09)
-                .opacity(0.97)
+            (colorScheme == .dark ? Color(white: 0.09).opacity(0.97) : Color(white: 0.98).opacity(0.98))
         )
         .overlay(
             Rectangle()
-                .fill(Color.white.opacity(0.12))
+                .fill(ThemeColor.divider(for: colorScheme))
                 .frame(width: 1),
             alignment: .leading
         )
-        .shadow(color: Color.black.opacity(0.55), radius: 24, x: -6, y: 0)
+        .shadow(color: Color.black.opacity(colorScheme == .dark ? 0.55 : 0.15), radius: 24, x: -6, y: 0)
     }
 }
 
 struct ShortsCommentRow: View {
     let comment: VideoComment
+    
+    @Environment(\.colorScheme) private var colorScheme
     
     var body: some View {
         HStack(alignment: .top, spacing: 10) {
@@ -2013,18 +2029,18 @@ struct ShortsCommentRow: View {
                     if let img = phase.image {
                         img.resizable().scaledToFill()
                     } else {
-                        Circle().fill(Color(white: 0.2))
+                        Circle().fill(colorScheme == .dark ? Color(white: 0.2) : Color.black.opacity(0.1))
                     }
                 }
                 .frame(width: 32, height: 32)
                 .clipShape(Circle())
-                .overlay(Circle().stroke(Color.white.opacity(0.12), lineWidth: 1))
+                .overlay(Circle().stroke(ThemeColor.divider(for: colorScheme), lineWidth: 1))
             } else {
                 ZStack {
-                    Circle().fill(Color(white: 0.25))
+                    Circle().fill(colorScheme == .dark ? Color(white: 0.25) : Color.black.opacity(0.12))
                     Text(String(comment.author.prefix(1)).uppercased())
                         .font(.system(size: 12, weight: .semibold))
-                        .foregroundColor(.white)
+                        .foregroundColor(ThemeColor.textPrimary(for: colorScheme))
                 }
                 .frame(width: 32, height: 32)
             }
@@ -2034,19 +2050,19 @@ struct ShortsCommentRow: View {
                 HStack(spacing: 6) {
                     Text(comment.author)
                         .font(.system(size: 12.5, weight: .semibold))
-                        .foregroundColor(Color(white: 0.95))
+                        .foregroundColor(ThemeColor.textPrimary(for: colorScheme))
                     
                     if !comment.publishedTime.isEmpty {
                         Text("•  \(comment.publishedTime)")
                             .font(.system(size: 11))
-                            .foregroundColor(Color(white: 0.5))
+                            .foregroundColor(ThemeColor.textTertiary(for: colorScheme))
                     }
                 }
                 
                 Text(comment.text)
                     .font(.system(size: 12.5))
                     .lineSpacing(2.5)
-                    .foregroundColor(Color(white: 0.88))
+                    .foregroundColor(ThemeColor.textPrimary(for: colorScheme))
                     .fixedSize(horizontal: false, vertical: true)
                     .textSelection(.enabled)
                 
@@ -2059,7 +2075,7 @@ struct ShortsCommentRow: View {
                                 Text(comment.likeCount)
                                     .font(.system(size: 11, weight: .medium))
                             }
-                            .foregroundColor(Color(white: 0.55))
+                            .foregroundColor(ThemeColor.textSecondary(for: colorScheme))
                         }
                         
                         if let replies = comment.replyCount, !replies.isEmpty && replies != "0" {
@@ -2069,7 +2085,7 @@ struct ShortsCommentRow: View {
                                 Text("\(replies) phản hồi")
                                     .font(.system(size: 11, weight: .medium))
                             }
-                            .foregroundColor(Color(white: 0.55))
+                            .foregroundColor(ThemeColor.textSecondary(for: colorScheme))
                         }
                     }
                     .padding(.top, 2)

@@ -1,10 +1,10 @@
 {
-  "version": "2.0.61",
-  "build": 62,
-  "title": "AuraTube v2.0.61 (Gợi Ý Shorts Thông Minh, Chuẩn Tỷ Lệ 9:16 & Triệt Tiêu Chồng Chéo)",
-  "releaseNotes": "• Thuật toán gợi ý Shorts thông minh: Loại bỏ hoàn toàn thanh tag danh mục thủ công, chuyển sang cơ chế đa luồng tự động học theo lịch sử xem, từ khóa tìm kiếm và kênh đăng ký.\n• Chống lặp video Shorts: Lưu bộ nhớ các short đã xem, đảm bảo mỗi lần mở Shorts hoặc bấm Đổi gợi ý luôn nạp các video mới mẻ.\n• Chuẩn Fullscreen 9:16 nguyên bản: Loại bỏ nút xoay khổ, video dọc luôn giữ trọn 100% chi tiết không bị crop hay zoom-fill.\n• Triệt tiêu chồng chéo thông tin: Xóa sạch toàn bộ avatar, handle @kênh, tiêu đề và nút Share thừa của YouTube embed, giữ giao diện Liquid Glass native sắc nét.",
-  "downloadUrl": "https://github.com/tung68nt/AuraTube/releases/download/v2.0.61/AuraTube-v2.0.61.dmg",
-  "publishedAt": "2026-09-18",
+  "version": "2.0.62",
+  "build": 63,
+  "title": "AuraTube v2.0.62 (Đồng Bộ Nền Shorts Theo Giao Diện Sáng/Tối & Hoàn Thiện Trải Nghiệm)",
+  "releaseNotes": "• Đồng bộ nền Shorts theo Theme: Giao diện Shorts feed tự động thích ứng chuẩn xác theo Light Mode và Dark Mode của macOS, không còn bị ép buộc nền đen khi đang dùng giao diện sáng.\n• Bộ nút tương tác & thanh điều hướng thích ứng: Các nút Thích, Bình luận, Chia sẻ, Mũi tên chuyển video hiển thị nổi bật dạng Glass pill độ tương phản cao, hài hòa trên mọi chế độ hiển thị.\n• Khung bình luận Shorts đồng bộ giao diện: Thanh tiêu đề, nội dung bình luận, menu sắp xếp và nền ngăn kéo bình luận tự động chuyển đổi sáng/tối sắc nét.\n• Chuẩn hóa hiển thị 9:16 nguyên bản: Giữ trọn độ nét không crop, thuật toán gợi ý Shorts đa luồng thông minh và loại bỏ triệt để thông tin chồng chéo.",
+  "downloadUrl": "https://github.com/tung68nt/AuraTube/releases/download/v2.0.62/AuraTube-v2.0.62.dmg",
+  "publishedAt": "2026-09-19",
   "minOSVersion": "13.0",
   "fileSize": "5.4 MB"
 }
