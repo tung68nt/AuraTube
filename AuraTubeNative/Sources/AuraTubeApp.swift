@@ -47,6 +47,35 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         return true
     }
     
+    func applicationDidResignActive(_ notification: Notification) {
+        Task { @MainActor in
+            let pm = PlayerManager.shared
+            // When leaving AuraTube to another app:
+            // If user has enabled auto PiP, video is playing, PiP is not already active, and not in fullscreen
+            if pm.autoPiPOnAppSwitch,
+               pm.currentVideo != nil,
+               pm.isPlaying,
+               !pm.isPictureInPictureActive,
+               !pm.isVideoFullscreen {
+                pm.enterPictureInPicture(isAutoTriggered: true)
+            }
+        }
+    }
+    
+    func applicationDidBecomeActive(_ notification: Notification) {
+        Task { @MainActor in
+            let pm = PlayerManager.shared
+            // If the user focused the floating PiP window itself, keep it in PiP!
+            if PiPWindowController.shared.isPipWindow(NSApp.keyWindow) {
+                return
+            }
+            // If returning to the main window and PiP was auto-triggered when leaving earlier:
+            if pm.wasAutoPiPTriggered, pm.isPictureInPictureActive {
+                pm.exitPictureInPicture()
+            }
+        }
+    }
+    
     @MainActor
     public static func showStandardAboutPanel() {
         let appVersion = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "2.0.9"
@@ -224,6 +253,8 @@ struct AuraTubeApp: App {
                     playerManager.togglePictureInPicture()
                 }
                 .keyboardShortcut("p", modifiers: [.command, .option])
+                
+                Toggle("Tự động chuyển PiP khi chuyển app", isOn: $playerManager.autoPiPOnAppSwitch)
                 
                 Divider()
                 

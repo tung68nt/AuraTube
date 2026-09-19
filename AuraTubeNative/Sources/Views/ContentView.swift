@@ -455,7 +455,16 @@ public struct ContentView: View {
                                     .font(.system(size: 11.5, weight: .medium))
                                     .foregroundColor(playerManager.isPictureInPictureActive ? .white : ThemeColor.textPrimary(for: colorScheme).opacity(0.85))
                             }
-                            .help(playerManager.isPictureInPictureActive ? "Đưa video về cửa sổ chính (P)" : "Chuyển video sang cửa sổ nổi PiP (P)")
+                            .contextMenu {
+                                Button {
+                                    playerManager.togglePictureInPicture()
+                                } label: {
+                                    Label(playerManager.isPictureInPictureActive ? "Đưa video về cửa sổ chính (P)" : "Chuyển sang cửa sổ nổi PiP (P)", systemImage: playerManager.isPictureInPictureActive ? "pip.exit" : "pip.enter")
+                                }
+                                Divider()
+                                Toggle("Tự động chuyển PiP khi chuyển app", isOn: $playerManager.autoPiPOnAppSwitch)
+                            }
+                            .help(playerManager.isPictureInPictureActive ? "Đưa video về cửa sổ chính (P)" : "Chuyển video sang cửa sổ nổi PiP (P) - Chuột phải để cài đặt")
                         }
                         
                         // Theme Toggle Button (Light / Dark / Auto System)

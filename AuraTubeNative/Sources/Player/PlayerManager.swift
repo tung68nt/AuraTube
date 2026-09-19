@@ -48,6 +48,14 @@ public final class PlayerManager: ObservableObject {
     @Published public var autoplayCountdown: Int? = nil
     private var autoplayTimer: Timer? = nil
     
+    // MARK: - Auto Picture-in-Picture on App Switch State
+    @Published public var autoPiPOnAppSwitch: Bool = (UserDefaults.standard.object(forKey: "auratube_auto_pip_on_app_switch") as? Bool) ?? true {
+        didSet {
+            UserDefaults.standard.set(autoPiPOnAppSwitch, forKey: "auratube_auto_pip_on_app_switch")
+        }
+    }
+    public var wasAutoPiPTriggered: Bool = false
+    
     // MARK: - Viewer Comments State
     public enum CommentSortMode: String, CaseIterable, Sendable {
         case top = "top"
@@ -797,17 +805,33 @@ public final class PlayerManager: ObservableObject {
             isPictureInPictureActive = false
             PiPWindowController.shared.close()
         }
+        wasAutoPiPTriggered = false
     }
     
     // MARK: - Picture-in-Picture Control
     public func togglePictureInPicture() {
         guard currentVideo != nil else { return }
+        wasAutoPiPTriggered = false
         isPictureInPictureActive.toggle()
         if isPictureInPictureActive {
             PiPWindowController.shared.show(video: currentVideo)
         } else {
             PiPWindowController.shared.close()
         }
+    }
+    
+    public func enterPictureInPicture(isAutoTriggered: Bool = false) {
+        guard currentVideo != nil, !isPictureInPictureActive else { return }
+        wasAutoPiPTriggered = isAutoTriggered
+        isPictureInPictureActive = true
+        PiPWindowController.shared.show(video: currentVideo)
+    }
+    
+    public func exitPictureInPicture() {
+        guard isPictureInPictureActive else { return }
+        wasAutoPiPTriggered = false
+        isPictureInPictureActive = false
+        PiPWindowController.shared.close()
     }
     
     // MARK: - Autoplay Control Methods

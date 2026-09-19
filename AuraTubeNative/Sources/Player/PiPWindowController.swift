@@ -85,7 +85,11 @@ public final class PiPOverlayState: ObservableObject {
 public final class PiPWindowController: NSObject, NSWindowDelegate {
     public static let shared = PiPWindowController()
     
-    private var pipWindow: PiPPanel?
+    public private(set) var pipWindow: PiPPanel?
+    public func isPipWindow(_ window: NSWindow?) -> Bool {
+        guard let w = window else { return false }
+        return w === pipWindow
+    }
     private var eventMonitor: Any?
     
     public override init() {
@@ -195,6 +199,19 @@ public final class PiPWindowController: NSObject, NSWindowDelegate {
         } else {
             targetWidth = 380
         }
+        let targetHeight = targetWidth * (9.0 / 16.0)
+        let currentFrame = panel.frame
+        let newX = currentFrame.maxX - targetWidth
+        let newY = currentFrame.minY
+        let newFrame = NSRect(x: newX, y: newY, width: targetWidth, height: targetHeight)
+        panel.setFrame(newFrame, display: true, animate: true)
+        
+        let label = targetWidth >= 700 ? "Lớn (720p)" : (targetWidth >= 500 ? "Trung bình (540p)" : "Nhỏ (380p)")
+        PiPOverlayState.shared.triggerHUD(icon: "aspectratio", text: label)
+    }
+    
+    public func setPipSize(width targetWidth: CGFloat) {
+        guard let panel = pipWindow else { return }
         let targetHeight = targetWidth * (9.0 / 16.0)
         let currentFrame = panel.frame
         let newX = currentFrame.maxX - targetWidth
@@ -402,6 +419,24 @@ public struct PiPFloatingContentView: View {
             withAnimation(.easeInOut(duration: 0.18)) {
                 hud.isHovering = hovering
             }
+        }
+        .contextMenu {
+            Button("Đưa video về cửa sổ chính (P)") {
+                PiPWindowController.shared.returnToMainWindow()
+            }
+            Menu("Kích thước cửa sổ") {
+                Button("Nhỏ (380p)") {
+                    PiPWindowController.shared.setPipSize(width: 380)
+                }
+                Button("Trung bình (540p)") {
+                    PiPWindowController.shared.setPipSize(width: 540)
+                }
+                Button("Lớn (720p)") {
+                    PiPWindowController.shared.setPipSize(width: 720)
+                }
+            }
+            Divider()
+            Toggle("Tự động chuyển PiP khi chuyển app", isOn: $playerManager.autoPiPOnAppSwitch)
         }
     }
     

@@ -439,7 +439,16 @@ public struct PlayerControlOverlay: View {
                     .clipShape(Circle())
             }
             .buttonStyle(.plain)
-            .help(playerManager.isPictureInPictureActive ? "Đưa video về cửa sổ chính (P)" : "Chuyển sang cửa sổ nổi PiP (P)")
+            .contextMenu {
+                Button {
+                    playerManager.togglePictureInPicture()
+                } label: {
+                    Label(playerManager.isPictureInPictureActive ? "Đưa video về cửa sổ chính (P)" : "Chuyển sang cửa sổ nổi PiP (P)", systemImage: playerManager.isPictureInPictureActive ? "pip.exit" : "pip.enter")
+                }
+                Divider()
+                Toggle("Tự động chuyển PiP khi chuyển app", isOn: $playerManager.autoPiPOnAppSwitch)
+            }
+            .help(playerManager.isPictureInPictureActive ? "Đưa video về cửa sổ chính (P)" : "Chuyển sang cửa sổ nổi PiP (P) - Chuột phải để cài đặt")
             
             // Fullscreen Button (ALWAYS PRESENT ON THE RIGHT)
             Button(action: {
