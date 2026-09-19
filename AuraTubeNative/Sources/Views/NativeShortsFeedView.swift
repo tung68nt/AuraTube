@@ -29,17 +29,17 @@ final class NativeShortsViewModel: ObservableObject {
     
     private let smartDiscoverySeeds = [
         "#shorts trending việt nam",
-        "#shorts hài hước vui nhộn",
+        "#shorts hài hước triệu view việt nam",
+        "#shorts nhạc trend tiktok việt nam",
         "#shorts công nghệ review hay",
-        "#shorts ẩm thực nấu ăn ngon",
-        "#shorts đời sống thường ngày",
-        "#shorts giải trí triệu view",
-        "#shorts khám phá thế giới bí ẩn",
-        "#shorts tin tức hot hôm nay",
-        "#shorts khoa học đời sống thú vị",
-        "#shorts âm nhạc xu hướng",
-        "#shorts mẹo vặt cuộc sống",
-        "#shorts gaming highlight đỉnh"
+        "#shorts ẩm thực đường phố việt nam",
+        "#shorts đời sống thường ngày việt nam",
+        "#shorts giải trí vui nhộn triệu view",
+        "#shorts biến hình hot trend việt nam",
+        "#shorts tin tức hot việt nam 24h",
+        "#shorts khám phá thế giới việt nam",
+        "#shorts gaming highlight việt nam",
+        "#shorts mẹo vặt cuộc sống thông minh"
     ]
     private var streamIndex: Int = Int.random(in: 0...11)
     private var snapSettleTask: Task<Void, Never>? = nil

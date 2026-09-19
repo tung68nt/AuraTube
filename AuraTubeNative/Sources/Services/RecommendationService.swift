@@ -15,6 +15,11 @@ public final class RecommendationService: ObservableObject {
     @Published public private(set) var recentSearches: [String] = []
     @Published public private(set) var dynamicInterestTags: [String] = []
     
+    // In-memory Trending Cache for fast response & low latency
+    private var trendingCache: [Video] = []
+    private var lastTrendingFetchTime: Date? = nil
+    private let cacheValidityInterval: TimeInterval = 900 // 15 minutes
+    
     private init() {
         refreshProfileMetrics()
     }
@@ -239,25 +244,40 @@ public final class RecommendationService: ObservableObject {
             stream2Queries.append(recentSearches[1])
         }
         
-        // Stream 3: Semantic Ecosystem Expansion (25% weight)
-        // E.g.: "iPhone" -> "phụ kiện case ốp lưng", "kính thực tế ảo vr ar", "laptop macbook"
+        // Stream 3: Vietnam Market Trending Blend (25% weight)
+        // Dynamically blends what is trending right now in Vietnam with user topics
         var stream3Queries: [String] = []
-        let seedKeywords = Array((recentSearches + topKeywords).prefix(4))
+        let seedKeywords = Array((recentSearches + topKeywords).prefix(3))
+        for seed in seedKeywords {
+            let matched = VietnamTrendingEngine.queries(for: seed)
+            if let first = matched.first, !stream3Queries.contains(first) {
+                stream3Queries.append(first)
+            }
+        }
+        // Always inject top viral Vietnam trending queries to catch hot national trends
+        for g in VietnamTrendingEngine.generalTrendingQueries {
+            if !stream3Queries.contains(g) && stream3Queries.count < 3 {
+                stream3Queries.append(g)
+            }
+        }
+        
+        // Stream 4: Semantic Ecosystem Expansion & Fresh Discovery (20% weight)
+        var stream4Queries: [String] = []
         for seed in seedKeywords {
             let expanded = SemanticClusterEngine.expand(query: seed)
             for exp in expanded {
-                if !stream3Queries.contains(exp) && stream3Queries.count < 3 {
-                    stream3Queries.append(exp)
+                if !stream4Queries.contains(exp) && stream4Queries.count < 2 {
+                    stream4Queries.append(exp)
                 }
             }
-            if stream3Queries.count >= 3 { break }
+            if stream4Queries.count >= 2 { break }
         }
-        
-        // Stream 4: Fresh Discovery & Serendipity (20% weight)
-        let stream4Queries: [String] = [
-            "công nghệ đột phá tương lai review hay nhất",
-            "khám phá khoa học đời sống tài liệu chất lượng cao"
-        ]
+        if stream4Queries.isEmpty {
+            stream4Queries = [
+                "khám phá công nghệ tương lai việt nam triệu view",
+                "ký sự đời sống ẩm thực việt nam triệu view"
+            ]
+        }
         
         // Assemble target search tasks (2 queries per stream = 8 parallel fast queries)
         let s1 = Array(stream1Queries.prefix(2))
@@ -296,11 +316,11 @@ public final class RecommendationService: ObservableObject {
             for _ in 0..<2 {
                 if i2 < v2.count { appendIfValid(v2[i2]); i2 += 1 }
             }
-            // Pick from Stream 3 (Ecosystem expansion)
+            // Pick from Stream 3 (Vietnam Market Trending)
             for _ in 0..<2 {
                 if i3 < v3.count { appendIfValid(v3[i3]); i3 += 1 }
             }
-            // Pick from Stream 4 (Discovery)
+            // Pick from Stream 4 (Ecosystem & Discovery)
             if i4 < v4.count { appendIfValid(v4[i4]); i4 += 1 }
             
             // Safety break if no advancement
@@ -309,9 +329,9 @@ public final class RecommendationService: ObservableObject {
             }
         }
         
-        // If results are low, supplement with cold start
+        // If results are low, supplement with Vietnam Trending feed
         if combined.count < 12 {
-            let fallback = await fetchDiverseColdStartFeed()
+            let fallback = await fetchVietnamTrendingFeed(forceRefresh: false)
             for v in fallback {
                 if !seenIds.contains(v.id) && !watchedIds.contains(v.id) {
                     seenIds.insert(v.id)
@@ -339,20 +359,28 @@ public final class RecommendationService: ObservableObject {
         return results
     }
     
-    /// Diverse multi-pillar feed for new users (Zero pure-music bias)
-    private func fetchDiverseColdStartFeed() async -> [Video] {
-        let pillars = [
-            "công nghệ review sản phẩm mới",           // Pillar 1: Tech, Gadgets, Innovation (ThinkView, Schannel, etc.)
-            "tin tức chuyển động thời sự 24h",          // Pillar 2: News & Current Affairs (VTV24, Báo Thanh Niên)
-            "khám phá du lịch đời sống văn hóa việt nam", // Pillar 3: Travel, Discovery, Culture (Khoai Lang Thang, Monster Box)
-            "podcast phê phim giải trí góc nhìn"         // Pillar 4: Cinema, Podcasts, Meaningful entertainment (Phê Phim, Vietcetera)
+    /// Multi-pillar Vietnam Trending Feed for instant discovery & new users
+    public func fetchVietnamTrendingFeed(forceRefresh: Bool = false) async -> [Video] {
+        if !forceRefresh, let last = lastTrendingFetchTime, Date().timeIntervalSince(last) < cacheValidityInterval, !trendingCache.isEmpty {
+            return trendingCache
+        }
+        
+        let trendingPillars = [
+            "top trending việt nam hôm nay",
+            "bài hát thịnh hành mới nhất việt nam triệu view",
+            "gameshow việt nam triệu view thịnh hành",
+            "review công nghệ việt nam vật vờ schannel mới nhất",
+            "vtv24 chuyển động 24h tin tức thời sự việt nam mới nhất",
+            "khoai lang thang ẩm thực du lịch việt nam",
+            "mixigaming cris devil gamer highlight mới nhất",
+            "bóng đá việt nam highlight mới nhất"
         ]
         
         var streams: [[Video]] = []
         await withTaskGroup(of: [Video].self) { group in
-            for p in pillars {
+            for p in trendingPillars {
                 group.addTask {
-                    return await YTDLPService.shared.searchVideos(query: p, limit: 8)
+                    return await YTDLPService.shared.searchVideos(query: p, limit: 6)
                 }
             }
             for await res in group {
@@ -378,7 +406,43 @@ public final class RecommendationService: ObservableObject {
             }
         }
         
+        if !combined.isEmpty {
+            self.trendingCache = combined
+            self.lastTrendingFetchTime = Date()
+        }
         return combined
+    }
+    
+    /// Diverse multi-pillar feed for new users (delegates to Vietnam Trending)
+    private func fetchDiverseColdStartFeed() async -> [Video] {
+        return await fetchVietnamTrendingFeed(forceRefresh: false)
+    }
+    
+    /// Targeted feed for category pills mapped to Vietnamese high-engagement content
+    public func fetchVietnamCategoryFeed(category: String) async -> [Video] {
+        let queries = VietnamTrendingEngine.queries(for: category)
+        let s = Array(queries.prefix(2))
+        return await fetchBatch(queries: s, limitPerQuery: 14)
+    }
+    
+    /// Check if a given chip tag represents a curated Vietnamese content category
+    public func isVietnamCategory(_ category: String) -> Bool {
+        let lower = category.lowercased()
+        return lower.contains("thịnh hành") ||
+               lower.contains("nhạc") ||
+               lower.contains("giải trí") ||
+               lower.contains("show") ||
+               lower.contains("công nghệ") ||
+               lower.contains("gaming") ||
+               lower.contains("game") ||
+               lower.contains("trò chơi") ||
+               lower.contains("tin tức") ||
+               lower.contains("thời sự") ||
+               lower.contains("ẩm thực") ||
+               lower.contains("du lịch") ||
+               lower.contains("bóng đá") ||
+               lower.contains("thể thao") ||
+               lower.contains("podcast")
     }
 }
 
@@ -532,3 +596,86 @@ private struct PeerCreatorGraph {
     }
 }
 
+// MARK: - Vietnam Trending Intelligence Engine
+
+public struct VietnamTrendingEngine {
+    /// Core trending queries across Vietnam
+    public static let generalTrendingQueries = [
+        "top trending việt nam hôm nay",
+        "video thịnh hành youtube việt nam triệu view",
+        "thịnh hành việt nam mới nhất"
+    ]
+    
+    public static let musicTrendingQueries = [
+        "bài hát thịnh hành mới nhất việt nam triệu view",
+        "top trending âm nhạc việt nam",
+        "mv ca nhạc mới nhất việt nam triệu view"
+    ]
+    
+    public static let entertainmentTrendingQueries = [
+        "gameshow việt nam triệu view thịnh hành",
+        "rap việt anh trai say hi 2 ngày 1 đêm mới nhất",
+        "show giải trí hot nhất việt nam triệu view"
+    ]
+    
+    public static let techTrendingQueries = [
+        "review công nghệ việt nam vật vờ schannel mới nhất",
+        "đánh giá điện thoại laptop mới thịnh hành việt nam",
+        "đồ chơi công nghệ thông minh mới nhất"
+    ]
+    
+    public static let gamingTrendingQueries = [
+        "mixigaming cris devil gamer highlight mới nhất",
+        "gameplay bom tấn việt nam highlight",
+        "gaming việt nam triệu view mới nhất"
+    ]
+    
+    public static let newsTrendingQueries = [
+        "vtv24 chuyển động 24h tin tức thời sự việt nam mới nhất",
+        "thời sự việt nam hôm nay nóng nhất",
+        "tin tức đời sống xã hội việt nam 24h"
+    ]
+    
+    public static let foodAndTravelTrendingQueries = [
+        "khoai lang thang chan la cà du lịch ẩm thực việt nam",
+        "ẩm thực đường phố khám phá việt nam triệu view",
+        "món ngon vùng miền đặc sản việt nam"
+    ]
+    
+    public static let sportsTrendingQueries = [
+        "bóng đá việt nam highlight mới nhất",
+        "v-league đội tuyển việt nam mới nhất",
+        "thể thao việt nam highlight"
+    ]
+    
+    public static let podcastTrendingQueries = [
+        "podcast việt nam triệu view hay nhất",
+        "phê phim spiderum vietcetera podcast mới nhất",
+        "talkshow phỏng vấn nhân vật truyền cảm hứng"
+    ]
+    
+    /// Maps a search topic or category title to targeted Vietnam trending queries
+    public static func queries(for category: String) -> [String] {
+        let lower = category.lowercased()
+        if lower.contains("thịnh hành") || lower.contains("trending") {
+            return generalTrendingQueries
+        } else if lower.contains("nhạc") || lower.contains("music") || lower.contains("bài hát") {
+            return musicTrendingQueries
+        } else if lower.contains("giải trí") || lower.contains("show") || lower.contains("hài") {
+            return entertainmentTrendingQueries
+        } else if lower.contains("công nghệ") || lower.contains("tech") || lower.contains("điện thoại") || lower.contains("laptop") {
+            return techTrendingQueries
+        } else if lower.contains("game") || lower.contains("trò chơi") || lower.contains("gaming") {
+            return gamingTrendingQueries
+        } else if lower.contains("tin tức") || lower.contains("thời sự") || lower.contains("tin") {
+            return newsTrendingQueries
+        } else if lower.contains("ẩm thực") || lower.contains("du lịch") || lower.contains("ăn") || lower.contains("món") {
+            return foodAndTravelTrendingQueries
+        } else if lower.contains("bóng đá") || lower.contains("thể thao") {
+            return sportsTrendingQueries
+        } else if lower.contains("podcast") || lower.contains("phim") {
+            return podcastTrendingQueries
+        }
+        return ["\(category) việt nam mới nhất", "\(category) triệu view"]
+    }
+}

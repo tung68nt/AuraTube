@@ -43,15 +43,15 @@ public struct HomeView: View {
     @ObservedObject private var recService = RecommendationService.shared
     
     private var allTags: [String] {
-        var list = ["Tất cả", "🔔 Đang theo dõi"]
+        var list = ["Tất cả", "🔥 Thịnh hành", "🔔 Đang theo dõi"]
         for t in recService.dynamicInterestTags {
-            if !list.contains(t) {
+            if !list.contains(t) && t != "🔥 Thịnh hành" {
                 list.append(t)
             }
         }
         let baseCategories = [
-            "Công nghệ", "Tin tức", "Giải trí", "Âm nhạc", "Trò chơi",
-            "Podcast", "Khoa học", "Bóng đá"
+            "🎵 Âm nhạc", "🎭 Giải trí", "💻 Công nghệ", "🎮 Gaming",
+            "📰 Tin tức", "🍲 Ẩm thực", "⚽ Bóng đá", "🎙️ Podcast"
         ]
         for c in baseCategories {
             if !list.contains(c) {
@@ -525,10 +525,10 @@ public struct HomeView: View {
             vm.isLoading = true
             if tag == "Tất cả" {
                 vm.videos = await RecommendationService.shared.fetchRecommendations()
-            } else if tag == "Công nghệ" {
-                vm.videos = await YTDLPService.shared.searchVideos(query: "công nghệ review sản phẩm mới nhất")
-            } else if tag == "Giải trí" {
-                vm.videos = await YTDLPService.shared.searchVideos(query: "video giải trí hay thú vị triệu view")
+            } else if tag == "🔥 Thịnh hành" {
+                vm.videos = await RecommendationService.shared.fetchVietnamTrendingFeed(forceRefresh: true)
+            } else if RecommendationService.shared.isVietnamCategory(tag) {
+                vm.videos = await RecommendationService.shared.fetchVietnamCategoryFeed(category: tag)
             } else if tag == "Hệ sinh thái Apple" {
                 vm.videos = await YTDLPService.shared.searchVideos(query: "apple iphone macbook ipad phụ kiện mới nhất")
             } else if tag == "Setup góc làm việc" {

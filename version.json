@@ -1,9 +1,9 @@
 {
-  "version": "2.0.64",
-  "build": 65,
-  "title": "AuraTube v2.0.64 (Nâng Cấp Chuẩn Apple Liquid Glass Toàn Diện)",
-  "releaseNotes": "• Nâng cấp Apple Liquid Glass toàn diện: Chuyển đổi toàn bộ hệ thống nút bấm từ giao diện phẳng sang kính lỏng sinh động theo ngôn ngữ thiết kế Liquid Glass của Apple.\n• Khúc xạ ánh sáng theo con trỏ chuột (Specular Refraction Glow): Tích hợp cảm biến vị trí chuột trên các nút bấm, tạo điểm sáng phản xạ chuyển động mượt mà theo góc nhìn.\n• Viền kính tán sắc quang học (Inner Crescent Bevel): Hiệu ứng vát mép khúc xạ ánh sáng trên nền chất liệu kính mờ siêu mỏng (.ultraThinMaterial) gia tốc phần cứng.\n• Hiệu ứng lò xo đàn hồi (Elastic Spring Physics): Phản hồi cơ học tự nhiên, nảy êm ái khi rê chuột (hover) và nhấn nút (press).\n• Áp dụng đồng bộ: Nút Header (Menu, Back, Forward, PiP, Theme, Downloads, Quét cập nhật, Info), nút Shorts (Mũi tên lên/xuống, Like, Share, Comments) và toàn bộ các thẻ lọc danh mục.",
-  "downloadUrl": "https://github.com/tung68nt/AuraTube/releases/download/v2.0.64/AuraTube-v2.0.64.dmg",
+  "version": "2.0.65",
+  "build": 66,
+  "title": "AuraTube v2.0.65 (Nâng Cấp Gợi Ý Thông Minh Theo Trending Thị Trường Việt Nam)",
+  "releaseNotes": "• Động cơ gợi ý xu hướng Việt Nam (Vietnam Trending Intelligence Engine): Tích hợp luồng dữ liệu xu hướng thực tế theo các trụ cột nội dung hàng đầu tại Việt Nam (Top Trending tổng hợp, V-Pop & Âm nhạc mới, Gameshow triệu view, Review công nghệ, Thời sự 24h, Ẩm thực & Du lịch, Streamers & Gaming, Bóng đá VN).\n• Phối hợp xu hướng & cá nhân hóa thông minh: Đan xen giữa sở thích cá nhân (kênh yêu thích, từ khóa tra cứu) và các video triệu view đang bùng nổ tại thị trường Việt Nam, giúp người dùng không bỏ lỡ các sự kiện văn hóa và xu hướng nóng hổi.\n• Bổ sung thẻ \"🔥 Thịnh hành\" và danh mục tối ưu: Thẻ Thịnh hành được hiển thị ngay đầu thanh Tag Chips cùng các chủ đề bản địa hóa chuyên sâu (🎵 Âm nhạc, 🎭 Giải trí, 💻 Công nghệ, 🎮 Gaming, 📰 Tin tức, 🍲 Ẩm thực, ⚽ Bóng đá).\n• Nâng cấp thuật toán Shorts thịnh hành: Ưu tiên các hashtag viral và trào lưu thịnh hành hấp dẫn nhất tại Việt Nam.\n• Bộ nhớ đệm thông minh (In-Memory Cache): Tối ưu hóa tốc độ tải và chuyển đổi tab chỉ trong tích tắc (<100ms).",
+  "downloadUrl": "https://github.com/tung68nt/AuraTube/releases/download/v2.0.65/AuraTube-v2.0.65.dmg",
   "publishedAt": "2026-09-19",
   "minOSVersion": "13.0",
   "fileSize": "5.4 MB"
