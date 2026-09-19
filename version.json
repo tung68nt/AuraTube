@@ -1,9 +1,9 @@
 {
-  "version": "2.0.82",
-  "build": 83,
-  "title": "AuraTube v2.0.82 (Khắc phục triệt để lỗi video bị thu nhỏ 1/4 khung hình khi thoát PiP)",
-  "releaseNotes": "• Sửa triệt để lỗi video player bị co rút về góc dưới 1/4 khung hình (50% width, 50% height) khi đưa video từ chế độ PiP (Picture-in-Picture) trở lại màn hình chính.\n• Bổ sung container WebPlayerHostingView chuyên dụng tự động đồng bộ frame 100% bounds và đồng bộ backingScaleFactor trên màn hình Retina.\n• Loại bỏ xung đột 3D GPU layer transform (translateZ) và ràng buộc kích thước 100% tràn viền cho phần tử video, tự động kích hoạt layout refresh ngay khi chuyển đổi cửa sổ.",
-  "downloadUrl": "https://github.com/tung68nt/AuraTube/releases/download/v2.0.82/AuraTube-v2.0.82.dmg",
+  "version": "2.0.83",
+  "build": 84,
+  "title": "AuraTube v2.0.83 (Tinh chỉnh cân đối icon kênh overlay trên player)",
+  "releaseNotes": "• Tinh chỉnh lề icon kênh tròn trong thanh thông tin overlay góc trên player: khoảng cách lề trái được điều chỉnh bằng đúng lề trên và dưới (6pt), đảm bảo icon nằm đồng tâm tuyệt đối theo độ cong của hình viên thuốc (Capsule) chuẩn thiết kế Apple.",
+  "downloadUrl": "https://github.com/tung68nt/AuraTube/releases/download/v2.0.83/AuraTube-v2.0.83.dmg",
   "publishedAt": "2026-09-19",
   "minOSVersion": "13.0",
   "fileSize": "5.4 MB"

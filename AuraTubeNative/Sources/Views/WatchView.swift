@@ -1243,7 +1243,8 @@ struct WatchPlayerContainerView: View {
                 }
                 .frame(maxWidth: 320, alignment: .leading)
             }
-            .padding(.horizontal, 12)
+            .padding(.leading, 6)
+            .padding(.trailing, 14)
             .padding(.vertical, 6)
             .background(
                 ZStack {
