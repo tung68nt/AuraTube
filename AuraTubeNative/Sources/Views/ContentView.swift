@@ -461,6 +461,18 @@ public struct ContentView: View {
                                 } label: {
                                     Label(playerManager.isPictureInPictureActive ? "Đưa video về cửa sổ chính (P)" : "Chuyển sang cửa sổ nổi PiP (P)", systemImage: playerManager.isPictureInPictureActive ? "pip.exit" : "pip.enter")
                                 }
+                                if playerManager.isPictureInPictureActive {
+                                    Divider()
+                                    Button("Kích thước PiP: Nhỏ (380p)") {
+                                        PiPWindowController.shared.setPipSize(width: 380)
+                                    }
+                                    Button("Kích thước PiP: Trung bình (540p)") {
+                                        PiPWindowController.shared.setPipSize(width: 540)
+                                    }
+                                    Button("Kích thước PiP: Lớn (720p)") {
+                                        PiPWindowController.shared.setPipSize(width: 720)
+                                    }
+                                }
                                 Divider()
                                 Toggle("Tự động chuyển PiP khi chuyển app", isOn: $playerManager.autoPiPOnAppSwitch)
                             }

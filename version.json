@@ -1,9 +1,9 @@
 {
-  "version": "2.0.66",
-  "build": 67,
-  "title": "AuraTube v2.0.66 (Tự Động Chuyển PiP Khi Rời Ứng Dụng Tùy Chọn)",
-  "releaseNotes": "• Tự động chuyển PiP khi chuyển app: Khi đang xem video, nếu bạn chuyển sang ứng dụng khác, video đang phát sẽ tự động chuyển sang cửa sổ nổi Picture-in-Picture để tiếp tục theo dõi liền mạch mà không bị gián đoạn.\n• Tự động phục hồi về cửa sổ chính: Khi bạn quay trở lại ứng dụng AuraTube, video sẽ tự động thu về trình phát lớn trong cửa sổ chính mượt mà.\n• Tùy chọn Bật/Tắt linh hoạt: Dễ dàng cấu hình bật hoặc tắt tính năng này bất cứ lúc nào qua menu chuột phải tại nút PiP (Header hoặc Player), menu cửa sổ nổi PiP, hoặc Menu Bar macOS (Điều khiển Media).\n• Giữ nguyên trạng thái khi tương tác PiP: Khi bạn nhấn trực tiếp vào cửa sổ nổi PiP để chỉnh âm lượng, tua hay tạm dừng, chế độ PiP vẫn giữ nguyên hoạt động bình thường.",
-  "downloadUrl": "https://github.com/tung68nt/AuraTube/releases/download/v2.0.66/AuraTube-v2.0.66.dmg",
+  "version": "2.0.67",
+  "build": 68,
+  "title": "AuraTube v2.0.67 (Khắc phục menu Kích thước PiP & Tinh chỉnh Liquid Glass)",
+  "releaseNotes": "• Khắc phục triệt để lỗi menu Kích thước cửa sổ PiP: Tối ưu hóa các mức kích thước (Nhỏ 380p, Trung bình 540p, Lớn 720p) thành các lựa chọn trực tiếp trong menu chuột phải, giúp chọn ngay chỉ bằng 1 click mà không lo menu con bị tự động đóng khi di chuột.\n• Menu kích thước tiện lợi: Hỗ trợ chọn nhanh kích thước cửa sổ ngay tại nút đổi tỷ lệ trên thanh PiP cũng như nút PiP trên thanh tiêu đề chính.\n• Tinh chỉnh hiệu ứng kính lỏng (Liquid Glass): Triệt tiêu hoàn toàn hiện tượng chói lóa theo con trỏ chuột trên nút PiP khi đang bật (active red), thay bằng độ phủ sáng dịu mắt, mượt mà chuẩn phong cách Apple cao cấp.",
+  "downloadUrl": "https://github.com/tung68nt/AuraTube/releases/download/v2.0.67/AuraTube-v2.0.67.dmg",
   "publishedAt": "2026-09-19",
   "minOSVersion": "13.0",
   "fileSize": "5.4 MB"

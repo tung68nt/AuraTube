@@ -421,21 +421,26 @@ public struct PiPFloatingContentView: View {
             }
         }
         .contextMenu {
-            Button("Đưa video về cửa sổ chính (P)") {
+            Button {
                 PiPWindowController.shared.returnToMainWindow()
+            } label: {
+                Label("Đưa video về cửa sổ chính (P)", systemImage: "arrow.up.forward.app")
             }
-            Menu("Kích thước cửa sổ") {
-                Button("Nhỏ (380p)") {
-                    PiPWindowController.shared.setPipSize(width: 380)
-                }
-                Button("Trung bình (540p)") {
-                    PiPWindowController.shared.setPipSize(width: 540)
-                }
-                Button("Lớn (720p)") {
-                    PiPWindowController.shared.setPipSize(width: 720)
-                }
-            }
+            
             Divider()
+            
+            Button("Kích thước: Nhỏ (380p)") {
+                PiPWindowController.shared.setPipSize(width: 380)
+            }
+            Button("Kích thước: Trung bình (540p)") {
+                PiPWindowController.shared.setPipSize(width: 540)
+            }
+            Button("Kích thước: Lớn (720p)") {
+                PiPWindowController.shared.setPipSize(width: 720)
+            }
+            
+            Divider()
+            
             Toggle("Tự động chuyển PiP khi chuyển app", isOn: $playerManager.autoPiPOnAppSwitch)
         }
     }
@@ -489,7 +494,18 @@ public struct PiPFloatingContentView: View {
                     .overlay(Circle().strokeBorder(Color.white.opacity(0.18), lineWidth: 0.75))
             }
             .buttonStyle(.plain)
-            .help("Đổi kích thước PiP (hoặc click đúp)")
+            .contextMenu {
+                Button("Kích thước: Nhỏ (380p)") {
+                    PiPWindowController.shared.setPipSize(width: 380)
+                }
+                Button("Kích thước: Trung bình (540p)") {
+                    PiPWindowController.shared.setPipSize(width: 540)
+                }
+                Button("Kích thước: Lớn (720p)") {
+                    PiPWindowController.shared.setPipSize(width: 720)
+                }
+            }
+            .help("Bấm để đổi kích thước PiP (380p / 540p / 720p) hoặc chuột phải để chọn")
             
             // Return to Main Window / App Button
             Button(action: {

@@ -531,11 +531,13 @@ public struct LiquidGlassCapsuleButton<Content: View>: View {
                                         )
                                 }
                                 
-                                // Dynamic Mouse-Tracking Specular Refraction
+                                // Dynamic Mouse-Tracking Specular Refraction (Gentle Glass Sheen)
                                 if isHovered {
+                                    let glowOpacity: Double = isSelected ? 0.12 : (isDark ? 0.16 : 0.22)
                                     RadialGradient(
                                         colors: [
-                                            (isDark ? Color.white.opacity(0.32) : Color.white.opacity(0.85)),
+                                            Color.white.opacity(glowOpacity),
+                                            Color.white.opacity(glowOpacity * 0.25),
                                             Color.clear
                                         ],
                                         center: UnitPoint(
@@ -700,21 +702,30 @@ public struct LiquidGlassCircleButton<Content: View>: View {
                                 )
                         }
                         
-                        // 3. Dynamic Mouse-Tracking Specular Refraction Glow
+                        // 3. Dynamic Specular Sheen (Subtle, Silk Glass Optics - No Blinding Flare)
                         if isHovered && !isPressed {
-                            RadialGradient(
-                                colors: [
-                                    (isDark ? Color.white.opacity(0.36) : Color.white.opacity(0.90)),
-                                    Color.clear
-                                ],
-                                center: UnitPoint(
-                                    x: max(0, min(1, mouseLocation.x / max(size, 1))),
-                                    y: max(0, min(1, mouseLocation.y / max(size, 1)))
-                                ),
-                                startRadius: 0,
-                                endRadius: size * 0.75
-                            )
-                            .clipShape(Circle())
+                            if isActive {
+                                // Active colored buttons (e.g. Red PiP button): gentle ambient lift without any mouse hotspot
+                                Circle()
+                                    .fill(Color.white.opacity(0.12))
+                            } else {
+                                // Translucent glass buttons: delicate, silky optical refraction
+                                let glowOpacity: Double = isDark ? 0.15 : 0.20
+                                RadialGradient(
+                                    colors: [
+                                        Color.white.opacity(glowOpacity),
+                                        Color.white.opacity(glowOpacity * 0.25),
+                                        Color.clear
+                                    ],
+                                    center: UnitPoint(
+                                        x: max(0, min(1, mouseLocation.x / max(size, 1))),
+                                        y: max(0, min(1, mouseLocation.y / max(size, 1)))
+                                    ),
+                                    startRadius: 0,
+                                    endRadius: size * 0.8
+                                )
+                                .clipShape(Circle())
+                            }
                         }
                         
                         // 4. Inner Top-Edge Specular Reflection (Glass Bevel)
@@ -722,7 +733,7 @@ public struct LiquidGlassCircleButton<Content: View>: View {
                             .strokeBorder(
                                 LinearGradient(
                                     colors: [
-                                        Color.white.opacity(isActive ? 0.6 : (isDark ? (isHovered ? 0.65 : 0.38) : (isHovered ? 0.95 : 0.82))),
+                                        Color.white.opacity(isActive ? 0.45 : (isDark ? (isHovered ? 0.65 : 0.38) : (isHovered ? 0.95 : 0.82))),
                                         Color.white.opacity(0.0)
                                     ],
                                     startPoint: .top,
@@ -737,7 +748,7 @@ public struct LiquidGlassCircleButton<Content: View>: View {
                     Circle()
                         .strokeBorder(
                             isActive ?
-                                LinearGradient(colors: [Color.white.opacity(0.6), Color.white.opacity(0.2)], startPoint: .top, endPoint: .bottom) :
+                                LinearGradient(colors: [Color.white.opacity(0.45), Color.white.opacity(0.15)], startPoint: .top, endPoint: .bottom) :
                                 (isDark ?
                                     LinearGradient(
                                         colors: [
@@ -762,13 +773,13 @@ public struct LiquidGlassCircleButton<Content: View>: View {
                 .clipShape(Circle())
                 .shadow(
                     color: isActive ?
-                        (activeTint ?? Color.blue).opacity(0.4) :
-                        Color.black.opacity(isDark ? (isHovered ? 0.35 : 0.16) : (isHovered ? 0.12 : 0.05)),
-                    radius: isHovered ? 5.5 : 2.5,
+                        (activeTint ?? Color.blue).opacity(isHovered ? 0.25 : 0.15) :
+                        Color.black.opacity(isDark ? (isHovered ? 0.25 : 0.12) : (isHovered ? 0.10 : 0.04)),
+                    radius: isHovered ? 4.0 : 2.0,
                     x: 0,
-                    y: isHovered ? 2.5 : 1
+                    y: isHovered ? 1.5 : 0.5
                 )
-                .scaleEffect(isPressed ? 0.91 : (isHovered ? 1.08 : 1.0))
+                .scaleEffect(isPressed ? 0.92 : (isHovered ? 1.05 : 1.0))
                 .animation(.spring(response: 0.26, dampingFraction: 0.65), value: isHovered)
                 .animation(.spring(response: 0.16, dampingFraction: 0.75), value: isPressed)
         }
