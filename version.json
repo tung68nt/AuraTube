@@ -1,9 +1,9 @@
 {
-  "version": "2.0.76",
-  "build": 77,
-  "title": "AuraTube v2.0.76 (Khắc phục hoàn toàn lỗi viền không đều của thẻ Giao diện)",
-  "releaseNotes": "• Sửa triệt để lỗi viền border không đều và vệt trắng dư thừa: Áp dụng clipShape squircle chuẩn xác kết hợp gradient stroke đa tầng, loại bỏ hoàn toàn hiện tượng lệch subpixel và góc bo bị cắt lẹm trên màn hình Retina.\n• Nâng cấp giao diện Thẻ Theme (Tự động/Sáng/Tối): Mỗi chế độ sở hữu huy hiệu icon gradient riêng biệt (Hổ phách cho Sáng, Tím đêm cho Tối, Xanh sapphire cho Tự động), viền sáng quang học ôm sát đường cong và chỉ báo radio/checkmark sắc nét.\n• Tối ưu hóa đĩa kính khảm chìm Recessed Plate & Tab Selector: Đảm bảo toàn bộ các thành phần trong Cửa sổ Cài đặt hiển thị mượt mà, đồng nhất.",
-  "downloadUrl": "https://github.com/tung68nt/AuraTube/releases/download/v2.0.76/AuraTube-v2.0.76.dmg",
+  "version": "2.0.77",
+  "build": 78,
+  "title": "AuraTube v2.0.77 (Tinh chỉnh Icon Menu Bar thanh mảnh chuẩn Apple HIG)",
+  "releaseNotes": "• Sửa lỗi icon Menu Bar bị khối đen đặc gây cảm giác lộn màu: Thay thế mảng khối SVG đặc bằng SF Symbol 'play.rectangle' nét mảnh cao cấp, chuẩn kích thước và độ dày San Francisco Typography.\n• Tự động thích ứng màu sắc quang học: Nét viền mảnh đen tinh tế trên nền Menu Bar sáng và nét viền trắng sáng trên nền Menu Bar tối, đồng bộ hoàn hảo cùng các icon hệ thống của macOS (Pin, AirDrop, WiFi, Control Center).",
+  "downloadUrl": "https://github.com/tung68nt/AuraTube/releases/download/v2.0.77/AuraTube-v2.0.77.dmg",
   "publishedAt": "2026-09-19",
   "minOSVersion": "13.0",
   "fileSize": "5.4 MB"
