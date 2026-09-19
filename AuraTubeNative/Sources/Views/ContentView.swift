@@ -235,6 +235,7 @@ public struct ContentView: View {
     
     @AppStorage("isSidebarCollapsedByUser") private var isSidebarCollapsedByUser: Bool = false
     @FocusState private var isSearchFocused: Bool
+    @State private var showSettingsSheet: Bool = false
     
     public init() {}
     
@@ -437,31 +438,27 @@ public struct ContentView: View {
                         Spacer()
                     }
                     
-                    // Right Controls: Quick Actions & Update Status
+                    // Right Controls: Clean Uncluttered Toolbar (PiP + Downloads + Update + Settings)
                     HStack(spacing: 8) {
                         Spacer()
                         
-                        // Main Window PiP Quick Button (Visible when watching a video)
+                        // 1. Instant One-Click PiP Toggle (Visible when watching a video)
                         if vm.watchingVideo != nil {
-                            LiquidGlassPiPButton()
+                            LiquidGlassCircleButton(
+                                action: {
+                                    playerManager.togglePictureInPicture()
+                                },
+                                size: 28,
+                                isActive: playerManager.isPictureInPictureActive
+                            ) {
+                                Image(systemName: playerManager.isPictureInPictureActive ? "pip.exit" : "pip.enter")
+                                    .font(.system(size: 12, weight: .semibold))
+                                    .foregroundColor(playerManager.isPictureInPictureActive ? .white : ThemeColor.textPrimary(for: colorScheme).opacity(0.85))
+                            }
+                            .help(playerManager.isPictureInPictureActive ? "Đưa video về cửa sổ chính (P)" : "Chuyển sang cửa sổ nổi PiP (P)")
                         }
                         
-                        // Theme Toggle Button (Light / Dark / Auto System)
-                        LiquidGlassCircleButton(
-                            action: {
-                                themeManager.cycleTheme()
-                            },
-                            size: 28
-                        ) {
-                            Image(systemName: themeManager.currentTheme.iconName)
-                                .font(.system(size: 12))
-                                .foregroundColor(ThemeColor.textPrimary(for: colorScheme).opacity(0.85))
-                                .rotationEffect(.degrees(themeManager.currentTheme == .light ? 0 : (themeManager.currentTheme == .dark ? 360 : 180)))
-                                .animation(.spring(response: 0.35, dampingFraction: 0.7), value: themeManager.currentTheme)
-                        }
-                        .help("Giao diện: \(themeManager.currentTheme.title) (Bấm để đổi)")
-                        
-                        // Downloads Manager Quick Access Button
+                        // 2. Downloads Manager Quick Access Button
                         LiquidGlassCircleButton(
                             action: {
                                 withAnimation(.easeInOut(duration: 0.2)) {
@@ -488,6 +485,7 @@ public struct ContentView: View {
                         }
                         .help(downloadManager.hasActiveDownloads ? "Đang tải \(downloadManager.activeDownloadCount) tệp..." : "Tệp đã tải về")
                         
+                        // 3. Update Available Pill (Only shows when an actual update is ready to install)
                         if updateService.isUpdateAvailable, let update = updateService.latestUpdate {
                             LiquidGlassButton(action: {
                                 updateService.showUpdateSheet = true
@@ -503,32 +501,21 @@ public struct ContentView: View {
                                 .padding(.horizontal, 10)
                                 .padding(.vertical, 5)
                             }
-                        } else {
-                            // Refresh / Update Scan Icon Button
-                            LiquidGlassCircleButton(
-                                action: {
-                                    updateService.scanForUpdates(isUserInitiated: true)
-                                },
-                                size: 28
-                            ) {
-                                SpinningRefreshIcon(isSpinning: updateService.isScanning, size: 11)
-                                    .foregroundColor(ThemeColor.textPrimary(for: colorScheme).opacity(0.85))
-                            }
-                            .help(updateService.isScanning ? "Đang quét bản mới..." : "Kiểm tra bản cập nhật")
-                            
-                            // App Info / About Button
-                            LiquidGlassCircleButton(
-                                action: {
-                                    AppDelegate.showStandardAboutPanel()
-                                },
-                                size: 28
-                            ) {
-                                Image(systemName: "info.circle")
-                                    .font(.system(size: 12.5))
-                                    .foregroundColor(ThemeColor.textPrimary(for: colorScheme).opacity(0.85))
-                            }
-                            .help("Thông tin AuraTube")
                         }
+                        
+                        // 4. Unified Liquid Glass Settings Button (Theme, PiP, Updates, Info)
+                        LiquidGlassCircleButton(
+                            action: {
+                                showSettingsSheet = true
+                            },
+                            size: 28,
+                            isActive: showSettingsSheet
+                        ) {
+                            Image(systemName: "gearshape")
+                                .font(.system(size: 12.5))
+                                .foregroundColor(ThemeColor.textPrimary(for: colorScheme).opacity(0.85))
+                        }
+                        .help("Cài đặt & Tùy biến (⌘,)")
                     }
                     .padding(.trailing, 16)
                 }
@@ -680,26 +667,6 @@ public struct ContentView: View {
                 .zIndex(201)
             }
         }
-        .overlay(alignment: .topTrailing) {
-            if playerManager.showPiPSettingsCard {
-                // Transparent tap-outside dismiss layer
-                Color.black.opacity(0.001)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    .contentShape(Rectangle())
-                    .onTapGesture {
-                        playerManager.togglePiPSettingsCard()
-                    }
-                
-                PiPLiquidGlassSettingsCard()
-                    .padding(.top, 56)
-                    .padding(.trailing, 18)
-                    .transition(.asymmetric(
-                        insertion: .scale(scale: 0.94, anchor: .topTrailing).combined(with: .opacity),
-                        removal: .scale(scale: 0.96, anchor: .topTrailing).combined(with: .opacity)
-                    ))
-                    .zIndex(500)
-            }
-        }
     }
     .frame(
         minWidth: playerManager.isVideoFullscreen ? 0 : 980,
@@ -820,6 +787,12 @@ public struct ContentView: View {
     }
     .sheet(isPresented: $updateService.showUpdateSheet) {
         UpdateSheetView()
+    }
+    .sheet(isPresented: $showSettingsSheet) {
+        SettingsSheetView()
+    }
+    .onReceive(NotificationCenter.default.publisher(for: .showSettingsNotification)) { _ in
+        showSettingsSheet = true
     }
     .onReceive(NotificationCenter.default.publisher(for: .toggleSidebarNotification)) { _ in
         toggleSidebar()

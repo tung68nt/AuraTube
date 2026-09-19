@@ -440,9 +440,9 @@ public struct PlayerControlOverlay: View {
             }
             .buttonStyle(.plain)
             .onRightClick {
-                playerManager.togglePiPSettingsCard()
+                NotificationCenter.default.post(name: .showSettingsNotification, object: nil)
             }
-            .help(playerManager.isPictureInPictureActive ? "Đưa video về cửa sổ chính (P) • Chuột phải để cài đặt kính lỏng" : "Chuyển sang cửa sổ nổi PiP (P) • Chuột phải để cài đặt kính lỏng")
+            .help(playerManager.isPictureInPictureActive ? "Đưa video về cửa sổ chính (P)" : "Chuyển sang cửa sổ nổi PiP (P)")
             
             // Fullscreen Button (ALWAYS PRESENT ON THE RIGHT)
             Button(action: {

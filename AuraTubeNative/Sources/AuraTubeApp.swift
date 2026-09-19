@@ -224,6 +224,13 @@ struct AuraTubeApp: App {
                 Divider()
             }
             
+            CommandGroup(replacing: .appSettings) {
+                Button("Cài đặt...") {
+                    NotificationCenter.default.post(name: .showSettingsNotification, object: nil)
+                }
+                .keyboardShortcut(",", modifiers: .command)
+            }
+            
             CommandMenu("Giao diện") {
                 Button("Tự động (Theo hệ thống)") {
                     themeManager.setTheme(.system)
@@ -317,4 +324,5 @@ struct AuraTubeApp: App {
 
 extension Notification.Name {
     static let toggleSidebarNotification = Notification.Name("AuraTubeToggleSidebarNotification")
+    static let showSettingsNotification = Notification.Name("AuraTubeShowSettingsNotification")
 }
