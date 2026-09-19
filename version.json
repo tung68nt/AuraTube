@@ -1,9 +1,9 @@
 {
-  "version": "2.0.68",
-  "build": 69,
-  "title": "AuraTube v2.0.68 (Tự động tắt PiP về main player khi bấm lại app chính)",
-  "releaseNotes": "• Tự động thu PiP về trình phát chính: Khi đang mở cửa sổ nổi PiP, chỉ cần bạn bấm lại vào cửa sổ chính AuraTube, bấm vào biểu tượng app ở thanh Dock, hoặc chuyển app bằng Cmd+Tab, cửa sổ PiP sẽ tự động tắt và trả video về đúng khung hình trình phát lớn mượt mà.\n• Tùy chọn Bật/Tắt linh hoạt: Có thể tùy chỉnh bật/tắt tính năng 'Tắt PiP khi bấm lại app chính' ngay trong menu chuột phải của nút PiP, thanh điều khiển hoặc Menu Bar macOS (Điều khiển Media).\n• Thao tác 1 chạm tiện lợi: Nhấn vào bất cứ đâu trên khung placeholder PiP ở trang xem video cũng sẽ phục hồi video về player lớn ngay lập tức.",
-  "downloadUrl": "https://github.com/tung68nt/AuraTube/releases/download/v2.0.68/AuraTube-v2.0.68.dmg",
+  "version": "2.0.69",
+  "build": 70,
+  "title": "AuraTube v2.0.69 (Tự động mở Thịnh hành Mới nhất & Lọc video 1 tuần - 1 tháng)",
+  "releaseNotes": "• Tự động hiển thị Thịnh hành khi mở app: Ngay khi khởi động ứng dụng, AuraTube sẽ tự động đưa bạn đến tab 🔥 Thịnh hành và nạp sẵn các video cùng Shorts hot nhất tại Việt Nam.\n• Lọc nội dung xu hướng mới (1 tuần - 1 tháng): Áp dụng bộ lọc thời gian nghiêm ngặt, loại bỏ hoàn toàn các video cũ cách đây nhiều tháng hoặc nhiều năm, đảm bảo 100% nội dung xu hướng là mới nhất.\n• Kết hợp đồng thời video dài và Shorts xu hướng: Trình bày hài hòa hàng loạt video dài triệu view cùng khay Shorts thịnh hành ngay trên giao diện chính.",
+  "downloadUrl": "https://github.com/tung68nt/AuraTube/releases/download/v2.0.69/AuraTube-v2.0.69.dmg",
   "publishedAt": "2026-09-19",
   "minOSVersion": "13.0",
   "fileSize": "5.4 MB"

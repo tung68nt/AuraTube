@@ -124,7 +124,7 @@ final class NativeShortsViewModel: ObservableObject {
         var primaryContinuation: String? = nil
         
         for (idx, q) in queriesToFetch.prefix(3).enumerated() {
-            let res = await YTDLPService.shared.searchVideosWithContinuation(query: q, limit: 16)
+            let res = await YTDLPService.shared.searchVideosWithContinuation(query: q, params: YTDLPService.filterThisMonth, limit: 16)
             var extracted = res.shorts
             if extracted.isEmpty {
                 extracted = res.videos.filter { ($0.duration ?? 0) <= 65 }
@@ -132,12 +132,12 @@ final class NativeShortsViewModel: ObservableObject {
             if idx == 0 {
                 primaryContinuation = res.continuationToken
             }
-            candidateVideos.append(contentsOf: extracted)
+            candidateVideos.append(contentsOf: extracted.filter { RecommendationService.isFreshTrendingVideo($0) })
         }
         
         if candidateVideos.isEmpty {
-            let fallbackRes = await YTDLPService.shared.searchVideos(query: smartDiscoverySeeds.randomElement() ?? "#shorts việt nam", limit: 20)
-            candidateVideos.append(contentsOf: fallbackRes.filter { $0.isShort || ($0.duration ?? 0) <= 65 })
+            let fallbackRes = await YTDLPService.shared.searchVideos(query: smartDiscoverySeeds.randomElement() ?? "#shorts việt nam", params: YTDLPService.filterThisMonth, limit: 20)
+            candidateVideos.append(contentsOf: fallbackRes.filter { ($0.isShort || ($0.duration ?? 0) <= 65) && RecommendationService.isFreshTrendingVideo($0) })
         }
         
         // Smart Deduplication & Non-Repetition against past sessions
@@ -186,7 +186,7 @@ final class NativeShortsViewModel: ObservableObject {
         let nextQuery = smartDiscoverySeeds[streamIndex % smartDiscoverySeeds.count]
         
         if let token = continuationToken {
-            let res = await YTDLPService.shared.searchVideosWithContinuation(query: nextQuery, continuationToken: token)
+            let res = await YTDLPService.shared.searchVideosWithContinuation(query: nextQuery, continuationToken: token, params: YTDLPService.filterThisMonth)
             newShorts = res.shorts.isEmpty ? res.videos.filter { ($0.duration ?? 0) <= 65 } : res.shorts
             self.continuationToken = res.continuationToken
         }
@@ -194,8 +194,10 @@ final class NativeShortsViewModel: ObservableObject {
         if newShorts.isEmpty {
             streamIndex = (streamIndex + 1) % smartDiscoverySeeds.count
             let fallbackQuery = smartDiscoverySeeds[streamIndex]
-            newShorts = await YTDLPService.shared.searchVideos(query: fallbackQuery, limit: 16)
+            newShorts = await YTDLPService.shared.searchVideos(query: fallbackQuery, params: YTDLPService.filterThisMonth, limit: 16)
         }
+        
+        newShorts = newShorts.filter { RecommendationService.isFreshTrendingVideo($0) }
         
         let existingIds = Set(self.shorts.map { $0.id })
         var freshSeen = self.seenShortIds

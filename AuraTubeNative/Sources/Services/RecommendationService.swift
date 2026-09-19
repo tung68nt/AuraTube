@@ -359,52 +359,119 @@ public final class RecommendationService: ObservableObject {
         return results
     }
     
-    /// Multi-pillar Vietnam Trending Feed for instant discovery & new users
+    /// Ensure videos in Trending are fresh (within 1 week to 1 month, strictly excluding 2+ months or years old)
+    nonisolated public static func isFreshTrendingVideo(_ video: Video) -> Bool {
+        guard let pub = video.publishedTime?.lowercased() else { return true }
+        
+        // Exclude older than 1 month
+        if pub.contains("năm") || pub.contains("year") { return false }
+        
+        let oldIndicators = [
+            "2 tháng trước", "3 tháng trước", "4 tháng trước", "5 tháng trước",
+            "6 tháng trước", "7 tháng trước", "8 tháng trước", "9 tháng trước",
+            "10 tháng trước", "11 tháng trước", "12 tháng trước",
+            "2 months ago", "3 months ago", "4 months ago", "5 months ago",
+            "6 months ago", "7 months ago", "8 months ago", "9 months ago",
+            "10 months ago", "11 months ago", "12 months ago"
+        ]
+        for indicator in oldIndicators {
+            if pub.contains(indicator) { return false }
+        }
+        return true
+    }
+    
+    /// Multi-pillar Vietnam Trending Feed for instant discovery (Both Long Videos & Shorts within 1 week / 1 month)
     public func fetchVietnamTrendingFeed(forceRefresh: Bool = false) async -> [Video] {
-        if !forceRefresh, let last = lastTrendingFetchTime, Date().timeIntervalSince(last) < cacheValidityInterval, !trendingCache.isEmpty {
+        if !forceRefresh, let last = lastTrendingFetchTime, Date().timeIntervalSince(last) < 1200, !trendingCache.isEmpty {
             return trendingCache
         }
         
-        let trendingPillars = [
-            "top trending việt nam hôm nay",
-            "bài hát thịnh hành mới nhất việt nam triệu view",
-            "gameshow việt nam triệu view thịnh hành",
-            "review công nghệ việt nam vật vờ schannel mới nhất",
-            "vtv24 chuyển động 24h tin tức thời sự việt nam mới nhất",
-            "khoai lang thang ẩm thực du lịch việt nam",
-            "mixigaming cris devil gamer highlight mới nhất",
-            "bóng đá việt nam highlight mới nhất"
+        // Core trending pillars with strict recent upload date filters
+        let trendingPillars: [(query: String, params: String)] = [
+            ("top trending việt nam hôm nay", YTDLPService.filterThisWeek),
+            ("nhạc mới thịnh hành việt nam triệu view", YTDLPService.filterThisWeek),
+            ("gameshow việt nam triệu view mới nhất", YTDLPService.filterThisMonth),
+            ("review công nghệ schannel vật vờ mới nhất", YTDLPService.filterThisMonth),
+            ("vtv24 chuyển động 24h tin tức thời sự việt nam", YTDLPService.filterThisWeek),
+            ("ẩm thực du lịch việt nam triệu view mới nhất", YTDLPService.filterThisMonth),
+            ("mixigaming cris devil gamer highlight mới nhất", YTDLPService.filterThisMonth),
+            ("bóng đá việt nam highlight mới nhất", YTDLPService.filterThisWeek)
         ]
         
-        var streams: [[Video]] = []
-        await withTaskGroup(of: [Video].self) { group in
+        let shortsPillars: [(query: String, params: String)] = [
+            ("#shorts trending việt nam mới nhất", YTDLPService.filterThisMonth),
+            ("#shorts hài hước triệu view việt nam", YTDLPService.filterThisMonth)
+        ]
+        
+        var regularStreams: [[Video]] = []
+        var shortsCollected: [Video] = []
+        
+        await withTaskGroup(of: (isShorts: Bool, videos: [Video]).self) { group in
             for p in trendingPillars {
                 group.addTask {
-                    return await YTDLPService.shared.searchVideos(query: p, limit: 6)
+                    let res = await YTDLPService.shared.searchVideosWithContinuation(query: p.query, params: p.params, limit: 8)
+                    let freshRegular = res.videos.filter { Self.isFreshTrendingVideo($0) }
+                    return (isShorts: false, videos: freshRegular)
                 }
             }
-            for await res in group {
-                if !res.isEmpty {
-                    streams.append(res)
+            for sp in shortsPillars {
+                group.addTask {
+                    let res = await YTDLPService.shared.searchVideosWithContinuation(query: sp.query, params: sp.params, limit: 12)
+                    var freshShorts = res.shorts.filter { Self.isFreshTrendingVideo($0) }
+                    if freshShorts.isEmpty {
+                        freshShorts = res.videos.filter { ($0.duration ?? 0) <= 65 && Self.isFreshTrendingVideo($0) }
+                    }
+                    return (isShorts: true, videos: freshShorts)
                 }
             }
-        }
-        
-        var combined: [Video] = []
-        var seenIds = Set<String>()
-        
-        let maxLen = streams.map { $0.count }.max() ?? 0
-        for i in 0..<maxLen {
-            for stream in streams {
-                if i < stream.count {
-                    let v = stream[i]
-                    if !seenIds.contains(v.id) {
-                        seenIds.insert(v.id)
-                        combined.append(v)
+            
+            for await (isShorts, videos) in group {
+                if !videos.isEmpty {
+                    if isShorts {
+                        shortsCollected.append(contentsOf: videos)
+                    } else {
+                        regularStreams.append(videos)
                     }
                 }
             }
         }
+        
+        var seenIds = Set<String>()
+        
+        // Interleave regular videos
+        let maxLen = regularStreams.map { $0.count }.max() ?? 0
+        var regularCombined: [Video] = []
+        for i in 0..<maxLen {
+            for stream in regularStreams {
+                if i < stream.count {
+                    let v = stream[i]
+                    if !seenIds.contains(v.id) {
+                        seenIds.insert(v.id)
+                        regularCombined.append(v)
+                    }
+                }
+            }
+        }
+        
+        // Deduplicate shorts
+        var cleanShorts: [Video] = []
+        for s in shortsCollected {
+            if !seenIds.contains(s.id) {
+                seenIds.insert(s.id)
+                var markedShort = s
+                markedShort.isExplicitShort = true
+                cleanShorts.append(markedShort)
+            }
+        }
+        
+        // Structure final list: Top 6 regular videos -> Up to 14 Shorts -> Remaining regular videos
+        var combined: [Video] = []
+        let topRegular = Array(regularCombined.prefix(6))
+        let remainingRegular = Array(regularCombined.dropFirst(6))
+        
+        combined.append(contentsOf: topRegular)
+        combined.append(contentsOf: cleanShorts.prefix(14))
+        combined.append(contentsOf: remainingRegular)
         
         if !combined.isEmpty {
             self.trendingCache = combined

@@ -19,7 +19,7 @@ APP_BUNDLE="/Applications/${APP_NAME}.app"
 TOOL_NAME="Huong Dan Mo Khoa (Doc Khi Bi Bao Loi).txt"
 
 echo "==> 1. Building release bundle for AuraTube v${VERSION} (Build ${BUILD})..."
-DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer swift build --package-path "${SOURCE_DIR}" -c release && bash "${SOURCE_DIR}/bundle.sh"
+DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer xcrun swift build --package-path "${SOURCE_DIR}" -c release && bash "${SOURCE_DIR}/bundle.sh"
 
 # Prepare staging temporary directory
 STAGING_DIR="/tmp/auratube_dmg_staging_$$"

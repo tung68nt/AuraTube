@@ -83,23 +83,30 @@ public final class YTDLPService: @unchecked Sendable {
         }
     }
     
+    // InnerTube filter parameters for fresh trending content
+    public static let filterThisWeek = "EgQIAxAB"
+    public static let filterThisMonth = "EgQIBBAB"
+    public static let filterToday = "EgQIAhAB"
+    
     public func fetchTrendingVideos(region: String = "VN") async -> [Video] {
         return await RecommendationService.shared.fetchVietnamTrendingFeed()
     }
     
     public func fetchTrendingVideosWithContinuation(region: String = "VN", continuationToken: String? = nil) async -> SearchResultPage {
         let trending = await RecommendationService.shared.fetchVietnamTrendingFeed()
-        return SearchResultPage(channel: nil, videos: trending, shorts: [], continuationToken: nil)
+        let regular = trending.filter { !$0.isShort }
+        let shorts = trending.filter { $0.isShort }
+        return SearchResultPage(channel: nil, videos: regular, shorts: shorts, continuationToken: nil)
     }
     
-    public func searchVideos(query: String, limit: Int = 24) async -> [Video] {
-        let page = await searchVideosWithContinuation(query: query, continuationToken: nil, limit: limit)
+    public func searchVideos(query: String, params: String? = nil, limit: Int = 24) async -> [Video] {
+        let page = await searchVideosWithContinuation(query: query, continuationToken: nil, params: params, limit: limit)
         return page.allItems
     }
     
-    public func searchVideosWithContinuation(query: String, continuationToken: String? = nil, limit: Int = 24) async -> SearchResultPage {
+    public func searchVideosWithContinuation(query: String, continuationToken: String? = nil, params: String? = nil, limit: Int = 24) async -> SearchResultPage {
         // 1. Try high-speed InnerTube API first
-        if let result = await searchViaInnerTube(query: query, continuationToken: continuationToken),
+        if let result = await searchViaInnerTube(query: query, continuationToken: continuationToken, params: params),
            (!result.videos.isEmpty || !result.shorts.isEmpty || result.channel != nil) {
             return result
         }
@@ -145,7 +152,7 @@ public final class YTDLPService: @unchecked Sendable {
         return suggestions
     }
     
-    private func searchViaInnerTube(query: String, continuationToken: String? = nil) async -> SearchResultPage? {
+    private func searchViaInnerTube(query: String, continuationToken: String? = nil, params: String? = nil) async -> SearchResultPage? {
         guard let url = URL(string: "https://www.youtube.com/youtubei/v1/search?prettyPrint=false") else { return nil }
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
@@ -169,6 +176,9 @@ public final class YTDLPService: @unchecked Sendable {
             body["continuation"] = continuation
         } else {
             body["query"] = query
+            if let p = params, !p.isEmpty {
+                body["params"] = p
+            }
         }
         
         guard let httpBody = try? JSONSerialization.data(withJSONObject: body) else { return nil }

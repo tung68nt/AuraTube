@@ -17,7 +17,7 @@ struct RecommendedChannel: Identifiable {
 @MainActor
 final class HomeViewModel: ObservableObject {
     @Published var videos: [Video] = []
-    @Published var selectedTag = "Tất cả"
+    @Published var selectedTag = "🔥 Thịnh hành"
     @Published var selectedChannel: ChannelInfo? = nil
     @Published var channelVideos: [Video] = []
     @Published var isLoading = true
@@ -43,7 +43,7 @@ public struct HomeView: View {
     @ObservedObject private var recService = RecommendationService.shared
     
     private var allTags: [String] {
-        var list = ["Tất cả", "🔥 Thịnh hành", "🔔 Đang theo dõi"]
+        var list = ["🔥 Thịnh hành", "Tất cả", "🔔 Đang theo dõi"]
         for t in recService.dynamicInterestTags {
             if !list.contains(t) && t != "🔥 Thịnh hành" {
                 list.append(t)
@@ -263,6 +263,24 @@ public struct HomeView: View {
                             Text("Video từ các kênh bạn theo dõi")
                                 .font(.system(size: 20, weight: .bold))
                                 .foregroundColor(ThemeColor.textPrimary(for: colorScheme))
+                        }
+                    } else if vm.selectedTag == "🔥 Thịnh hành" {
+                        VStack(alignment: .leading, spacing: 3) {
+                            HStack(spacing: 8) {
+                                Text("🔥 Thịnh hành tại Việt Nam")
+                                    .font(.system(size: 20, weight: .bold))
+                                    .foregroundColor(ThemeColor.textPrimary(for: colorScheme))
+                                Text("Mới nhất (1 Tuần - 1 Tháng)")
+                                    .font(.system(size: 11, weight: .bold))
+                                    .foregroundColor(.white)
+                                    .padding(.horizontal, 8)
+                                    .padding(.vertical, 3)
+                                    .background(Color.red)
+                                    .clipShape(Capsule())
+                            }
+                            Text("Tổng hợp video dài và Shorts xu hướng nóng nhất, loại bỏ video cũ")
+                                .font(.system(size: 12))
+                                .foregroundColor(ThemeColor.textSecondary(for: colorScheme))
                         }
                     } else if vm.selectedTag == "Tất cả" {
                         VStack(alignment: .leading, spacing: 3) {
@@ -561,7 +579,7 @@ public struct HomeView: View {
     
     private func loadInitial() async {
         vm.isLoading = true
-        vm.videos = await RecommendationService.shared.fetchRecommendations()
+        vm.videos = await RecommendationService.shared.fetchVietnamTrendingFeed(forceRefresh: true)
         vm.isLoading = false
         
         // Background pre-fetch followed channels feed if user has subscriptions
