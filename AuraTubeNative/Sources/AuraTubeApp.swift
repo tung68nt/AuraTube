@@ -90,10 +90,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
         
         let isDark: Bool
-        if let appearance = window.effectiveAppearance.bestMatch(from: [.darkAqua, .aqua]) {
-            isDark = appearance == .darkAqua
-        } else {
-            isDark = NSApp.effectiveAppearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
+        switch ThemeManager.shared.currentTheme {
+        case .dark:
+            isDark = true
+        case .light:
+            isDark = false
+        case .system:
+            if let appearance = window.effectiveAppearance.bestMatch(from: [.darkAqua, .aqua]) {
+                isDark = (appearance == .darkAqua)
+            } else {
+                isDark = (NSApp.effectiveAppearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua)
+            }
         }
         
         let bgColor = isDark ?
@@ -126,6 +133,7 @@ struct AuraTubeApp: App {
         WindowGroup {
             ContentView()
                 .preferredColorScheme(themeManager.colorScheme)
+                .animation(.easeInOut(duration: 0.28), value: themeManager.currentTheme)
         }
         .windowStyle(.hiddenTitleBar)
         .defaultSize(width: 1240, height: 800)

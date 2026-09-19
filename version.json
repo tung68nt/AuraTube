@@ -1,9 +1,9 @@
 {
-  "version": "2.0.62",
-  "build": 63,
-  "title": "AuraTube v2.0.62 (Đồng Bộ Nền Shorts Theo Giao Diện Sáng/Tối & Hoàn Thiện Trải Nghiệm)",
-  "releaseNotes": "• Đồng bộ nền Shorts theo Theme: Giao diện Shorts feed tự động thích ứng chuẩn xác theo Light Mode và Dark Mode của macOS, không còn bị ép buộc nền đen khi đang dùng giao diện sáng.\n• Bộ nút tương tác & thanh điều hướng thích ứng: Các nút Thích, Bình luận, Chia sẻ, Mũi tên chuyển video hiển thị nổi bật dạng Glass pill độ tương phản cao, hài hòa trên mọi chế độ hiển thị.\n• Khung bình luận Shorts đồng bộ giao diện: Thanh tiêu đề, nội dung bình luận, menu sắp xếp và nền ngăn kéo bình luận tự động chuyển đổi sáng/tối sắc nét.\n• Chuẩn hóa hiển thị 9:16 nguyên bản: Giữ trọn độ nét không crop, thuật toán gợi ý Shorts đa luồng thông minh và loại bỏ triệt để thông tin chồng chéo.",
-  "downloadUrl": "https://github.com/tung68nt/AuraTube/releases/download/v2.0.62/AuraTube-v2.0.62.dmg",
+  "version": "2.0.63",
+  "build": 64,
+  "title": "AuraTube v2.0.63 (Khắc Phục Triệt Để Lệch Màu Theme & Chuyển Đổi Mượt Mà 60FPS)",
+  "releaseNotes": "• Khắc phục triệt để lỗi lệch màu Theme: Đồng bộ cưỡng bức NSWindow appearance và SwiftUI context khi chuyển đổi giữa Sáng, Tối và Tự động, chấm dứt hoàn toàn tình trạng thanh bar trắng nhưng nền đen.\n• Chuyển đổi giao diện mượt mà 60FPS: Bọc toàn bộ quá trình đổi màu bằng animation chuyển tiếp mượt mà, triệt tiêu khựng giật và nhấp nháy.\n• Toast thông báo trạng thái trực quan: Hiển thị badge kính mờ báo rõ chế độ đang kích hoạt (☀️ Sáng, 🌙 Tối, hoặc 🌓 Tự động theo hệ thống) cùng hiệu ứng xoay icon sinh động.\n• Hoàn thiện trải nghiệm Shorts thích ứng theme toàn diện và hiển thị chuẩn 9:16 nguyên bản.",
+  "downloadUrl": "https://github.com/tung68nt/AuraTube/releases/download/v2.0.63/AuraTube-v2.0.63.dmg",
   "publishedAt": "2026-09-19",
   "minOSVersion": "13.0",
   "fileSize": "5.4 MB"

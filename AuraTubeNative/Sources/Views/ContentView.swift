@@ -500,6 +500,8 @@ public struct ContentView: View {
                                 Image(systemName: themeManager.currentTheme.iconName)
                                     .font(.system(size: 12))
                                     .foregroundColor(ThemeColor.textPrimary(for: colorScheme).opacity(0.85))
+                                    .rotationEffect(.degrees(themeManager.currentTheme == .light ? 0 : (themeManager.currentTheme == .dark ? 360 : 180)))
+                                    .animation(.spring(response: 0.35, dampingFraction: 0.7), value: themeManager.currentTheme)
                             }
                             .frame(width: 28, height: 28)
                         }
@@ -766,6 +768,13 @@ public struct ContentView: View {
     )
     .overlay(alignment: .top) {
         ZStack(alignment: .top) {
+            if let toast = themeManager.themeToast {
+                ThemeFeedbackToast(icon: toast.icon, message: toast.message)
+                    .padding(.top, 58)
+                    .transition(.move(edge: .top).combined(with: .opacity))
+                    .zIndex(305)
+            }
+            
             if let feedback = updateService.scanFeedbackMessage {
                 ScanFeedbackToast(message: feedback)
                     .padding(.top, 58)
@@ -1972,6 +1981,35 @@ struct ScanFeedbackToast: View {
             Text(message)
                 .font(.system(size: 12.5, weight: .semibold))
                 .foregroundColor(colorScheme == .dark ? Color(red: 241/255, green: 241/255, blue: 241/255) : Color(red: 15/255, green: 15/255, blue: 15/255))
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 9)
+        .background(
+            Capsule()
+                .fill(colorScheme == .dark ? Color(red: 30/255, green: 30/255, blue: 30/255) : Color.white)
+                .overlay(
+                    Capsule()
+                        .strokeBorder(colorScheme == .dark ? Color.white.opacity(0.20) : Color.black.opacity(0.12), lineWidth: 0.75)
+                )
+                .shadow(color: Color.black.opacity(colorScheme == .dark ? 0.35 : 0.12), radius: 10, y: 4)
+        )
+    }
+}
+
+// MARK: - Theme Feedback Toast HUD
+struct ThemeFeedbackToast: View {
+    let icon: String
+    let message: String
+    @Environment(\.colorScheme) private var colorScheme
+    
+    var body: some View {
+        HStack(spacing: 8) {
+            Image(systemName: icon)
+                .foregroundColor(icon == "sun.max.fill" ? .orange : (icon == "moon.stars.fill" ? .cyan : Color(red: 0.2, green: 0.65, blue: 1.0)))
+                .font(.system(size: 13.5, weight: .bold))
+            Text(message)
+                .font(.system(size: 12.5, weight: .semibold))
+                .foregroundColor(ThemeColor.textPrimary(for: colorScheme))
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 9)

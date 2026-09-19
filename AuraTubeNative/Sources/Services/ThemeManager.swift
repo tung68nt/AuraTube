@@ -33,6 +33,16 @@ public enum AppTheme: String, CaseIterable, Identifiable {
     }
 }
 
+public struct ThemeToastInfo: Equatable {
+    public let icon: String
+    public let message: String
+    
+    public init(icon: String, message: String) {
+        self.icon = icon
+        self.message = message
+    }
+}
+
 @MainActor
 public final class ThemeManager: ObservableObject {
     public static let shared = ThemeManager()
@@ -45,6 +55,9 @@ public final class ThemeManager: ObservableObject {
             applyTheme()
         }
     }
+    
+    @Published public var themeToast: ThemeToastInfo? = nil
+    private var toastDismissWorkItem: DispatchWorkItem?
     
     public init() {
         if let saved = UserDefaults.standard.string(forKey: themeKey),
@@ -72,32 +85,71 @@ public final class ThemeManager: ObservableObject {
     }
     
     public func cycleTheme() {
-        switch currentTheme {
-        case .system:
-            currentTheme = .light
-        case .light:
-            currentTheme = .dark
-        case .dark:
-            currentTheme = .system
+        withAnimation(.easeInOut(duration: 0.28)) {
+            switch currentTheme {
+            case .system:
+                currentTheme = .light
+            case .light:
+                currentTheme = .dark
+            case .dark:
+                currentTheme = .system
+            }
         }
+        showFeedbackToast()
     }
     
     public func setTheme(_ theme: AppTheme) {
-        currentTheme = theme
+        withAnimation(.easeInOut(duration: 0.28)) {
+            currentTheme = theme
+        }
+        showFeedbackToast()
+    }
+    
+    public func showFeedbackToast() {
+        let isSysDark: Bool
+        if let match = NSApp.effectiveAppearance.bestMatch(from: [.darkAqua, .aqua]) {
+            isSysDark = (match == .darkAqua)
+        } else {
+            isSysDark = false
+        }
+        
+        let icon: String
+        let message: String
+        switch currentTheme {
+        case .light:
+            icon = "sun.max.fill"
+            message = "Giao diện: Sáng (Light)"
+        case .dark:
+            icon = "moon.stars.fill"
+            message = "Giao diện: Tối (Dark)"
+        case .system:
+            icon = "circle.lefthalf.filled"
+            message = isSysDark ? "Giao diện: Tự động (Hệ thống: Tối)" : "Giao diện: Tự động (Hệ thống: Sáng)"
+        }
+        
+        toastDismissWorkItem?.cancel()
+        withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
+            self.themeToast = ThemeToastInfo(icon: icon, message: message)
+        }
+        
+        let work = DispatchWorkItem { [weak self] in
+            withAnimation(.easeOut(duration: 0.25)) {
+                self?.themeToast = nil
+            }
+        }
+        toastDismissWorkItem = work
+        DispatchQueue.main.asyncAfter(deadline: .now() + 2.0, execute: work)
     }
     
     public func applyTheme() {
-        switch currentTheme {
-        case .system:
-            NSApp.appearance = nil
-        case .light:
-            NSApp.appearance = NSAppearance(named: .aqua)
-        case .dark:
-            NSApp.appearance = NSAppearance(named: .darkAqua)
-        }
+        let appAppearance = appearance
+        NSApp.appearance = appAppearance
         
         for window in NSApp.windows {
+            window.appearance = appAppearance
             AppDelegate.configureTitlebar(for: window)
+            window.contentView?.needsLayout = true
+            window.contentView?.needsDisplay = true
         }
         
         NotificationCenter.default.post(name: NSNotification.Name("AuraTubeThemeDidChange"), object: nil)
