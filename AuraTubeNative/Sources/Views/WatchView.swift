@@ -890,17 +890,24 @@ struct WatchPlayerContainerView: View {
             return false
         }()
         
-        Group {
+        ZStack {
+            if isVertical {
+                verticalPlayer
+                    .opacity(playerManager.isPictureInPictureActive ? 0.0 : 1.0)
+                    .allowsHitTesting(!playerManager.isPictureInPictureActive)
+            } else {
+                horizontalPlayer
+                    .opacity(playerManager.isPictureInPictureActive ? 0.0 : 1.0)
+                    .allowsHitTesting(!playerManager.isPictureInPictureActive)
+            }
+            
             if playerManager.isPictureInPictureActive {
                 pipPlaceholder
                     .contentShape(Rectangle())
                     .onTapGesture {
                         playerManager.exitPictureInPicture()
                     }
-            } else if isVertical {
-                verticalPlayer
-            } else {
-                horizontalPlayer
+                    .transition(.opacity)
             }
         }
         .frame(maxWidth: .infinity)

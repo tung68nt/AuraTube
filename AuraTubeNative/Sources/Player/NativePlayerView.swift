@@ -93,12 +93,25 @@ public final class WebPlayerHostingView: NSView {
         
         webView.autoresizingMask = [.width, .height]
         webView.translatesAutoresizingMaskIntoConstraints = true
+        
         if bounds.width > 0 && bounds.height > 0 {
             webView.frame = bounds
+            webView.isHidden = false
+            if let win = window {
+                webView.layer?.contentsScale = win.backingScaleFactor
+            }
+        } else {
+            // Hide temporarily until real layout bounds are determined to prevent showing small PiP frame snapshot
+            webView.isHidden = true
         }
         
         needsLayout = true
         layoutSubtreeIfNeeded()
+        
+        if bounds.width > 0 && bounds.height > 0 {
+            webView.frame = bounds
+            webView.isHidden = false
+        }
         
         if let wv = webView as? ScrollForwardingWKWebView {
             wv.triggerRelayout()
@@ -108,8 +121,11 @@ public final class WebPlayerHostingView: NSView {
     public override func layout() {
         super.layout()
         if let wv = hostedWebView ?? subviews.first as? WKWebView {
-            if wv.frame != bounds && bounds.width > 0 && bounds.height > 0 {
-                wv.frame = bounds
+            if bounds.width > 0 && bounds.height > 0 {
+                if wv.frame != bounds {
+                    wv.frame = bounds
+                }
+                wv.isHidden = false
             }
             if let win = window {
                 let scale = win.backingScaleFactor
@@ -497,14 +513,6 @@ public struct NativePlayerView: NSViewRepresentable {
                 if (ifr.contentWindow) {
                   ifr.contentWindow.dispatchEvent(new Event('resize'));
                   ifr.contentWindow.postMessage(JSON.stringify({event: "listening"}), '*');
-                }
-              }
-              var p = document.getElementById('movie_player') || document.querySelector('.html5-video-player');
-              if (p && typeof p.setSize === 'function') {
-                var w = window.innerWidth || document.documentElement.clientWidth;
-                var h = window.innerHeight || document.documentElement.clientHeight;
-                if (w > 0 && h > 0) {
-                  p.setSize(w, h);
                 }
               }
               var v = document.querySelector('video');
@@ -1012,17 +1020,8 @@ public struct NativePlayerView: NSViewRepresentable {
                         v.style.setProperty('position', 'absolute', 'important');
                     }
                 }
-                var p = document.getElementById('movie_player') || document.querySelector('.html5-video-player');
-                if (p && typeof p.setSize === 'function') {
-                    var w = window.innerWidth || document.documentElement.clientWidth;
-                    var h = window.innerHeight || document.documentElement.clientHeight;
-                    if (w > 0 && h > 0) {
-                        p.setSize(w, h);
-                    }
-                }
             } catch(e) {}
         }
-        setInterval(ensureVideoFullFrame, 250);
         window.addEventListener('resize', ensureVideoFullFrame);
 
         // Pointer event simulation to satisfy modern browser user activation

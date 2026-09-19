@@ -1,10 +1,10 @@
 {
-  "version": "2.0.83",
-  "build": 84,
-  "title": "AuraTube v2.0.83 (Tinh chỉnh cân đối icon kênh overlay trên player)",
-  "releaseNotes": "• Tinh chỉnh lề icon kênh tròn trong thanh thông tin overlay góc trên player: khoảng cách lề trái được điều chỉnh bằng đúng lề trên và dưới (6pt), đảm bảo icon nằm đồng tâm tuyệt đối theo độ cong của hình viên thuốc (Capsule) chuẩn thiết kế Apple.",
-  "downloadUrl": "https://github.com/tung68nt/AuraTube/releases/download/v2.0.83/AuraTube-v2.0.83.dmg",
-  "publishedAt": "2026-09-19",
+  "version": "2.0.84",
+  "build": 85,
+  "title": "AuraTube v2.0.84 (Khắc phục triệt để độ trễ & giật lag khi chuyển video từ PiP về ứng dụng chính)",
+  "releaseNotes": "• Duy trì cấu trúc khung hình player chính trong layout tree để lưu giữ kích thước chuẩn, triệt tiêu hoàn toàn hiện tượng video bị co rút về kích thước nhỏ của PiP trước khi phóng to.\n• Tự động che chắn khung hình tạm thời khi chuyển đổi cho đến khi tính toán xong bounds chuẩn, bảo đảm video hiển thị khít 100% khung hình ngay từ mili-giây đầu tiên.\n• Loại bỏ các chu kỳ gọi lặp lại setSize() trong JavaScript, giúp luồng giải mã video của YouTube chạy mượt mà tức thì mà không bị khựng lại hay chờ đệm 1-2 giây.",
+  "downloadUrl": "https://github.com/tung68nt/AuraTube/releases/download/v2.0.84/AuraTube-v2.0.84.dmg",
+  "publishedAt": "2026-09-20",
   "minOSVersion": "13.0",
   "fileSize": "5.4 MB"
 }

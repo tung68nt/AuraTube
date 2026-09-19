@@ -882,12 +882,7 @@ public final class PlayerManager: ObservableObject {
                 wv.triggerRelayout()
             }
         }
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-            if let wv = MainWebPlayerPool.shared.webView as? ScrollForwardingWKWebView {
-                wv.triggerRelayout()
-            }
-        }
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) {
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
             if let wv = MainWebPlayerPool.shared.webView as? ScrollForwardingWKWebView {
                 wv.triggerRelayout()
             }
