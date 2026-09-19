@@ -1,9 +1,9 @@
 {
-  "version": "2.0.70",
-  "build": 71,
-  "title": "AuraTube v2.0.70 (Khắc phục triệt để treo tải video & Tối ưu tốc độ Thịnh hành)",
-  "releaseNotes": "• Sửa lỗi treo xoay tải video (Infinite Spinner): Khắc phục lỗi Pipe buffer deadlock và query treo khi tìm kiếm thịnh hành, giúp tải toàn bộ video và Shorts chỉ trong 1-2 giây.\n• Lọc video tươi mới chuẩn xác: Tính toán chuẩn xác độ dài video thực tế để phân loại Shorts đúng chuẩn (<65s), không nhầm lẫn với video dài.\n• Dự phòng kết nối tự động: Bổ sung cơ chế fallback an toàn cùng nút 'Thử lại' trực quan nếu mạng chập chờn.",
-  "downloadUrl": "https://github.com/tung68nt/AuraTube/releases/download/v2.0.70/AuraTube-v2.0.70.dmg",
+  "version": "2.0.71",
+  "build": 72,
+  "title": "AuraTube v2.0.71 (Loại bỏ gradient trắng mờ ở lề trên video Shorts)",
+  "releaseNotes": "• Loại bỏ hoàn toàn lớp gradient trắng mờ ở lề trên video Shorts: Xóa bỏ lớp phủ gradient 70px gây mờ và ám trắng viền trên video trong chế độ sáng (Light Mode), giúp khung hình video hiển thị sắc nét và rõ ràng 100%.\n• Giữ nguyên giao diện nút điều khiển nổi tinh tế: Các nút 'Đổi gợi ý' và 'Tự cuộn' hiển thị dạng Liquid Glass sắc sảo mà không làm ảnh hưởng đến hình ảnh video bên dưới.",
+  "downloadUrl": "https://github.com/tung68nt/AuraTube/releases/download/v2.0.71/AuraTube-v2.0.71.dmg",
   "publishedAt": "2026-09-19",
   "minOSVersion": "13.0",
   "fileSize": "5.4 MB"

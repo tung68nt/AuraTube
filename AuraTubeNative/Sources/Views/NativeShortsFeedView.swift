@@ -636,20 +636,6 @@ public struct NativeShortsFeedView: View {
                                 }
                                 .padding(.horizontal, 20)
                                 .padding(.top, 14)
-                                .background(
-                                    LinearGradient(
-                                        colors: [
-                                            (colorScheme == .dark ? Color.black.opacity(0.8) : Color(nsColor: ThemeColor.windowBackground(for: colorScheme)).opacity(0.95)),
-                                            (colorScheme == .dark ? Color.black.opacity(0.2) : Color(nsColor: ThemeColor.windowBackground(for: colorScheme)).opacity(0.4)),
-                                            Color.clear
-                                        ],
-                                        startPoint: .top,
-                                        endPoint: .bottom
-                                    )
-                                    .frame(height: 70)
-                                    .allowsHitTesting(false),
-                                    alignment: .top
-                                )
                             }
                         }
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
