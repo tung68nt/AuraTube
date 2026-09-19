@@ -475,6 +475,7 @@ public struct ContentView: View {
                                 }
                                 Divider()
                                 Toggle("Tự động chuyển PiP khi chuyển app", isOn: $playerManager.autoPiPOnAppSwitch)
+                                Toggle("Tắt PiP khi bấm lại app chính", isOn: $playerManager.autoReturnPiPOnAppFocus)
                             }
                             .help(playerManager.isPictureInPictureActive ? "Đưa video về cửa sổ chính (P)" : "Chuyển video sang cửa sổ nổi PiP (P) - Chuột phải để cài đặt")
                         }
@@ -812,6 +813,13 @@ public struct ContentView: View {
                 vm.selectedShortVideo = active
                 vm.selectedSection = .shorts
             } else {
+                vm.watchingVideo = active
+            }
+        }
+    }
+    .onChange(of: playerManager.isPictureInPictureActive) { isPiP in
+        if !isPiP, let active = playerManager.currentVideo, vm.watchingVideo == nil, vm.selectedSection != .shorts {
+            withAnimation(.easeInOut(duration: 0.2)) {
                 vm.watchingVideo = active
             }
         }

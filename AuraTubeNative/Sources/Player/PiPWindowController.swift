@@ -442,6 +442,7 @@ public struct PiPFloatingContentView: View {
             Divider()
             
             Toggle("Tự động chuyển PiP khi chuyển app", isOn: $playerManager.autoPiPOnAppSwitch)
+            Toggle("Tắt PiP khi bấm lại app chính", isOn: $playerManager.autoReturnPiPOnAppFocus)
         }
     }
     

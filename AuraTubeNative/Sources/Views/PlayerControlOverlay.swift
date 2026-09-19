@@ -447,6 +447,7 @@ public struct PlayerControlOverlay: View {
                 }
                 Divider()
                 Toggle("Tự động chuyển PiP khi chuyển app", isOn: $playerManager.autoPiPOnAppSwitch)
+                Toggle("Tắt PiP khi bấm lại app chính", isOn: $playerManager.autoReturnPiPOnAppFocus)
             }
             .help(playerManager.isPictureInPictureActive ? "Đưa video về cửa sổ chính (P)" : "Chuyển sang cửa sổ nổi PiP (P) - Chuột phải để cài đặt")
             

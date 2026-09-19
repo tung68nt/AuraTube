@@ -35,13 +35,50 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 }
             }
         }
+        
+        // Automatically return PiP to main player when user clicks/focuses the main application window
+        NotificationCenter.default.addObserver(
+            forName: NSWindow.didBecomeKeyNotification,
+            object: nil,
+            queue: .main
+        ) { notification in
+            Task { @MainActor in
+                guard let window = notification.object as? NSWindow else { return }
+                let pm = PlayerManager.shared
+                
+                // Only act if PiP is currently active and autoReturnPiPOnAppFocus is enabled
+                guard pm.isPictureInPictureActive, pm.autoReturnPiPOnAppFocus else { return }
+                
+                // Debounce to prevent immediate exit right after entering PiP
+                let elapsed = Date().timeIntervalSinceReferenceDate - pm.lastPiPEnterTimestamp
+                guard elapsed > 0.4 else { return }
+                
+                // Verify that this is the main application window (not the PiP floating panel, not an auxiliary panel)
+                if !PiPWindowController.shared.isPipWindow(window),
+                   !(window is NSPanel),
+                   window.canBecomeMain {
+                    pm.exitPictureInPicture()
+                }
+            }
+        }
     }
     
     func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
+        Task { @MainActor in
+            let pm = PlayerManager.shared
+            if pm.isPictureInPictureActive, pm.autoReturnPiPOnAppFocus {
+                let elapsed = Date().timeIntervalSinceReferenceDate - pm.lastPiPEnterTimestamp
+                if elapsed > 0.4 {
+                    pm.exitPictureInPicture()
+                }
+            }
+        }
         if !flag {
             for window in sender.windows {
-                window.makeKeyAndOrderFront(self)
-                return true
+                if !PiPWindowController.shared.isPipWindow(window) {
+                    window.makeKeyAndOrderFront(self)
+                    return true
+                }
             }
         }
         return true
@@ -65,13 +102,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationDidBecomeActive(_ notification: Notification) {
         Task { @MainActor in
             let pm = PlayerManager.shared
-            // If the user focused the floating PiP window itself, keep it in PiP!
-            if PiPWindowController.shared.isPipWindow(NSApp.keyWindow) {
-                return
-            }
-            // If returning to the main window and PiP was auto-triggered when leaving earlier:
-            if pm.wasAutoPiPTriggered, pm.isPictureInPictureActive {
-                pm.exitPictureInPicture()
+            guard pm.isPictureInPictureActive else { return }
+            
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.08) {
+                let elapsed = Date().timeIntervalSinceReferenceDate - pm.lastPiPEnterTimestamp
+                guard elapsed > 0.4 else { return }
+                
+                // If the user focused the floating PiP window itself, keep it in PiP!
+                if let keyWindow = NSApp.keyWindow, PiPWindowController.shared.isPipWindow(keyWindow) {
+                    return
+                }
+                
+                // If returning to the main window and auto return is enabled
+                if pm.autoReturnPiPOnAppFocus || pm.wasAutoPiPTriggered {
+                    pm.exitPictureInPicture()
+                }
             }
         }
     }
@@ -255,6 +300,7 @@ struct AuraTubeApp: App {
                 .keyboardShortcut("p", modifiers: [.command, .option])
                 
                 Toggle("Tự động chuyển PiP khi chuyển app", isOn: $playerManager.autoPiPOnAppSwitch)
+                Toggle("Tắt PiP khi bấm lại app chính", isOn: $playerManager.autoReturnPiPOnAppFocus)
                 
                 Divider()
                 

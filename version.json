@@ -1,9 +1,9 @@
 {
-  "version": "2.0.67",
-  "build": 68,
-  "title": "AuraTube v2.0.67 (Khắc phục menu Kích thước PiP & Tinh chỉnh Liquid Glass)",
-  "releaseNotes": "• Khắc phục triệt để lỗi menu Kích thước cửa sổ PiP: Tối ưu hóa các mức kích thước (Nhỏ 380p, Trung bình 540p, Lớn 720p) thành các lựa chọn trực tiếp trong menu chuột phải, giúp chọn ngay chỉ bằng 1 click mà không lo menu con bị tự động đóng khi di chuột.\n• Menu kích thước tiện lợi: Hỗ trợ chọn nhanh kích thước cửa sổ ngay tại nút đổi tỷ lệ trên thanh PiP cũng như nút PiP trên thanh tiêu đề chính.\n• Tinh chỉnh hiệu ứng kính lỏng (Liquid Glass): Triệt tiêu hoàn toàn hiện tượng chói lóa theo con trỏ chuột trên nút PiP khi đang bật (active red), thay bằng độ phủ sáng dịu mắt, mượt mà chuẩn phong cách Apple cao cấp.",
-  "downloadUrl": "https://github.com/tung68nt/AuraTube/releases/download/v2.0.67/AuraTube-v2.0.67.dmg",
+  "version": "2.0.68",
+  "build": 69,
+  "title": "AuraTube v2.0.68 (Tự động tắt PiP về main player khi bấm lại app chính)",
+  "releaseNotes": "• Tự động thu PiP về trình phát chính: Khi đang mở cửa sổ nổi PiP, chỉ cần bạn bấm lại vào cửa sổ chính AuraTube, bấm vào biểu tượng app ở thanh Dock, hoặc chuyển app bằng Cmd+Tab, cửa sổ PiP sẽ tự động tắt và trả video về đúng khung hình trình phát lớn mượt mà.\n• Tùy chọn Bật/Tắt linh hoạt: Có thể tùy chỉnh bật/tắt tính năng 'Tắt PiP khi bấm lại app chính' ngay trong menu chuột phải của nút PiP, thanh điều khiển hoặc Menu Bar macOS (Điều khiển Media).\n• Thao tác 1 chạm tiện lợi: Nhấn vào bất cứ đâu trên khung placeholder PiP ở trang xem video cũng sẽ phục hồi video về player lớn ngay lập tức.",
+  "downloadUrl": "https://github.com/tung68nt/AuraTube/releases/download/v2.0.68/AuraTube-v2.0.68.dmg",
   "publishedAt": "2026-09-19",
   "minOSVersion": "13.0",
   "fileSize": "5.4 MB"

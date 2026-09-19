@@ -54,7 +54,16 @@ public final class PlayerManager: ObservableObject {
             UserDefaults.standard.set(autoPiPOnAppSwitch, forKey: "auratube_auto_pip_on_app_switch")
         }
     }
+    
+    // MARK: - Auto Return PiP to Main Player on App Focus State
+    @Published public var autoReturnPiPOnAppFocus: Bool = (UserDefaults.standard.object(forKey: "auratube_auto_return_pip_on_app_focus") as? Bool) ?? true {
+        didSet {
+            UserDefaults.standard.set(autoReturnPiPOnAppFocus, forKey: "auratube_auto_return_pip_on_app_focus")
+        }
+    }
+    
     public var wasAutoPiPTriggered: Bool = false
+    public private(set) var lastPiPEnterTimestamp: TimeInterval = 0
     
     // MARK: - Viewer Comments State
     public enum CommentSortMode: String, CaseIterable, Sendable {
@@ -814,6 +823,7 @@ public final class PlayerManager: ObservableObject {
         wasAutoPiPTriggered = false
         isPictureInPictureActive.toggle()
         if isPictureInPictureActive {
+            lastPiPEnterTimestamp = Date().timeIntervalSinceReferenceDate
             PiPWindowController.shared.show(video: currentVideo)
         } else {
             PiPWindowController.shared.close()
@@ -823,6 +833,7 @@ public final class PlayerManager: ObservableObject {
     public func enterPictureInPicture(isAutoTriggered: Bool = false) {
         guard currentVideo != nil, !isPictureInPictureActive else { return }
         wasAutoPiPTriggered = isAutoTriggered
+        lastPiPEnterTimestamp = Date().timeIntervalSinceReferenceDate
         isPictureInPictureActive = true
         PiPWindowController.shared.show(video: currentVideo)
     }

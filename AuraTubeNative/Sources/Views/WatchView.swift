@@ -883,6 +883,10 @@ struct WatchPlayerContainerView: View {
         Group {
             if playerManager.isPictureInPictureActive {
                 pipPlaceholder
+                    .contentShape(Rectangle())
+                    .onTapGesture {
+                        playerManager.exitPictureInPicture()
+                    }
             } else if isVertical {
                 verticalPlayer
             } else {
