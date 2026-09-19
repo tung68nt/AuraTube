@@ -105,57 +105,7 @@ public struct SettingsSheetView: View {
             // MARK: - 2. Fluid Liquid Glass Tab Bar (Segmented Selector)
             HStack(spacing: 6) {
                 ForEach(SettingsTab.allCases) { tab in
-                    let isSelected = selectedTab == tab
-                    Button(action: {
-                        withAnimation(.spring(response: 0.26, dampingFraction: 0.78)) {
-                            selectedTab = tab
-                        }
-                    }) {
-                        HStack(spacing: 6) {
-                            Image(systemName: tab.iconName)
-                                .font(.system(size: 11.5, weight: isSelected ? .bold : .medium))
-                            Text(tab.rawValue)
-                                .font(.system(size: 12, weight: isSelected ? .bold : .medium))
-                        }
-                        .padding(.horizontal, 14)
-                        .padding(.vertical, 7)
-                        .foregroundColor(
-                            isSelected ?
-                                (isDark ? Color.white : Color.black) :
-                                ThemeColor.textSecondary(for: colorScheme)
-                        )
-                        .background(
-                            ZStack {
-                                if isSelected {
-                                    RoundedRectangle(cornerRadius: 8, style: .continuous)
-                                        .fill(
-                                            isDark ?
-                                                LinearGradient(colors: [Color.white.opacity(0.18), Color.white.opacity(0.10)], startPoint: .top, endPoint: .bottom) :
-                                                LinearGradient(colors: [Color.white.opacity(0.95), Color(white: 0.90)], startPoint: .top, endPoint: .bottom)
-                                        )
-                                        .shadow(color: Color.black.opacity(isDark ? 0.22 : 0.10), radius: 4, y: 1.5)
-                                }
-                            }
-                        )
-                        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 8, style: .continuous)
-                                .stroke(
-                                    isSelected ?
-                                        LinearGradient(
-                                            colors: [
-                                                Color.white.opacity(isDark ? 0.35 : 0.85),
-                                                Color.white.opacity(isDark ? 0.10 : 0.30)
-                                            ],
-                                            startPoint: .top,
-                                            endPoint: .bottom
-                                        ) :
-                                        LinearGradient(colors: [Color.clear, Color.clear], startPoint: .top, endPoint: .bottom),
-                                    lineWidth: 0.75
-                                )
-                        )
-                    }
-                    .buttonStyle(.plain)
+                    tabButton(tab: tab)
                 }
                 Spacer()
             }
@@ -179,7 +129,7 @@ public struct SettingsSheetView: View {
                 }
             }
             .padding(.horizontal, 24)
-            .frame(height: 250, alignment: .top)
+            .frame(height: 290, alignment: .top)
             
             // MARK: - 4. Bottom Action Footer (Apple HIG: Right-aligned dismiss)
             HStack {
@@ -255,7 +205,7 @@ public struct SettingsSheetView: View {
             .padding(.top, 16)
             .padding(.bottom, 20)
         }
-        .frame(width: 540)
+        .frame(width: 560)
         .background(
             ZStack {
                 // 1. Hardware Optical Blur
@@ -314,6 +264,65 @@ public struct SettingsSheetView: View {
                 )
         )
         .shadow(color: Color.black.opacity(isDark ? 0.42 : 0.16), radius: 26, y: 12)
+    }
+    
+    // MARK: - Tab Bar Button Component
+    @ViewBuilder
+    private func tabButton(tab: SettingsTab) -> some View {
+        let isSelected = selectedTab == tab
+        let fontWeight: Font.Weight = isSelected ? .bold : .medium
+        let textColor = isSelected ? (isDark ? Color.white : Color.black) : ThemeColor.textSecondary(for: colorScheme)
+        
+        Button(action: {
+            withAnimation(.spring(response: 0.26, dampingFraction: 0.78)) {
+                selectedTab = tab
+            }
+        }) {
+            HStack(spacing: 6) {
+                Image(systemName: tab.iconName)
+                    .font(.system(size: 11.5, weight: fontWeight))
+                Text(tab.rawValue)
+                    .font(.system(size: 12, weight: fontWeight))
+            }
+            .padding(.horizontal, 14)
+            .padding(.vertical, 7)
+            .foregroundColor(textColor)
+            .background(tabButtonBackground(isSelected: isSelected))
+            .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+            .overlay(tabButtonBorder(isSelected: isSelected))
+        }
+        .buttonStyle(.plain)
+    }
+    
+    @ViewBuilder
+    private func tabButtonBackground(isSelected: Bool) -> some View {
+        if isSelected {
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .fill(
+                    isDark ?
+                        LinearGradient(colors: [Color.white.opacity(0.18), Color.white.opacity(0.10)], startPoint: .top, endPoint: .bottom) :
+                        LinearGradient(colors: [Color.white.opacity(0.95), Color(white: 0.90)], startPoint: .top, endPoint: .bottom)
+                )
+                .shadow(color: Color.black.opacity(isDark ? 0.22 : 0.10), radius: 4, y: 1.5)
+        }
+    }
+    
+    @ViewBuilder
+    private func tabButtonBorder(isSelected: Bool) -> some View {
+        if isSelected {
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .stroke(
+                    LinearGradient(
+                        colors: [
+                            Color.white.opacity(isDark ? 0.35 : 0.85),
+                            Color.white.opacity(isDark ? 0.10 : 0.30)
+                        ],
+                        startPoint: .top,
+                        endPoint: .bottom
+                    ),
+                    lineWidth: 0.75
+                )
+        }
     }
     
     // MARK: - Tab 1: Appearance Content
@@ -600,24 +609,42 @@ public struct SettingsSheetView: View {
                 }
             }
             
-            recessedPlate(title: "Thông tin & Phím tắt") {
-                VStack(alignment: .leading, spacing: 6) {
-                    HStack {
-                        Text("Phím tắt tiện ích:")
-                            .font(.system(size: 11.5, weight: .semibold))
-                            .foregroundColor(ThemeColor.textPrimary(for: colorScheme))
-                        Spacer()
-                        Text("Bản quyền © 2026 Tung Nguyen")
-                            .font(.system(size: 10.5))
-                            .foregroundColor(ThemeColor.textSecondary(for: colorScheme).opacity(0.7))
+            recessedPlate(title: "Phím tắt thao tác nhanh") {
+                VStack(alignment: .leading, spacing: 8) {
+                    HStack(alignment: .top, spacing: 18) {
+                        // Cột 1: Điều khiển phát & Âm lượng
+                        VStack(alignment: .leading, spacing: 6) {
+                            shortcutRow(keys: ["Space", "K"], separator: "/", label: "Phát / Tạm dừng")
+                            shortcutRow(keys: ["←", "→"], label: "Tua lùi / tới 10s")
+                            shortcutRow(keys: ["↑", "↓"], label: "Tăng / Giảm âm")
+                            shortcutRow(keys: ["M"], label: "Tắt / Bật tiếng (Mute)")
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        
+                        // Cột 2: Cửa sổ & Điều hướng
+                        VStack(alignment: .leading, spacing: 6) {
+                            shortcutRow(keys: ["P"], label: "Bật / Tắt cửa sổ PiP")
+                            shortcutRow(keys: ["F"], label: "Xem toàn màn hình")
+                            shortcutRow(keys: ["⌘", "K"], label: "Mở thanh tìm kiếm")
+                            shortcutRow(keys: ["⌘", ","], label: "Cài đặt ứng dụng")
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
                     }
                     
-                    HStack(spacing: 14) {
-                        shortcutBadge(key: "⌘ ,", desc: "Cài đặt")
-                        shortcutBadge(key: "P", desc: "Bật/Tắt PiP")
-                        shortcutBadge(key: "⌘ K", desc: "Tìm kiếm")
-                        shortcutBadge(key: "Space", desc: "Phát/Dừng")
-                        shortcutBadge(key: "F", desc: "Toàn màn hình")
+                    Divider()
+                        .opacity(isDark ? 0.16 : 0.3)
+                        .padding(.vertical, 1)
+                    
+                    HStack {
+                        Text("Phím số 0 – 9: Nhảy nhanh 0% – 90% video")
+                            .font(.system(size: 10.5))
+                            .foregroundColor(ThemeColor.textSecondary(for: colorScheme).opacity(0.75))
+                        
+                        Spacer()
+                        
+                        Text("Bản quyền © 2026 Tung Nguyen")
+                            .font(.system(size: 10.5))
+                            .foregroundColor(ThemeColor.textSecondary(for: colorScheme).opacity(0.65))
                     }
                 }
             }
@@ -625,21 +652,60 @@ public struct SettingsSheetView: View {
     }
     
     @ViewBuilder
-    private func shortcutBadge(key: String, desc: String) -> some View {
-        HStack(spacing: 4) {
-            Text(key)
-                .font(.system(size: 10, weight: .bold, design: .monospaced))
-                .foregroundColor(ThemeColor.textPrimary(for: colorScheme))
-                .padding(.horizontal, 5)
-                .padding(.vertical, 2)
-                .background(
-                    RoundedRectangle(cornerRadius: 4, style: .continuous)
-                        .fill(isDark ? Color.white.opacity(0.12) : Color.black.opacity(0.08))
-                )
+    private func keyCap(_ key: String) -> some View {
+        Text(key)
+            .font(.system(size: 10, weight: .semibold, design: .rounded))
+            .foregroundColor(ThemeColor.textPrimary(for: colorScheme).opacity(0.9))
+            .padding(.horizontal, 5.5)
+            .padding(.vertical, 2)
+            .frame(minWidth: 19)
+            .background(
+                RoundedRectangle(cornerRadius: 4, style: .continuous)
+                    .fill(
+                        isDark ?
+                            LinearGradient(
+                                colors: [Color.white.opacity(0.16), Color.white.opacity(0.08)],
+                                startPoint: .top,
+                                endPoint: .bottom
+                            ) :
+                            LinearGradient(
+                                colors: [Color.white, Color(white: 0.93)],
+                                startPoint: .top,
+                                endPoint: .bottom
+                            )
+                    )
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 4, style: .continuous)
+                    .strokeBorder(
+                        isDark ? Color.white.opacity(0.18) : Color.black.opacity(0.12),
+                        lineWidth: 0.75
+                    )
+            )
+            .shadow(color: Color.black.opacity(isDark ? 0.25 : 0.08), radius: 1, x: 0, y: 1)
+    }
+    
+    @ViewBuilder
+    private func shortcutRow(keys: [String], separator: String? = nil, label: String) -> some View {
+        HStack(spacing: 8) {
+            HStack(spacing: 3) {
+                ForEach(Array(keys.enumerated()), id: \.offset) { index, key in
+                    if index > 0, let sep = separator {
+                        Text(sep)
+                            .font(.system(size: 9.5, weight: .medium))
+                            .foregroundColor(ThemeColor.textSecondary(for: colorScheme).opacity(0.55))
+                    }
+                    keyCap(key)
+                }
+            }
+            .frame(width: 74, alignment: .leading)
             
-            Text(desc)
-                .font(.system(size: 10.5))
+            Text(label)
+                .font(.system(size: 11))
                 .foregroundColor(ThemeColor.textSecondary(for: colorScheme))
+                .lineLimit(1)
+            
+            Spacer(minLength: 0)
         }
     }
     

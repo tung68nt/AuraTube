@@ -1,9 +1,9 @@
 {
-  "version": "2.0.78",
-  "build": 79,
-  "title": "AuraTube v2.0.78 (Khôi phục Icon Menu Bar YouTube & Thích ứng màu Hệ thống)",
-  "releaseNotes": "• Khôi phục lại icon Menu Bar YouTube SVG gốc quen thuộc theo đúng yêu cầu người dùng.\n• Tự động thích ứng màu icon hệ thống macOS: Cố định button.appearance = nil để icon hoàn toàn tuân theo thanh trạng thái của macOS (Menu Bar), không bị can thiệp hay tự động đổi màu đen/trắng khi thay đổi Theme trong ứng dụng.",
-  "downloadUrl": "https://github.com/tung68nt/AuraTube/releases/download/v2.0.78/AuraTube-v2.0.78.dmg",
+  "version": "2.0.79",
+  "build": 80,
+  "title": "AuraTube v2.0.79 (Nâng cấp bảng phím tắt đầy đủ & Layout Keycap 2 cột Liquid Glass)",
+  "releaseNotes": "• Bổ sung đầy đủ toàn bộ phím tắt điều khiển: phím mũi tên ← / → tua video (10s), ↑ / ↓ tăng giảm âm lượng, M bật/tắt tiếng (Mute), Space / K phát/tạm dừng, P bật/tắt PiP, F xem toàn màn hình, ⌘K tìm kiếm, ⌘, cài đặt, và 0-9 nhảy nhanh % video.\n• Nâng cấp giao diện phím tắt: Thiết kế layout 2 cột khoa học với các nút bấm Keycap chuẩn xúc giác macOS vật lý theo Apple Liquid Glass Design System, kích thước rộng rãi và cân đối hoàn hảo.",
+  "downloadUrl": "https://github.com/tung68nt/AuraTube/releases/download/v2.0.79/AuraTube-v2.0.79.dmg",
   "publishedAt": "2026-09-19",
   "minOSVersion": "13.0",
   "fileSize": "5.4 MB"
