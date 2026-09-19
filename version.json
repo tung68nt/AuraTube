@@ -1,9 +1,9 @@
 {
-  "version": "2.0.75",
-  "build": 76,
-  "title": "AuraTube v2.0.75 (Hợp nhất Cửa sổ Cài đặt Liquid Glass & Tinh gọn Thanh công cụ)",
-  "releaseNotes": "• Cửa sổ Cài đặt Liquid Glass Hợp nhất: Toàn bộ tùy chọn Giao diện (Sáng/Tối/Tự động), Cửa sổ nổi PiP (kích cỡ 380p-720p & tự động hóa thông minh), Cập nhật phần mềm và Thông tin ứng dụng đã được gom gọn gàng vào 1 cửa sổ Cài đặt (⌘,) chuẩn Apple Liquid Glass Design System.\n• Tinh giản Thanh công cụ (Top Bar): Loại bỏ hàng loạt nút bấm rườm rà (Theme, Quét bản mới, Thông tin) để trả lại không gian thoáng đãng cho thanh điều hướng. Chỉ giữ lại nút PiP 1 chạm nhanh gọn khi xem video, nút tải về và nút Cài đặt.\n• Cải tiến Nút PiP: Trở về đúng bản chất thao tác 1 chạm (bấm vào là chuyển sang PiP ngay lập tức), không còn popover che khuất màn hình.",
-  "downloadUrl": "https://github.com/tung68nt/AuraTube/releases/download/v2.0.75/AuraTube-v2.0.75.dmg",
+  "version": "2.0.76",
+  "build": 77,
+  "title": "AuraTube v2.0.76 (Khắc phục hoàn toàn lỗi viền không đều của thẻ Giao diện)",
+  "releaseNotes": "• Sửa triệt để lỗi viền border không đều và vệt trắng dư thừa: Áp dụng clipShape squircle chuẩn xác kết hợp gradient stroke đa tầng, loại bỏ hoàn toàn hiện tượng lệch subpixel và góc bo bị cắt lẹm trên màn hình Retina.\n• Nâng cấp giao diện Thẻ Theme (Tự động/Sáng/Tối): Mỗi chế độ sở hữu huy hiệu icon gradient riêng biệt (Hổ phách cho Sáng, Tím đêm cho Tối, Xanh sapphire cho Tự động), viền sáng quang học ôm sát đường cong và chỉ báo radio/checkmark sắc nét.\n• Tối ưu hóa đĩa kính khảm chìm Recessed Plate & Tab Selector: Đảm bảo toàn bộ các thành phần trong Cửa sổ Cài đặt hiển thị mượt mà, đồng nhất.",
+  "downloadUrl": "https://github.com/tung68nt/AuraTube/releases/download/v2.0.76/AuraTube-v2.0.76.dmg",
   "publishedAt": "2026-09-19",
   "minOSVersion": "13.0",
   "fileSize": "5.4 MB"

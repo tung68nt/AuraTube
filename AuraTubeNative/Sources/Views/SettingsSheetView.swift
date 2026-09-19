@@ -137,9 +137,10 @@ public struct SettingsSheetView: View {
                                 }
                             }
                         )
+                        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
                         .overlay(
                             RoundedRectangle(cornerRadius: 8, style: .continuous)
-                                .strokeBorder(
+                                .stroke(
                                     isSelected ?
                                         LinearGradient(
                                             colors: [
@@ -361,23 +362,36 @@ public struct SettingsSheetView: View {
             }
         }) {
             VStack(alignment: .leading, spacing: 8) {
-                HStack {
+                HStack(alignment: .center) {
+                    // Distinct thematic icon badge
                     ZStack {
-                        Circle()
-                            .fill(isSelected ? Color(red: 0.08, green: 0.50, blue: 0.98) : (isDark ? Color.white.opacity(0.10) : Color.black.opacity(0.06)))
-                            .frame(width: 28, height: 28)
+                        RoundedRectangle(cornerRadius: 7, style: .continuous)
+                            .fill(
+                                theme == .light ?
+                                    LinearGradient(colors: [Color(red: 1.0, green: 0.65, blue: 0.15), Color(red: 1.0, green: 0.45, blue: 0.10)], startPoint: .top, endPoint: .bottom) :
+                                (theme == .dark ?
+                                    LinearGradient(colors: [Color(red: 0.38, green: 0.35, blue: 0.85), Color(red: 0.22, green: 0.18, blue: 0.65)], startPoint: .top, endPoint: .bottom) :
+                                    LinearGradient(colors: [Color(red: 0.15, green: 0.58, blue: 1.0), Color(red: 0.05, green: 0.38, blue: 0.85)], startPoint: .top, endPoint: .bottom))
+                            )
+                            .frame(width: 26, height: 26)
+                            .shadow(color: Color.black.opacity(0.12), radius: 2, y: 1)
                         
                         Image(systemName: icon)
-                            .font(.system(size: 13, weight: .bold))
-                            .foregroundColor(isSelected ? .white : ThemeColor.textPrimary(for: colorScheme).opacity(0.85))
+                            .font(.system(size: 12, weight: .bold))
+                            .foregroundColor(.white)
                     }
                     
                     Spacer()
                     
+                    // State Indicator (Active checkmark vs unselected radio rim)
                     if isSelected {
                         Image(systemName: "checkmark.circle.fill")
-                            .font(.system(size: 15))
+                            .font(.system(size: 15, weight: .bold))
                             .foregroundColor(Color(red: 0.08, green: 0.50, blue: 0.98))
+                    } else {
+                        Circle()
+                            .strokeBorder(isDark ? Color.white.opacity(0.22) : Color.black.opacity(0.18), lineWidth: 1.0)
+                            .frame(width: 14, height: 14)
                     }
                 }
                 
@@ -394,22 +408,55 @@ public struct SettingsSheetView: View {
             .padding(12)
             .frame(maxWidth: .infinity, alignment: .leading)
             .background(
-                RoundedRectangle(cornerRadius: 10, style: .continuous)
-                    .fill(
-                        isSelected ?
-                            (isDark ? Color.white.opacity(0.12) : Color.white.opacity(0.85)) :
-                            (isDark ? Color.white.opacity(0.04) : Color.black.opacity(0.02))
-                    )
-                    .shadow(color: Color.black.opacity(isSelected ? 0.10 : 0.0), radius: 4, y: 2)
+                ZStack {
+                    if isSelected {
+                        RoundedRectangle(cornerRadius: 11, style: .continuous)
+                            .fill(
+                                isDark ?
+                                    LinearGradient(colors: [Color(red: 0.12, green: 0.45, blue: 0.95).opacity(0.24), Color(red: 0.06, green: 0.30, blue: 0.80).opacity(0.16)], startPoint: .top, endPoint: .bottom) :
+                                    LinearGradient(colors: [Color.white, Color(red: 246/255, green: 249/255, blue: 255/255)], startPoint: .top, endPoint: .bottom)
+                            )
+                    } else {
+                        RoundedRectangle(cornerRadius: 11, style: .continuous)
+                            .fill(
+                                isDark ?
+                                    Color.white.opacity(0.04) :
+                                    Color.black.opacity(0.02)
+                            )
+                    }
+                }
             )
+            .clipShape(RoundedRectangle(cornerRadius: 11, style: .continuous))
             .overlay(
-                RoundedRectangle(cornerRadius: 10, style: .continuous)
-                    .strokeBorder(
+                RoundedRectangle(cornerRadius: 11, style: .continuous)
+                    .stroke(
                         isSelected ?
-                            Color(red: 0.08, green: 0.50, blue: 0.98) :
-                            (isDark ? Color.white.opacity(0.08) : Color.black.opacity(0.06)),
+                            LinearGradient(
+                                colors: [
+                                    Color(red: 0.18, green: 0.60, blue: 1.0),
+                                    Color(red: 0.04, green: 0.42, blue: 0.92)
+                                ],
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing
+                            ) :
+                            LinearGradient(
+                                colors: [
+                                    Color.white.opacity(isDark ? 0.16 : 0.65),
+                                    Color.black.opacity(isDark ? 0.28 : 0.08)
+                                ],
+                                startPoint: .top,
+                                endPoint: .bottom
+                            ),
                         lineWidth: isSelected ? 1.5 : 0.75
                     )
+            )
+            .shadow(
+                color: isSelected ?
+                    Color(red: 0.08, green: 0.48, blue: 0.98).opacity(isDark ? 0.30 : 0.14) :
+                    Color.black.opacity(isDark ? 0.10 : 0.03),
+                radius: isSelected ? 5 : 2,
+                x: 0,
+                y: isSelected ? 2 : 1
             )
         }
         .buttonStyle(.plain)
@@ -609,12 +656,13 @@ public struct SettingsSheetView: View {
         .padding(12)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(
-            RoundedRectangle(cornerRadius: 10, style: .continuous)
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
                 .fill(isDark ? Color.white.opacity(0.04) : Color.black.opacity(0.025))
         )
+        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
         .overlay(
-            RoundedRectangle(cornerRadius: 10, style: .continuous)
-                .strokeBorder(
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .stroke(
                     isDark ? Color.white.opacity(0.08) : Color.black.opacity(0.06),
                     lineWidth: 0.75
                 )
