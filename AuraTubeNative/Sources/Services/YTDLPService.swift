@@ -116,6 +116,11 @@ public final class YTDLPService: @unchecked Sendable {
             return SearchResultPage(channel: nil, videos: [], shorts: [], continuationToken: nil)
         }
         
+        // If params was specified (filtered trending/date filter), never fallback to slow unfiltered yt-dlp
+        if params != nil {
+            return SearchResultPage(channel: nil, videos: [], shorts: [], continuationToken: nil)
+        }
+        
         // 2. Fallback to local yt-dlp flat-playlist CLI (initial query only)
         let fallback = await searchViaYtDlp(query: query, limit: limit)
         return SearchResultPage(channel: nil, videos: fallback, shorts: [], continuationToken: nil)
@@ -463,6 +468,14 @@ public final class YTDLPService: @unchecked Sendable {
                     durationStr = simple
                 }
                 
+                let parts = durationStr.split(separator: ":").compactMap { Double($0) }
+                var parsedDuration: Double? = nil
+                if parts.count == 2 {
+                    parsedDuration = parts[0] * 60 + parts[1]
+                } else if parts.count == 3 {
+                    parsedDuration = parts[0] * 3600 + parts[1] * 60 + parts[2]
+                }
+                
                 var viewStr = ""
                 if let viewDict = dict["viewCountText"] as? [String: Any],
                    let simple = viewDict["simpleText"] as? String {
@@ -512,7 +525,7 @@ public final class YTDLPService: @unchecked Sendable {
                         id: videoId,
                         title: title,
                         uploader: uploader,
-                        duration: nil,
+                        duration: parsedDuration,
                         durationFormatted: durationStr,
                         viewCount: nil,
                         viewCountFormatted: viewStr,
@@ -857,15 +870,16 @@ public final class YTDLPService: @unchecked Sendable {
                 
                 do {
                     try process.run()
-                    process.waitUntilExit()
                     
                     let data = outPipe.fileHandleForReading.readDataToEndOfFile()
+                    let errData = errPipe.fileHandleForReading.readDataToEndOfFile()
+                    process.waitUntilExit()
+                    
                     let output = String(data: data, encoding: .utf8) ?? ""
                     
                     if process.terminationStatus == 0 {
                         continuation.resume(returning: output)
                     } else {
-                        let errData = errPipe.fileHandleForReading.readDataToEndOfFile()
                         let errStr = String(data: errData, encoding: .utf8) ?? "Unknown process error"
                         continuation.resume(throwing: NSError(domain: "YTDLPService", code: Int(process.terminationStatus), userInfo: [NSLocalizedDescriptionKey: errStr]))
                     }

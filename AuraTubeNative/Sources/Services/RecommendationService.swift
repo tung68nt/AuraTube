@@ -394,7 +394,7 @@ public final class RecommendationService: ObservableObject {
             ("review công nghệ schannel vật vờ mới nhất", YTDLPService.filterThisMonth),
             ("vtv24 chuyển động 24h tin tức thời sự việt nam", YTDLPService.filterThisWeek),
             ("ẩm thực du lịch việt nam triệu view mới nhất", YTDLPService.filterThisMonth),
-            ("mixigaming cris devil gamer highlight mới nhất", YTDLPService.filterThisMonth),
+            ("gaming highlight việt nam mới nhất", YTDLPService.filterThisMonth),
             ("bóng đá việt nam highlight mới nhất", YTDLPService.filterThisWeek)
         ]
         
@@ -417,10 +417,11 @@ public final class RecommendationService: ObservableObject {
             for sp in shortsPillars {
                 group.addTask {
                     let res = await YTDLPService.shared.searchVideosWithContinuation(query: sp.query, params: sp.params, limit: 12)
-                    var freshShorts = res.shorts.filter { Self.isFreshTrendingVideo($0) }
-                    if freshShorts.isEmpty {
-                        freshShorts = res.videos.filter { ($0.duration ?? 0) <= 65 && Self.isFreshTrendingVideo($0) }
+                    var candidates = res.shorts
+                    if candidates.isEmpty {
+                        candidates = res.videos.filter { $0.totalDurationSeconds > 0 && $0.totalDurationSeconds <= 65 }
                     }
+                    let freshShorts = candidates.filter { Self.isFreshTrendingVideo($0) }
                     return (isShorts: true, videos: freshShorts)
                 }
             }
@@ -472,6 +473,12 @@ public final class RecommendationService: ObservableObject {
         combined.append(contentsOf: topRegular)
         combined.append(contentsOf: cleanShorts.prefix(14))
         combined.append(contentsOf: remainingRegular)
+        
+        // Failsafe: if combined is still empty (e.g. network hiccup), load base trending
+        if combined.isEmpty {
+            let fallbackRes = await YTDLPService.shared.searchVideosWithContinuation(query: "top trending việt nam hôm nay", limit: 20)
+            combined = fallbackRes.videos
+        }
         
         if !combined.isEmpty {
             self.trendingCache = combined

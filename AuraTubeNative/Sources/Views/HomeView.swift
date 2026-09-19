@@ -445,13 +445,28 @@ public struct HomeView: View {
                         }
                         .frame(maxWidth: .infinity, minHeight: 300)
                     } else if currentList.isEmpty {
-                        VStack(spacing: 12) {
+                        VStack(spacing: 14) {
                             Image(systemName: "film")
-                                .font(.system(size: 32))
+                                .font(.system(size: 36))
                                 .foregroundColor(Color(white: 0.4))
-                            Text("Chưa tìm thấy video nào")
+                            Text("Chưa tải được danh sách video")
                                 .font(.system(size: 14, weight: .medium))
                                 .foregroundColor(Color(white: 0.6))
+                            Button(action: {
+                                Task { await loadInitial() }
+                            }) {
+                                HStack(spacing: 6) {
+                                    Image(systemName: "arrow.clockwise")
+                                    Text("Thử lại")
+                                }
+                                .font(.system(size: 13, weight: .medium))
+                                .foregroundColor(.white)
+                                .padding(.horizontal, 16)
+                                .padding(.vertical, 8)
+                                .background(Color.cyan.opacity(0.8))
+                                .clipShape(Capsule())
+                            }
+                            .buttonStyle(.plain)
                         }
                         .frame(maxWidth: .infinity, minHeight: 240)
                     } else {
@@ -544,7 +559,8 @@ public struct HomeView: View {
             if tag == "Tất cả" {
                 vm.videos = await RecommendationService.shared.fetchRecommendations()
             } else if tag == "🔥 Thịnh hành" {
-                vm.videos = await RecommendationService.shared.fetchVietnamTrendingFeed(forceRefresh: true)
+                let feed = await RecommendationService.shared.fetchVietnamTrendingFeed(forceRefresh: true)
+                vm.videos = feed.isEmpty ? await RecommendationService.shared.fetchRecommendations() : feed
             } else if RecommendationService.shared.isVietnamCategory(tag) {
                 vm.videos = await RecommendationService.shared.fetchVietnamCategoryFeed(category: tag)
             } else if tag == "Hệ sinh thái Apple" {
@@ -579,7 +595,12 @@ public struct HomeView: View {
     
     private func loadInitial() async {
         vm.isLoading = true
-        vm.videos = await RecommendationService.shared.fetchVietnamTrendingFeed(forceRefresh: true)
+        let feed = await RecommendationService.shared.fetchVietnamTrendingFeed(forceRefresh: true)
+        if !feed.isEmpty {
+            vm.videos = feed
+        } else {
+            vm.videos = await RecommendationService.shared.fetchRecommendations()
+        }
         vm.isLoading = false
         
         // Background pre-fetch followed channels feed if user has subscriptions
