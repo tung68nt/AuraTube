@@ -1099,28 +1099,12 @@ public struct LiquidGlassMenuRow: View {
     }
 }
 
-// MARK: - 11. Liquid Glass Menu Toggle (Smooth Apple Switch)
-public struct LiquidGlassMenuToggle: View {
-    @Environment(\.colorScheme) private var colorScheme
-    public let title: String
-    public var subtitle: String? = nil
-    public var icon: String
-    public var iconTint: Color = .blue
+// MARK: - 11. Liquid Glass Luxury Switch (visionOS / macOS Sequoia Style)
+public struct LiquidGlassLuxurySwitch: View {
     @Binding public var isOn: Bool
+    @Environment(\.colorScheme) private var colorScheme
     
-    @State private var isHovered: Bool = false
-    
-    public init(
-        title: String,
-        subtitle: String? = nil,
-        icon: String,
-        iconTint: Color = .blue,
-        isOn: Binding<Bool>
-    ) {
-        self.title = title
-        self.subtitle = subtitle
-        self.icon = icon
-        self.iconTint = iconTint
+    public init(isOn: Binding<Bool>) {
         self._isOn = isOn
     }
     
@@ -1128,232 +1112,502 @@ public struct LiquidGlassMenuToggle: View {
         let isDark = colorScheme == .dark
         
         Button(action: {
-            withAnimation(.spring(response: 0.28, dampingFraction: 0.72)) {
+            withAnimation(.spring(response: 0.22, dampingFraction: 0.70)) {
                 isOn.toggle()
             }
         }) {
-            HStack(spacing: 10) {
-                ZStack {
-                    Circle()
-                        .fill(iconTint.opacity(isDark ? 0.20 : 0.14))
-                        .frame(width: 26, height: 26)
-                    Image(systemName: icon)
-                        .font(.system(size: 12, weight: .semibold))
-                        .foregroundColor(iconTint)
-                }
-                
-                VStack(alignment: .leading, spacing: 1.5) {
-                    Text(title)
-                        .font(.system(size: 12.5, weight: .medium))
-                        .foregroundColor(ThemeColor.textPrimary(for: colorScheme))
-                    
-                    if let subtitle = subtitle {
-                        Text(subtitle)
-                            .font(.system(size: 10.5))
-                            .foregroundColor(ThemeColor.textTertiary(for: colorScheme))
-                    }
-                }
-                
-                Spacer(minLength: 8)
-                
-                // Apple-style Liquid Glass Switch Knob
-                ZStack(alignment: isOn ? .trailing : .leading) {
-                    Capsule()
-                        .fill(
-                            isOn ?
-                                LinearGradient(
-                                    colors: [iconTint, iconTint.opacity(0.85)],
-                                    startPoint: .topLeading,
-                                    endPoint: .bottomTrailing
-                                ) :
-                                LinearGradient(
-                                    colors: [
-                                        (isDark ? Color.white.opacity(0.14) : Color.black.opacity(0.12)),
-                                        (isDark ? Color.white.opacity(0.08) : Color.black.opacity(0.08))
-                                    ],
-                                    startPoint: .top,
-                                    endPoint: .bottom
-                                )
-                        )
-                        .frame(width: 34, height: 20)
-                        .overlay(
-                            Capsule()
-                                .strokeBorder(
-                                    isOn ?
-                                        Color.white.opacity(0.35) :
-                                        (isDark ? Color.white.opacity(0.18) : Color.black.opacity(0.10)),
-                                    lineWidth: 0.75
-                                )
-                        )
-                    
-                    Circle()
-                        .fill(Color.white)
-                        .frame(width: 16, height: 16)
-                        .padding(2)
-                        .shadow(color: Color.black.opacity(0.22), radius: 2, x: 0, y: 1)
-                }
-                .frame(width: 34, height: 20)
-            }
-            .padding(.horizontal, 9)
-            .padding(.vertical, 6.5)
-            .contentShape(Rectangle())
-            .background(
-                RoundedRectangle(cornerRadius: 8, style: .continuous)
+            ZStack(alignment: isOn ? .trailing : .leading) {
+                // 1. Track Base
+                Capsule()
                     .fill(
-                        isHovered ?
-                            (isDark ? Color.white.opacity(0.10) : Color.white.opacity(0.60)) :
-                            Color.clear
+                        isOn ?
+                            LinearGradient(
+                                colors: [
+                                    Color(red: 0.08, green: 0.50, blue: 1.0),
+                                    Color(red: 0.16, green: 0.36, blue: 0.96)
+                                ],
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing
+                            ) :
+                            LinearGradient(
+                                colors: isDark ? [
+                                    Color.white.opacity(0.12),
+                                    Color.white.opacity(0.06)
+                                ] : [
+                                    Color.black.opacity(0.12),
+                                    Color.black.opacity(0.06)
+                                ],
+                                startPoint: .top,
+                                endPoint: .bottom
+                            )
                     )
-            )
+                    .frame(width: 38, height: 22)
+                
+                // 2. Specular Bevel Highlight on Track
+                Capsule()
+                    .strokeBorder(
+                        isOn ?
+                            LinearGradient(
+                                colors: [Color.white.opacity(0.55), Color.white.opacity(0.15)],
+                                startPoint: .top,
+                                endPoint: .bottom
+                            ) :
+                            LinearGradient(
+                                colors: isDark ? [
+                                    Color.white.opacity(0.20),
+                                    Color.white.opacity(0.04)
+                                ] : [
+                                    Color.white.opacity(0.85),
+                                    Color.black.opacity(0.08)
+                                ],
+                                startPoint: .top,
+                                endPoint: .bottom
+                            ),
+                        lineWidth: 0.85
+                    )
+                    .frame(width: 38, height: 22)
+                
+                // 3. Porcelain Glass Knob
+                Circle()
+                    .fill(
+                        LinearGradient(
+                            colors: [Color.white, Color(white: 0.94)],
+                            startPoint: .top,
+                            endPoint: .bottom
+                        )
+                    )
+                    .frame(width: 18, height: 18)
+                    .overlay(
+                        Circle()
+                            .strokeBorder(Color.white.opacity(0.9), lineWidth: 0.5)
+                    )
+                    .shadow(color: Color.black.opacity(0.25), radius: 2.5, x: 0, y: 1.5)
+                    .padding(2)
+            }
         }
         .buttonStyle(.plain)
-        .onHover { hovering in
-            withAnimation(.spring(response: 0.2, dampingFraction: 0.75)) {
-                isHovered = hovering
-            }
-        }
     }
 }
 
-// MARK: - 12. PiP Size Chip (Segmented Glass Option)
-public struct PiPSizeChip: View {
+// MARK: - 12. Liquid Glass Segmented Size Picker
+public struct LiquidGlassSegmentedSizePicker: View {
+    @ObservedObject var pipController = PiPWindowController.shared
     @Environment(\.colorScheme) private var colorScheme
-    public let title: String
-    public let label: String
-    public let targetWidth: CGFloat
     
-    public init(title: String, label: String, targetWidth: CGFloat) {
-        self.title = title
-        self.label = label
-        self.targetWidth = targetWidth
-    }
+    public init() {}
     
-    private var isCurrent: Bool {
-        abs(PiPWindowController.shared.currentWidth - targetWidth) < 25
-    }
+    private let sizes: [(width: CGFloat, label: String, sub: String)] = [
+        (380, "380p", "Nhỏ"),
+        (540, "540p", "Vừa"),
+        (720, "720p", "Lớn")
+    ]
     
     public var body: some View {
         let isDark = colorScheme == .dark
+        let currentWidth = pipController.currentWidth
         
-        Button(action: {
-            PiPWindowController.shared.setPipSize(width: targetWidth)
-        }) {
-            VStack(spacing: 1.5) {
-                Text(title)
-                    .font(.system(size: 11, weight: .bold))
-                Text(label)
-                    .font(.system(size: 9, weight: .regular))
-                    .opacity(0.8)
+        HStack(spacing: 4) {
+            ForEach(sizes, id: \.width) { item in
+                let isSelected = abs(currentWidth - item.width) < 30
+                
+                Button(action: {
+                    withAnimation(.spring(response: 0.24, dampingFraction: 0.75)) {
+                        pipController.setPipSize(width: item.width)
+                    }
+                }) {
+                    HStack(spacing: 3) {
+                        Text(item.label)
+                            .font(.system(size: 11.5, weight: isSelected ? .bold : .medium))
+                        Text("•")
+                            .font(.system(size: 8))
+                            .opacity(0.6)
+                        Text(item.sub)
+                            .font(.system(size: 10, weight: isSelected ? .semibold : .regular))
+                            .opacity(isSelected ? 0.95 : 0.7)
+                    }
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 6)
+                    .foregroundColor(
+                        isSelected ?
+                            (isDark ? Color.black : Color.white) :
+                            ThemeColor.textPrimary(for: colorScheme).opacity(0.85)
+                    )
+                    .background(
+                        ZStack {
+                            if isSelected {
+                                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                                    .fill(
+                                        isDark ?
+                                            LinearGradient(colors: [Color.white, Color(white: 0.90)], startPoint: .top, endPoint: .bottom) :
+                                            LinearGradient(colors: [Color(white: 0.16), Color(white: 0.08)], startPoint: .top, endPoint: .bottom)
+                                    )
+                                    .shadow(color: Color.black.opacity(isDark ? 0.20 : 0.15), radius: 3, x: 0, y: 1.5)
+                            }
+                        }
+                    )
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 8, style: .continuous)
+                            .strokeBorder(
+                                isSelected ?
+                                    Color.white.opacity(isDark ? 0.4 : 0.2) :
+                                    Color.clear,
+                                lineWidth: 0.75
+                            )
+                    )
+                }
+                .buttonStyle(.plain)
             }
-            .frame(maxWidth: .infinity)
-            .padding(.vertical, 6)
-            .foregroundColor(
-                isCurrent ?
-                    (isDark ? Color.black : Color.white) :
-                    ThemeColor.textPrimary(for: colorScheme)
-            )
-            .background(
-                RoundedRectangle(cornerRadius: 7, style: .continuous)
-                    .fill(
-                        isCurrent ?
-                            (isDark ? AnyShapeStyle(Color.white) : AnyShapeStyle(Color.black.opacity(0.85))) :
-                            (isDark ? AnyShapeStyle(Color.white.opacity(0.08)) : AnyShapeStyle(Color.white.opacity(0.50)))
-                    )
-            )
-            .overlay(
-                RoundedRectangle(cornerRadius: 7, style: .continuous)
-                    .strokeBorder(
-                        isCurrent ?
-                            Color.white.opacity(0.3) :
-                            (isDark ? Color.white.opacity(0.12) : Color.black.opacity(0.08)),
-                        lineWidth: 0.75
-                    )
-            )
         }
-        .buttonStyle(.plain)
+        .padding(3)
+        .background(
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .fill(
+                    isDark ?
+                        Color.white.opacity(0.06) :
+                        Color.black.opacity(0.04)
+                )
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .strokeBorder(
+                    isDark ? Color.white.opacity(0.08) : Color.black.opacity(0.06),
+                    lineWidth: 0.75
+                )
+        )
     }
 }
 
-// MARK: - 13. PiP Liquid Glass Settings Popover
+// MARK: - 13. Liquid Glass Floating PiP Settings Card
 @MainActor
-public struct PiPLiquidGlassSettingsPopover: View {
+public struct PiPLiquidGlassSettingsCard: View {
     @ObservedObject var playerManager: PlayerManager = PlayerManager.shared
     @Environment(\.colorScheme) private var colorScheme
     public var onClose: (() -> Void)? = nil
     
-    public init(playerManager: PlayerManager = PlayerManager.shared, onClose: (() -> Void)? = nil) {
-        self.playerManager = playerManager
+    public init(playerManager: PlayerManager? = nil, onClose: (() -> Void)? = nil) {
+        self.playerManager = playerManager ?? PlayerManager.shared
         self.onClose = onClose
     }
     
     public var body: some View {
-        LiquidGlassMenuContainer {
-            VStack(alignment: .leading, spacing: 5) {
-                // Header / Primary Action
-                LiquidGlassMenuRow(
-                    title: playerManager.isPictureInPictureActive ? "Đưa video về cửa sổ chính" : "Chuyển sang cửa sổ nổi PiP",
-                    subtitle: playerManager.isPictureInPictureActive ? "Thoát cửa sổ nổi và phát ở app chính" : "Ghim video luôn nổi trên các ứng dụng",
-                    icon: playerManager.isPictureInPictureActive ? "pip.exit" : "pip.enter",
-                    iconTint: playerManager.isPictureInPictureActive ? .red : .blue,
-                    shortcut: "P"
-                ) {
-                    playerManager.togglePictureInPicture()
-                    onClose?()
-                }
-                
-                // PiP Size Options (when PiP is active, or quick preset)
-                if playerManager.isPictureInPictureActive {
-                    VStack(alignment: .leading, spacing: 5) {
-                        Text("KÍCH THƯỚC CỬA SỔ NỔI")
-                            .font(.system(size: 9.5, weight: .bold))
-                            .foregroundColor(ThemeColor.textTertiary(for: colorScheme))
-                            .padding(.horizontal, 10)
-                            .padding(.top, 4)
+        let isDark = colorScheme == .dark
+        let isActive = playerManager.isPictureInPictureActive
+        
+        VStack(alignment: .leading, spacing: 13) {
+            // 1. Header Bar: Engine Title + Status Indicator + Close Button
+            HStack(alignment: .center) {
+                HStack(spacing: 7) {
+                    ZStack {
+                        Circle()
+                            .fill(
+                                LinearGradient(
+                                    colors: [
+                                        (isActive ? Color.red : Color(red: 0.08, green: 0.48, blue: 0.98)).opacity(isDark ? 0.25 : 0.18),
+                                        (isActive ? Color.red : Color(red: 0.08, green: 0.48, blue: 0.98)).opacity(0.05)
+                                    ],
+                                    startPoint: .topLeading,
+                                    endPoint: .bottomTrailing
+                                )
+                            )
+                            .frame(width: 26, height: 26)
                         
-                        HStack(spacing: 6) {
-                            PiPSizeChip(title: "380p", label: "Nhỏ", targetWidth: 380)
-                            PiPSizeChip(title: "540p", label: "Vừa", targetWidth: 540)
-                            PiPSizeChip(title: "720p", label: "Lớn", targetWidth: 720)
-                        }
-                        .padding(.horizontal, 8)
+                        Image(systemName: "pip")
+                            .font(.system(size: 12, weight: .bold))
+                            .foregroundColor(isActive ? .red : Color(red: 0.08, green: 0.48, blue: 0.98))
                     }
-                    .padding(.vertical, 2)
+                    
+                    VStack(alignment: .leading, spacing: 0) {
+                        Text("Cửa sổ nổi PiP")
+                            .font(.system(size: 13, weight: .bold))
+                            .foregroundColor(ThemeColor.textPrimary(for: colorScheme))
+                        Text(isActive ? "Đang ghim trên màn hình" : "Chế độ phát nền & mini")
+                            .font(.system(size: 10))
+                            .foregroundColor(ThemeColor.textSecondary(for: colorScheme).opacity(0.8))
+                    }
                 }
                 
-                Divider()
-                    .overlay(ThemeColor.divider(for: colorScheme))
-                    .padding(.horizontal, 6)
-                    .padding(.vertical, 2)
+                Spacer()
                 
-                // Smart Switch Automation Toggles
-                LiquidGlassMenuToggle(
-                    title: "Tự động chuyển PiP",
-                    subtitle: "Tự bật PiP khi bạn chuyển sang app khác",
-                    icon: "arrow.triangle.swap",
-                    iconTint: .indigo,
-                    isOn: $playerManager.autoPiPOnAppSwitch
+                // Status indicator pill
+                HStack(spacing: 4) {
+                    Circle()
+                        .fill(isActive ? Color.red : Color.green)
+                        .frame(width: 5.5, height: 5.5)
+                    Text(isActive ? "Đang bật" : "Sẵn sàng")
+                        .font(.system(size: 10, weight: .semibold))
+                        .foregroundColor(isActive ? .red : Color.green)
+                }
+                .padding(.horizontal, 7)
+                .padding(.vertical, 3)
+                .background(
+                    Capsule()
+                        .fill(isActive ? Color.red.opacity(0.12) : Color.green.opacity(0.12))
+                )
+                .overlay(
+                    Capsule()
+                        .strokeBorder(isActive ? Color.red.opacity(0.25) : Color.green.opacity(0.25), lineWidth: 0.75)
                 )
                 
-                LiquidGlassMenuToggle(
-                    title: "Tắt PiP khi về app chính",
-                    subtitle: "Tự tắt PiP khi bạn bấm lại vào AuraTube",
-                    icon: "arrow.uturn.backward.circle",
-                    iconTint: .teal,
-                    isOn: $playerManager.autoReturnPiPOnAppFocus
-                )
+                // Close button
+                Button(action: {
+                    if let onClose = onClose {
+                        onClose()
+                    } else {
+                        playerManager.togglePiPSettingsCard()
+                    }
+                }) {
+                    Image(systemName: "xmark")
+                        .font(.system(size: 10, weight: .bold))
+                        .foregroundColor(ThemeColor.textSecondary(for: colorScheme))
+                        .frame(width: 22, height: 22)
+                        .background(
+                            Circle()
+                                .fill(isDark ? Color.white.opacity(0.08) : Color.black.opacity(0.06))
+                        )
+                }
+                .buttonStyle(.plain)
             }
-            .frame(width: 284)
+            
+            // 2. Hero PiP Action Button (Vibrant Liquid Glass Gradient)
+            Button(action: {
+                playerManager.togglePictureInPicture()
+            }) {
+                HStack(spacing: 10) {
+                    Image(systemName: isActive ? "pip.exit" : "pip.enter")
+                        .font(.system(size: 14, weight: .bold))
+                    
+                    VStack(alignment: .leading, spacing: 1) {
+                        Text(isActive ? "Đưa video về cửa sổ chính" : "Chuyển sang cửa sổ nổi")
+                            .font(.system(size: 12.5, weight: .bold))
+                        Text(isActive ? "Tắt cửa sổ nổi và phát ở app AuraTube" : "Ghim video luôn nổi trên các ứng dụng")
+                            .font(.system(size: 10))
+                            .opacity(0.85)
+                    }
+                    
+                    Spacer()
+                    
+                    Text("P")
+                        .font(.system(size: 10.5, weight: .heavy, design: .rounded))
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 2.5)
+                        .background(
+                            RoundedRectangle(cornerRadius: 4, style: .continuous)
+                                .fill(Color.white.opacity(0.25))
+                        )
+                }
+                .foregroundColor(.white)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 10)
+                .background(
+                    ZStack {
+                        if isActive {
+                            RoundedRectangle(cornerRadius: 11, style: .continuous)
+                                .fill(
+                                    LinearGradient(
+                                        colors: [
+                                            Color(red: 0.92, green: 0.22, blue: 0.32),
+                                            Color(red: 0.80, green: 0.12, blue: 0.22)
+                                        ],
+                                        startPoint: .topLeading,
+                                        endPoint: .bottomTrailing
+                                    )
+                                )
+                        } else {
+                            RoundedRectangle(cornerRadius: 11, style: .continuous)
+                                .fill(
+                                    LinearGradient(
+                                        colors: [
+                                            Color(red: 0.08, green: 0.48, blue: 0.98),
+                                            Color(red: 0.18, green: 0.32, blue: 0.92)
+                                        ],
+                                        startPoint: .topLeading,
+                                        endPoint: .bottomTrailing
+                                    )
+                                )
+                        }
+                        
+                        // Top crescent reflection
+                        RoundedRectangle(cornerRadius: 11, style: .continuous)
+                            .strokeBorder(
+                                LinearGradient(
+                                    colors: [Color.white.opacity(0.45), Color.clear],
+                                    startPoint: .top,
+                                    endPoint: .center
+                                ),
+                                lineWidth: 1.0
+                            )
+                    }
+                )
+                .shadow(color: (isActive ? Color.red : Color.blue).opacity(0.32), radius: 6, x: 0, y: 3)
+            }
+            .buttonStyle(.plain)
+            
+            // 3. Size Control Section (Always accessible)
+            VStack(alignment: .leading, spacing: 6) {
+                Text("KÍCH THƯỚC CỬA SỔ NỔI")
+                    .font(.system(size: 9.5, weight: .bold))
+                    .foregroundColor(ThemeColor.textTertiary(for: colorScheme))
+                    .tracking(0.5)
+                
+                LiquidGlassSegmentedSizePicker()
+            }
+            
+            // Specular Divider
+            Rectangle()
+                .fill(
+                    LinearGradient(
+                        colors: [Color.clear, ThemeColor.divider(for: colorScheme), Color.clear],
+                        startPoint: .leading,
+                        endPoint: .trailing
+                    )
+                )
+                .frame(height: 0.75)
+            
+            // 4. Smart Automation Toggles
+            VStack(alignment: .leading, spacing: 10) {
+                Text("TỰ ĐỘNG HÓA THÔNG MINH")
+                    .font(.system(size: 9.5, weight: .bold))
+                    .foregroundColor(ThemeColor.textTertiary(for: colorScheme))
+                    .tracking(0.5)
+                
+                // Toggle 1: Auto PiP on app switch
+                HStack(spacing: 10) {
+                    ZStack {
+                        Circle()
+                            .fill(ThemeColor.textPrimary(for: colorScheme).opacity(0.06))
+                            .frame(width: 26, height: 26)
+                        Image(systemName: "arrow.triangle.swap")
+                            .font(.system(size: 11, weight: .semibold))
+                            .foregroundColor(ThemeColor.textPrimary(for: colorScheme))
+                    }
+                    
+                    VStack(alignment: .leading, spacing: 1) {
+                        Text("Tự động chuyển PiP khi chuyển app")
+                            .font(.system(size: 12, weight: .medium))
+                            .foregroundColor(ThemeColor.textPrimary(for: colorScheme))
+                        Text("Tự bật PiP khi bạn chuyển sang app khác")
+                            .font(.system(size: 10))
+                            .foregroundColor(ThemeColor.textTertiary(for: colorScheme))
+                    }
+                    
+                    Spacer()
+                    
+                    LiquidGlassLuxurySwitch(isOn: $playerManager.autoPiPOnAppSwitch)
+                }
+                
+                // Toggle 2: Return PiP on main app focus
+                HStack(spacing: 10) {
+                    ZStack {
+                        Circle()
+                            .fill(ThemeColor.textPrimary(for: colorScheme).opacity(0.06))
+                            .frame(width: 26, height: 26)
+                        Image(systemName: "arrow.uturn.backward.circle")
+                            .font(.system(size: 11, weight: .semibold))
+                            .foregroundColor(ThemeColor.textPrimary(for: colorScheme))
+                    }
+                    
+                    VStack(alignment: .leading, spacing: 1) {
+                        Text("Tắt PiP khi bấm lại app chính")
+                            .font(.system(size: 12, weight: .medium))
+                            .foregroundColor(ThemeColor.textPrimary(for: colorScheme))
+                        Text("Khôi phục phát ở màn hình chính")
+                            .font(.system(size: 10))
+                            .foregroundColor(ThemeColor.textTertiary(for: colorScheme))
+                    }
+                    
+                    Spacer()
+                    
+                    LiquidGlassLuxurySwitch(isOn: $playerManager.autoReturnPiPOnAppFocus)
+                }
+            }
         }
+        .padding(14)
+        .frame(width: 304)
+        .background(
+            ZStack {
+                // 1. Ultra-thin hardware vibrancy
+                VisualEffectBackground(material: .popover, blendingMode: .withinWindow)
+                
+                // 2. Translucent Ambient Glass Tint
+                if isDark {
+                    RoundedRectangle(cornerRadius: 18, style: .continuous)
+                        .fill(
+                            LinearGradient(
+                                colors: [
+                                    Color(red: 24/255, green: 26/255, blue: 34/255).opacity(0.86),
+                                    Color(red: 14/255, green: 16/255, blue: 22/255).opacity(0.92)
+                                ],
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing
+                            )
+                        )
+                } else {
+                    RoundedRectangle(cornerRadius: 18, style: .continuous)
+                        .fill(
+                            LinearGradient(
+                                colors: [
+                                    Color.white.opacity(0.55),
+                                    Color.white.opacity(0.30)
+                                ],
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing
+                            )
+                        )
+                }
+                
+                // 3. Specular Prismatic Bevel (Inner Crescent)
+                RoundedRectangle(cornerRadius: 18, style: .continuous)
+                    .strokeBorder(
+                        LinearGradient(
+                            colors: [
+                                Color.white.opacity(isDark ? 0.35 : 0.90),
+                                Color.white.opacity(0.0)
+                            ],
+                            startPoint: .top,
+                            endPoint: .center
+                        ),
+                        lineWidth: 1.0
+                    )
+            }
+        )
+        .overlay(
+            // 4. Outer Dual Specular Hairline
+            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                .strokeBorder(
+                    isDark ?
+                        LinearGradient(
+                            colors: [
+                                Color.white.opacity(0.28),
+                                Color.white.opacity(0.08),
+                                Color.black.opacity(0.40)
+                            ],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        ) :
+                        LinearGradient(
+                            colors: [
+                                Color.white.opacity(0.95),
+                                Color.white.opacity(0.60),
+                                Color.black.opacity(0.12)
+                            ],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        ),
+                    lineWidth: 0.85
+                )
+        )
+        .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+        .shadow(color: Color.black.opacity(isDark ? 0.35 : 0.08), radius: 8, x: 0, y: 4)
+        .shadow(color: isDark ? Color.blue.opacity(0.10) : Color.black.opacity(0.12), radius: 24, x: 0, y: 12)
     }
 }
 
-// MARK: - 14. Liquid Glass PiP Button (Split Pill with Quick Toggle + Options Popover)
+// MARK: - 14. Seamless Liquid Glass PiP Button
 @MainActor
 public struct LiquidGlassPiPButton: View {
     @ObservedObject private var playerManager = PlayerManager.shared
     @Environment(\.colorScheme) private var colorScheme
-    @State private var showSettingsPopover: Bool = false
-    @State private var isPillHovered: Bool = false
+    @State private var isHovered: Bool = false
     
     public init() {}
     
@@ -1362,40 +1616,30 @@ public struct LiquidGlassPiPButton: View {
         let isActive = playerManager.isPictureInPictureActive
         
         HStack(spacing: 0) {
-            // Main Action (Toggle PiP immediately)
+            // Main Action Button (Toggle PiP immediately)
             Button(action: {
                 playerManager.togglePictureInPicture()
             }) {
-                HStack(spacing: 4) {
-                    Image(systemName: isActive ? "pip.exit" : "pip.enter")
-                        .font(.system(size: 11.5, weight: .semibold))
-                }
-                .frame(width: 28, height: 28)
-                .contentShape(Rectangle())
+                Image(systemName: isActive ? "pip.exit" : "pip.enter")
+                    .font(.system(size: 11.5, weight: .semibold))
+                    .foregroundColor(isActive ? .white : ThemeColor.textPrimary(for: colorScheme).opacity(0.85))
+                    .frame(width: 26, height: 28)
+                    .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
             
-            // Hairline separator inside the glass pill
-            Rectangle()
-                .fill(isDark ? Color.white.opacity(0.15) : Color.black.opacity(0.10))
-                .frame(width: 0.75, height: 16)
-            
-            // Settings Dropdown Trigger
+            // Dropdown Chevron Trigger (Seamlessly integrated - NO dividing line!)
             Button(action: {
-                showSettingsPopover.toggle()
+                playerManager.togglePiPSettingsCard()
             }) {
                 Image(systemName: "chevron.down")
-                    .font(.system(size: 8.5, weight: .bold))
+                    .font(.system(size: 8, weight: .bold))
+                    .foregroundColor(isActive ? Color.white.opacity(0.9) : ThemeColor.textSecondary(for: colorScheme))
                     .frame(width: 16, height: 28)
                     .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
         }
-        .foregroundColor(
-            isActive ?
-                Color.white :
-                ThemeColor.textPrimary(for: colorScheme).opacity(0.85)
-        )
         .background(
             ZStack {
                 Capsule().fill(.ultraThinMaterial)
@@ -1414,8 +1658,8 @@ public struct LiquidGlassPiPButton: View {
                         .fill(
                             LinearGradient(
                                 colors: [
-                                    Color.white.opacity(isPillHovered ? 0.20 : 0.10),
-                                    Color.white.opacity(isPillHovered ? 0.08 : 0.03)
+                                    Color.white.opacity(isHovered ? 0.20 : 0.10),
+                                    Color.white.opacity(isHovered ? 0.08 : 0.03)
                                 ],
                                 startPoint: .top,
                                 endPoint: .bottom
@@ -1426,8 +1670,8 @@ public struct LiquidGlassPiPButton: View {
                         .fill(
                             LinearGradient(
                                 colors: [
-                                    Color.white.opacity(isPillHovered ? 0.52 : 0.32),
-                                    Color.white.opacity(isPillHovered ? 0.28 : 0.14)
+                                    Color.white.opacity(isHovered ? 0.52 : 0.32),
+                                    Color.white.opacity(isHovered ? 0.28 : 0.14)
                                 ],
                                 startPoint: .top,
                                 endPoint: .bottom
@@ -1457,7 +1701,7 @@ public struct LiquidGlassPiPButton: View {
                         LinearGradient(colors: [Color.white.opacity(0.45), Color.white.opacity(0.15)], startPoint: .top, endPoint: .bottom) :
                         (isDark ?
                             LinearGradient(
-                                colors: [Color.white.opacity(isPillHovered ? 0.40 : 0.20), Color.black.opacity(0.30)],
+                                colors: [Color.white.opacity(isHovered ? 0.40 : 0.20), Color.black.opacity(0.30)],
                                 startPoint: .topLeading,
                                 endPoint: .bottomTrailing
                             ) :
@@ -1475,24 +1719,19 @@ public struct LiquidGlassPiPButton: View {
             color: isActive ?
                 Color.red.opacity(0.3) :
                 Color.black.opacity(isDark ? 0.20 : 0.06),
-            radius: isPillHovered ? 4 : 2,
+            radius: isHovered ? 4 : 2,
             x: 0,
             y: 1
         )
         .onHover { hovering in
             withAnimation(.spring(response: 0.24, dampingFraction: 0.75)) {
-                isPillHovered = hovering
+                isHovered = hovering
             }
         }
         .onRightClick {
-            showSettingsPopover.toggle()
+            playerManager.togglePiPSettingsCard()
         }
-        .popover(isPresented: $showSettingsPopover, arrowEdge: .bottom) {
-            PiPLiquidGlassSettingsPopover(playerManager: playerManager) {
-                showSettingsPopover = false
-            }
-        }
-        .help(isActive ? "Đưa video về cửa sổ chính (P) • Bấm ▾ để cài đặt" : "Chuyển sang cửa sổ nổi PiP (P) • Bấm ▾ để cài đặt")
+        .help(isActive ? "Đưa video về cửa sổ chính (P) • Bấm ▾ để cài đặt kính lỏng" : "Chuyển sang cửa sổ nổi PiP (P) • Bấm ▾ để cài đặt kính lỏng")
     }
 }
 

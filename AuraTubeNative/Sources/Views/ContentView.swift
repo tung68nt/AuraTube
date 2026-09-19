@@ -680,6 +680,26 @@ public struct ContentView: View {
                 .zIndex(201)
             }
         }
+        .overlay(alignment: .topTrailing) {
+            if playerManager.showPiPSettingsCard {
+                // Transparent tap-outside dismiss layer
+                Color.black.opacity(0.001)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .contentShape(Rectangle())
+                    .onTapGesture {
+                        playerManager.togglePiPSettingsCard()
+                    }
+                
+                PiPLiquidGlassSettingsCard()
+                    .padding(.top, 56)
+                    .padding(.trailing, 18)
+                    .transition(.asymmetric(
+                        insertion: .scale(scale: 0.94, anchor: .topTrailing).combined(with: .opacity),
+                        removal: .scale(scale: 0.96, anchor: .topTrailing).combined(with: .opacity)
+                    ))
+                    .zIndex(500)
+            }
+        }
     }
     .frame(
         minWidth: playerManager.isVideoFullscreen ? 0 : 980,

@@ -1,9 +1,9 @@
 {
-  "version": "2.0.73",
-  "build": 74,
-  "title": "AuraTube v2.0.73 (Nâng cấp toàn diện hiệu ứng Liquid Glass & Popover PiP)",
-  "releaseNotes": "• Nâng cấp giao diện Liquid Glass chuẩn Apple: Tinh chỉnh độ trong suốt, quang sai khúc xạ và viền phản chiếu ánh sáng (specular bevel) trên toàn bộ hệ thống nút bấm, thanh tìm kiếm và thẻ nội dung; khắc phục triệt để hiện tượng màu trắng đục đặc ở Light Mode.\n• Menu tùy chọn PiP Liquid Glass cao cấp: Thay thế menu hệ thống macOS cũ kỹ bằng Popover Liquid Glass mờ ảo tuyệt đẹp với các switch toggles mượt mà chuẩn visionOS / macOS Sequoia.\n• Tích hợp bộ chọn kích thước PiP trực quan: Cho phép chọn trực tiếp giữa 3 kích thước 380p (Nhỏ), 540p (Vừa), 720p (Lớn) mà không bị tự đóng menu đột ngột.\n• Nút PiP thông minh: Hỗ trợ split pill với nút mũi tên mở nhanh cài đặt và hỗ trợ chuột phải mở Liquid Glass Popover trên cả thanh công cụ và trình phát video.",
-  "downloadUrl": "https://github.com/tung68nt/AuraTube/releases/download/v2.0.73/AuraTube-v2.0.73.dmg",
+  "version": "2.0.74",
+  "build": 75,
+  "title": "AuraTube v2.0.74 (Thiết kế lại toàn diện Floating Liquid Glass Panel & Luxury Toggles)",
+  "releaseNotes": "• Loại bỏ hoàn toàn NSPopover hệ thống & mũi tên tam giác: Chuyển sang bảng kính nổi thuần SwiftUI (Floating Liquid Glass Card) loại bỏ hoàn toàn viền khung dày và mũi tên tam giác xấu xí của hệ điều hành, cho phép làm mờ và khúc xạ trực tiếp màu sắc video bên dưới theo chuẩn Apple visionOS.\n• Tinh chỉnh màu sắc và vật liệu kính lỏng sang trọng: Phối màu Electric Sapphire / Indigo đồng bộ, viền lăng kính phản quang (prismatic specular bevel) đa góc cạnh, bóng đổ chiều sâu quang học 2 lớp.\n• Công tắc kính lỏng cao cấp (Liquid Glass Luxury Switch): Nút gạt kính trượt phát sáng siêu mượt với núm trượt sứ trắng ngà đổ bóng vật lý tinh tế thay thế hoàn toàn các toggle thô cũ.\n• Bộ chọn kích cỡ PiP dạng thanh trượt lỏng (Segmented Size Picker): 3 phân đoạn 380p • 540p • 720p dạng thấu kính trôi nổi siêu nhạy.\n• Nút PiP thanh công cụ liền khối: Loại bỏ đường gạch chia đôi thô cứng, tích hợp liền mạch giữa biểu tượng PiP và mũi tên mở bảng cài đặt.",
+  "downloadUrl": "https://github.com/tung68nt/AuraTube/releases/download/v2.0.74/AuraTube-v2.0.74.dmg",
   "publishedAt": "2026-09-19",
   "minOSVersion": "13.0",
   "fileSize": "5.4 MB"

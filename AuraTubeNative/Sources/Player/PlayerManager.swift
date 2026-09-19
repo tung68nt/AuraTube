@@ -1,4 +1,5 @@
 import Foundation
+import SwiftUI
 import AVKit
 import MediaPlayer
 import Combine
@@ -64,6 +65,15 @@ public final class PlayerManager: ObservableObject {
     
     public var wasAutoPiPTriggered: Bool = false
     public private(set) var lastPiPEnterTimestamp: TimeInterval = 0
+    
+    // MARK: - Liquid Glass PiP Settings Card Overlay
+    @Published public var showPiPSettingsCard: Bool = false
+    
+    public func togglePiPSettingsCard() {
+        withAnimation(.spring(response: 0.28, dampingFraction: 0.78)) {
+            showPiPSettingsCard.toggle()
+        }
+    }
     
     // MARK: - Viewer Comments State
     public enum CommentSortMode: String, CaseIterable, Sendable {

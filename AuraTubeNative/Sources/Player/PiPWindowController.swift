@@ -82,7 +82,7 @@ public final class PiPOverlayState: ObservableObject {
 
 // MARK: - Native macOS Floating Picture-in-Picture Window Controller
 @MainActor
-public final class PiPWindowController: NSObject, NSWindowDelegate {
+public final class PiPWindowController: NSObject, ObservableObject, NSWindowDelegate {
     public static let shared = PiPWindowController()
     
     public private(set) var pipWindow: PiPPanel?
@@ -216,6 +216,7 @@ public final class PiPWindowController: NSObject, NSWindowDelegate {
     
     public func setPipSize(width targetWidth: CGFloat) {
         guard let panel = pipWindow else { return }
+        objectWillChange.send()
         let targetHeight = targetWidth * (9.0 / 16.0)
         let currentFrame = panel.frame
         let newX = currentFrame.maxX - targetWidth

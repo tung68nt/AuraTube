@@ -25,7 +25,6 @@ public struct PlayerControlOverlay: View {
     @ObservedObject private var playerManager = PlayerManager.shared
     @ObservedObject private var clock = PlaybackClock.shared
     @StateObject private var vm = PlayerControlViewModel()
-    @State private var showPiPSettingsPopover: Bool = false
     
     public init() {}
     
@@ -441,14 +440,9 @@ public struct PlayerControlOverlay: View {
             }
             .buttonStyle(.plain)
             .onRightClick {
-                showPiPSettingsPopover.toggle()
+                playerManager.togglePiPSettingsCard()
             }
-            .popover(isPresented: $showPiPSettingsPopover, arrowEdge: .top) {
-                PiPLiquidGlassSettingsPopover(playerManager: playerManager) {
-                    showPiPSettingsPopover = false
-                }
-            }
-            .help(playerManager.isPictureInPictureActive ? "Đưa video về cửa sổ chính (P) • Chuột phải để cài đặt" : "Chuyển sang cửa sổ nổi PiP (P) • Chuột phải để cài đặt")
+            .help(playerManager.isPictureInPictureActive ? "Đưa video về cửa sổ chính (P) • Chuột phải để cài đặt kính lỏng" : "Chuyển sang cửa sổ nổi PiP (P) • Chuột phải để cài đặt kính lỏng")
             
             // Fullscreen Button (ALWAYS PRESENT ON THE RIGHT)
             Button(action: {
