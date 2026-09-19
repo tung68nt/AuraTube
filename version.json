@@ -1,9 +1,9 @@
 {
-  "version": "2.0.71",
-  "build": 72,
-  "title": "AuraTube v2.0.71 (Loại bỏ gradient trắng mờ ở lề trên video Shorts)",
-  "releaseNotes": "• Loại bỏ hoàn toàn lớp gradient trắng mờ ở lề trên video Shorts: Xóa bỏ lớp phủ gradient 70px gây mờ và ám trắng viền trên video trong chế độ sáng (Light Mode), giúp khung hình video hiển thị sắc nét và rõ ràng 100%.\n• Giữ nguyên giao diện nút điều khiển nổi tinh tế: Các nút 'Đổi gợi ý' và 'Tự cuộn' hiển thị dạng Liquid Glass sắc sảo mà không làm ảnh hưởng đến hình ảnh video bên dưới.",
-  "downloadUrl": "https://github.com/tung68nt/AuraTube/releases/download/v2.0.71/AuraTube-v2.0.71.dmg",
+  "version": "2.0.72",
+  "build": 73,
+  "title": "AuraTube v2.0.72 (Khắc phục triệt để lỗi video ngang bị ép thành khổ dọc 9:16)",
+  "releaseNotes": "• Sửa lỗi video ngang bị ép thành khổ dọc 9:16: Loại bỏ hoàn toàn logic cũ ép khổ dọc dựa trên từ khóa tiêu đề (như 'tiktok', 'reels', '#short') cho các video dài (>65s).\n• Chuẩn hóa nhận diện tỷ lệ khung hình: Các video dài hơn 65 giây luôn được hiển thị đúng tỷ lệ chuẩn 16:9 màn ảnh rộng; chỉ video thực sự có tỷ lệ dọc (height > width) và thời lượng ngắn mới được chuyển sang khổ dọc 9:16.\n• Đồng bộ trên cả Main Player, Fullscreen và PiP: Khắc phục lỗi tương tự trên toàn bộ trình phát chính, chế độ toàn màn hình và cửa sổ PiP thu nhỏ.",
+  "downloadUrl": "https://github.com/tung68nt/AuraTube/releases/download/v2.0.72/AuraTube-v2.0.72.dmg",
   "publishedAt": "2026-09-19",
   "minOSVersion": "13.0",
   "fileSize": "5.4 MB"

@@ -871,14 +871,24 @@ struct WatchPlayerContainerView: View {
     @StateObject private var vm = WatchPlayerViewModel()
     
     var body: some View {
-        let isVertical = playerManager.isCurrentVideoVertical 
-            || displayVideo.isShort
-            || displayVideo.isExplicitShort == true
-            || displayVideo.durationFormatted == "Shorts"
-            || displayVideo.title.lowercased().contains("#short")
-            || displayVideo.title.lowercased().contains("tiktok")
-            || displayVideo.title.lowercased().contains("reels")
-            || (playerManager.currentVideoAspectRatio > 0 && playerManager.currentVideoAspectRatio < 0.95)
+        let isVertical: Bool = {
+            let dur = displayVideo.totalDurationSeconds
+            let pDur = playerManager.duration
+            // Video dài hơn 65s chắc chắn là video ngang truyền thống (16:9)
+            if dur > 65 || pDur > 65 {
+                return false
+            }
+            if playerManager.isCurrentVideoVertical {
+                return true
+            }
+            if displayVideo.durationFormatted == "Shorts" || displayVideo.isExplicitShort == true || displayVideo.isShort {
+                return true
+            }
+            if playerManager.currentVideoAspectRatio > 0 && playerManager.currentVideoAspectRatio < 0.95 {
+                return true
+            }
+            return false
+        }()
         
         Group {
             if playerManager.isPictureInPictureActive {
@@ -932,7 +942,12 @@ struct WatchPlayerContainerView: View {
     
     // MARK: - Picture-in-Picture Placeholder (Exact 1:1 Match with Native Player Frame & Rounded Corners)
     private var pipPlaceholder: some View {
-        let isVertical = playerManager.isCurrentVideoVertical || displayVideo.isShort
+        let isVertical: Bool = {
+            let dur = displayVideo.totalDurationSeconds
+            let pDur = playerManager.duration
+            if dur > 65 || pDur > 65 { return false }
+            return playerManager.isCurrentVideoVertical || displayVideo.isShort
+        }()
         
         let content = ZStack {
             // 1. Dark Base

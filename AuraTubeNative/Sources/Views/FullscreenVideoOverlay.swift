@@ -20,27 +20,18 @@ public struct FullscreenVideoOverlay: View {
     }
     
     private var isVertical: Bool {
-        // 1. Kiểm tra video prop
-        if video.isShort || video.isExplicitShort == true || video.durationFormatted == "Shorts" { return true }
-        let vt = video.title.lowercased()
-        if vt.contains("short") || vt.contains("tiktok") || vt.contains("reels") { return true }
-        if let d = video.duration, d > 0 && d <= 240 { return true }
-        
-        // 2. Kiểm tra PlayerManager.currentVideo
-        if let cur = playerManager.currentVideo {
-            if cur.isShort || cur.isExplicitShort == true || cur.durationFormatted == "Shorts" { return true }
-            let ct = cur.title.lowercased()
-            if ct.contains("short") || ct.contains("tiktok") || ct.contains("reels") { return true }
-            if let d = cur.duration, d > 0 && d <= 240 { return true }
+        let dur = video.totalDurationSeconds > 0 ? video.totalDurationSeconds : playerManager.duration
+        // Video > 65s chắc chắn là video ngang, trừ khi stream thực tế là khổ dọc < 0.95
+        if dur > 65 {
+            return playerManager.currentVideoAspectRatio > 0 && playerManager.currentVideoAspectRatio < 0.95
         }
         
-        // 3. Kiểm tra cờ PlayerManager
+        if video.isShort || video.isExplicitShort == true || video.durationFormatted == "Shorts" { return true }
+        if let cur = playerManager.currentVideo {
+            if cur.isShort || cur.isExplicitShort == true || cur.durationFormatted == "Shorts" { return true }
+        }
         if playerManager.isCurrentVideoVertical { return true }
-        if playerManager.duration > 0 && playerManager.duration <= 240 { return true }
-        
-        // 4. Nếu tỷ lệ player hiện tại < 1.45 (bao gồm cả 4:3 SD của shorts embed, 1:1, 9:16)
-        if playerManager.currentVideoAspectRatio < 1.45 { return true }
-        
+        if playerManager.currentVideoAspectRatio > 0 && playerManager.currentVideoAspectRatio < 0.95 { return true }
         return false
     }
     

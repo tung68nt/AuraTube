@@ -449,12 +449,13 @@ public final class PlayerManager: ObservableObject {
         }
         
         self.currentVideo = video
-        let isShortVideo = video.isShort 
-            || video.title.lowercased().contains("#shorts") 
-            || video.title.lowercased().contains("#short") 
-            || video.title.lowercased().contains("/shorts/")
-            || video.durationFormatted == "Shorts"
-            || ((video.duration ?? 0) > 0 && (video.duration ?? 0) <= 65)
+        let dur = video.totalDurationSeconds
+        let isShortVideo: Bool = {
+            if dur > 65 { return false }
+            if video.durationFormatted == "Shorts" { return true }
+            if video.isExplicitShort == true { return true }
+            return video.isShort
+        }()
         self.isCurrentVideoVertical = isShortVideo
         self.currentVideoAspectRatio = isShortVideo ? (9.0 / 16.0) : (16.0 / 9.0)
         self.selectedQuality = "auto"
@@ -519,33 +520,50 @@ public final class PlayerManager: ObservableObject {
     }
     
     public func updateVideoDimensions(isVertical: Bool, width: Double, height: Double) {
-        let isShortByMeta = (currentVideo?.isShort ?? false) 
-            || (duration > 0 && duration <= 180)
-            || ((currentVideo?.duration ?? 0) > 0 && (currentVideo?.duration ?? 0) <= 180)
-            || (currentVideo?.durationFormatted == "Shorts")
-            || (currentVideo?.title.lowercased().contains("short") ?? false)
-            || (currentVideo?.title.lowercased().contains("tiktok") ?? false)
-            || (currentVideo?.title.lowercased().contains("reels") ?? false)
-        
-        let isActuallyVertical = isShortByMeta || isVertical || (height > width && height > 0)
-        
-        if isActuallyVertical {
-            self.isCurrentVideoVertical = true
-            self.currentVideoAspectRatio = 9.0 / 16.0
+        // 1. If pixel dimensions are reported by player:
+        if width > 0 && height > 0 {
+            let ratio = width / height
+            // Strictly vertical only when height > width (ratio < 0.95)
+            let isStreamVertical = ratio < 0.95
+            
+            // Video longer than 65s cannot be forced to vertical unless the stream itself is physically vertical
+            let videoDur = self.duration > 0 ? self.duration : (currentVideo?.totalDurationSeconds ?? 0)
+            if videoDur > 65 {
+                if !isStreamVertical {
+                    self.isCurrentVideoVertical = false
+                    self.currentVideoAspectRatio = max(ratio, 16.0 / 9.0)
+                    return
+                }
+            }
+            
+            if isStreamVertical {
+                self.isCurrentVideoVertical = true
+                self.currentVideoAspectRatio = 9.0 / 16.0
+            } else {
+                self.isCurrentVideoVertical = false
+                self.currentVideoAspectRatio = ratio
+            }
             return
         }
         
-        if height > 0 && width > 0 {
-            let directRatio = width / height
-            // Mọi tỷ lệ < 1.4 (bao gồm khổ dọc < 1.0, vuông 1:1, SD 4:3 của Shorts) đều nhận diện là video dọc 9:16
-            if directRatio < 1.4 {
-                self.isCurrentVideoVertical = true
-                self.currentVideoAspectRatio = 9.0 / 16.0
-                return
-            }
-            if abs(self.currentVideoAspectRatio - directRatio) > 0.01 {
-                self.currentVideoAspectRatio = directRatio
-            }
+        // 2. Fallback when pixel dimensions not yet ready:
+        let videoDur = self.duration > 0 ? self.duration : (currentVideo?.totalDurationSeconds ?? 0)
+        if videoDur > 65 {
+            self.isCurrentVideoVertical = false
+            self.currentVideoAspectRatio = 16.0 / 9.0
+            return
+        }
+        
+        let isShortByMeta = (currentVideo?.isShort ?? false)
+            || (currentVideo?.durationFormatted == "Shorts")
+            || (currentVideo?.isExplicitShort == true)
+        
+        if isShortByMeta || isVertical {
+            self.isCurrentVideoVertical = true
+            self.currentVideoAspectRatio = 9.0 / 16.0
+        } else {
+            self.isCurrentVideoVertical = false
+            self.currentVideoAspectRatio = 16.0 / 9.0
         }
     }
     

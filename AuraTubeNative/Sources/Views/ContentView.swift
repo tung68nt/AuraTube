@@ -1541,7 +1541,10 @@ struct MiniPlayerPiPOverlay: View {
     }
     
     var body: some View {
-        let isVertical = video.isShort || playerManager.isCurrentVideoVertical
+        let isVertical: Bool = {
+            if video.totalDurationSeconds > 65 || playerManager.duration > 65 { return false }
+            return video.isShort || playerManager.isCurrentVideoVertical
+        }()
         let pipWidth: CGFloat = isVertical ? 230 : 360
         let videoHeight: CGFloat = isVertical ? (230 * 16.0 / 9.0) : (360 * 9.0 / 16.0)
         
