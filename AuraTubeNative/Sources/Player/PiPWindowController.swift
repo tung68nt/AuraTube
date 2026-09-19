@@ -196,6 +196,7 @@ public final class PiPWindowController: NSObject, ObservableObject, NSWindowDele
         if let mainWindow = NSApp.windows.first(where: { !($0 is NSPanel) && $0.canBecomeKey }) {
             mainWindow.makeKeyAndOrderFront(nil)
         }
+        PlayerManager.shared.refreshPlayerLayout()
     }
     
     public var currentWidth: CGFloat {

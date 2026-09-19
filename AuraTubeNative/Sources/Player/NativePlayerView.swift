@@ -23,6 +23,115 @@ public final class ScrollForwardingWKWebView: WKWebView {
         // Forward scrollWheel directly up the responder chain so enclosing scroll views / handlers receive it!
         self.nextResponder?.scrollWheel(with: event)
     }
+    
+    public override func viewDidMoveToWindow() {
+        super.viewDidMoveToWindow()
+        if let win = window {
+            let scale = win.backingScaleFactor
+            self.layer?.contentsScale = scale
+            for sub in subviews {
+                sub.layer?.contentsScale = scale
+            }
+        }
+        if let superview = self.superview, superview.bounds.width > 0 && superview.bounds.height > 0 {
+            if self.frame != superview.bounds {
+                self.frame = superview.bounds
+            }
+        }
+        needsLayout = true
+        triggerRelayout()
+    }
+    
+    public override func setFrameSize(_ newSize: NSSize) {
+        super.setFrameSize(newSize)
+        if let win = window {
+            self.layer?.contentsScale = win.backingScaleFactor
+        }
+        triggerRelayout()
+    }
+    
+    public func triggerRelayout() {
+        let js = """
+        (function() {
+            try {
+                if (typeof window.forcePlayerRelayout === 'function') {
+                    window.forcePlayerRelayout();
+                } else {
+                    window.dispatchEvent(new Event('resize'));
+                    var ifr = document.getElementById('ytPlayer') || document.querySelector('iframe');
+                    if (ifr && ifr.contentWindow) {
+                        ifr.contentWindow.dispatchEvent(new Event('resize'));
+                    }
+                }
+            } catch(e) {}
+        })();
+        """
+        self.evaluateJavaScript(js, completionHandler: nil)
+    }
+}
+
+// MARK: - Auto-resizing WebPlayerHostingView ensuring webView fills bounds 100% and syncs Retina scale
+public final class WebPlayerHostingView: NSView {
+    public weak var hostedWebView: WKWebView?
+    
+    public func attach(webView: WKWebView, cornerRadius: CGFloat, maskedCorners: CACornerMask) {
+        if webView.superview !== self {
+            webView.removeFromSuperview()
+            addSubview(webView)
+        }
+        self.hostedWebView = webView
+        
+        self.wantsLayer = true
+        self.layer?.cornerRadius = cornerRadius
+        self.layer?.maskedCorners = maskedCorners
+        self.layer?.masksToBounds = cornerRadius > 0
+        
+        webView.wantsLayer = true
+        webView.layer?.cornerRadius = cornerRadius
+        webView.layer?.maskedCorners = maskedCorners
+        webView.layer?.masksToBounds = cornerRadius > 0
+        
+        webView.autoresizingMask = [.width, .height]
+        webView.translatesAutoresizingMaskIntoConstraints = true
+        if bounds.width > 0 && bounds.height > 0 {
+            webView.frame = bounds
+        }
+        
+        needsLayout = true
+        layoutSubtreeIfNeeded()
+        
+        if let wv = webView as? ScrollForwardingWKWebView {
+            wv.triggerRelayout()
+        }
+    }
+    
+    public override func layout() {
+        super.layout()
+        if let wv = hostedWebView ?? subviews.first as? WKWebView {
+            if wv.frame != bounds && bounds.width > 0 && bounds.height > 0 {
+                wv.frame = bounds
+            }
+            if let win = window {
+                let scale = win.backingScaleFactor
+                layer?.contentsScale = scale
+                wv.layer?.contentsScale = scale
+            }
+        }
+    }
+    
+    public override func viewDidMoveToWindow() {
+        super.viewDidMoveToWindow()
+        if let win = window {
+            let scale = win.backingScaleFactor
+            layer?.contentsScale = scale
+            hostedWebView?.layer?.contentsScale = scale
+        }
+        needsLayout = true
+        layoutSubtreeIfNeeded()
+        if let wv = hostedWebView as? ScrollForwardingWKWebView {
+            wv.triggerRelayout()
+        }
+    }
 }
 
 public struct NativePlayerView: NSViewRepresentable {
@@ -47,15 +156,10 @@ public struct NativePlayerView: NSViewRepresentable {
         return coord
     }
     
-    public func makeNSView(context: Context) -> WKWebView {
-        playerManager.hasActiveMainPlayer = true
-        
-        if let existing = MainWebPlayerPool.shared.webView {
-            existing.removeFromSuperview()
-            existing.wantsLayer = true
-            existing.layer?.cornerRadius = cornerRadius
-            existing.layer?.maskedCorners = maskedCorners
-            existing.layer?.masksToBounds = cornerRadius > 0
+    private func getOrCreateWebView(context: Context) -> ScrollForwardingWKWebView {
+        if let existing = MainWebPlayerPool.shared.webView as? ScrollForwardingWKWebView {
+            existing.autoresizingMask = [.width, .height]
+            existing.translatesAutoresizingMaskIntoConstraints = true
             context.coordinator.targetWebView = existing
             setupBridgeCallbacks(for: existing)
             return existing
@@ -92,20 +196,25 @@ public struct NativePlayerView: NSViewRepresentable {
         config.userContentController = contentController
         
         let webView = ScrollForwardingWKWebView(frame: .zero, configuration: config)
+        webView.autoresizingMask = [.width, .height]
+        webView.translatesAutoresizingMaskIntoConstraints = true
         webView.customUserAgent = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.4 Safari/605.1.15"
         webView.setValue(false, forKey: "drawsBackground")
         webView.navigationDelegate = context.coordinator
-        
-        webView.wantsLayer = true
-        webView.layer?.cornerRadius = cornerRadius
-        webView.layer?.maskedCorners = maskedCorners
-        webView.layer?.masksToBounds = cornerRadius > 0
         
         MainWebPlayerPool.shared.webView = webView
         context.coordinator.targetWebView = webView
         setupBridgeCallbacks(for: webView)
         
         return webView
+    }
+    
+    public func makeNSView(context: Context) -> WebPlayerHostingView {
+        playerManager.hasActiveMainPlayer = true
+        let container = WebPlayerHostingView()
+        let webView = getOrCreateWebView(context: context)
+        container.attach(webView: webView, cornerRadius: cornerRadius, maskedCorners: maskedCorners)
+        return container
     }
     
     private func setupBridgeCallbacks(for webView: WKWebView) {
@@ -223,11 +332,9 @@ public struct NativePlayerView: NSViewRepresentable {
         }
     }
     
-    public func updateNSView(_ nsView: WKWebView, context: Context) {
-        nsView.wantsLayer = true
-        nsView.layer?.cornerRadius = cornerRadius
-        nsView.layer?.maskedCorners = maskedCorners
-        nsView.layer?.masksToBounds = cornerRadius > 0
+    public func updateNSView(_ nsView: WebPlayerHostingView, context: Context) {
+        let webView = getOrCreateWebView(context: context)
+        nsView.attach(webView: webView, cornerRadius: cornerRadius, maskedCorners: maskedCorners)
         
         if !playerManager.hasActiveMainPlayer {
             playerManager.hasActiveMainPlayer = true
@@ -245,13 +352,13 @@ public struct NativePlayerView: NSViewRepresentable {
                 // Video switch: Use loadNewVideo with startPos=0 and quality preference
                 let q = (playerManager.selectedQuality != "auto") ? playerManager.selectedQuality : "1080"
                 let js = "if (typeof window.loadNewVideo === 'function') { window.loadNewVideo('\(video.id)', 0, '\(q)'); } else { location.reload(); }"
-                nsView.evaluateJavaScript(js) { [weak nsView, weak coord = context.coordinator] _, err in
+                webView.evaluateJavaScript(js) { [weak webView, weak coord = context.coordinator] _, err in
                     if err != nil {
-                        guard let v = nsView else { return }
+                        guard let v = webView else { return }
                         let html = NativePlayerView.generateHTML(for: video, playerManager: PlayerManager.shared)
                         v.loadHTMLString(html, baseURL: URL(string: "https://auratube.app"))
                     }
-                    if let v = nsView, let c = coord {
+                    if let v = webView, let c = coord {
                         DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) {
                             c.ensureAutoPlay(on: v)
                         }
@@ -260,11 +367,11 @@ public struct NativePlayerView: NSViewRepresentable {
             } else {
                 // Initial load
                 let html = NativePlayerView.generateHTML(for: video, playerManager: playerManager)
-                nsView.loadHTMLString(html, baseURL: URL(string: "https://auratube.app"))
+                webView.loadHTMLString(html, baseURL: URL(string: "https://auratube.app"))
                 
                 let coord = context.coordinator
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { [weak nsView, weak coord] in
-                    guard let v = nsView, let c = coord else { return }
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { [weak webView, weak coord] in
+                    guard let v = webView, let c = coord else { return }
                     c.ensureAutoPlay(on: v)
                 }
             }
@@ -291,8 +398,6 @@ public struct NativePlayerView: NSViewRepresentable {
             height: 100%;
             overflow: hidden !important;
             background: #000;
-            transform: translateZ(0);
-            -webkit-transform: translateZ(0);
           }
           #ytPlayer, iframe {
             position: absolute;
@@ -302,9 +407,6 @@ public struct NativePlayerView: NSViewRepresentable {
             height: 100% !important;
             border: none;
             display: block;
-            transform: translateZ(0);
-            -webkit-transform: translateZ(0);
-            will-change: transform;
           }
           #player, #movie_player, .html5-video-player, .html5-video-container {
             width: 100% !important;
@@ -322,6 +424,11 @@ public struct NativePlayerView: NSViewRepresentable {
           video.video-stream.html5-main-video,
           video.html5-main-video,
           video {
+            width: 100% !important;
+            height: 100% !important;
+            top: 0 !important;
+            left: 0 !important;
+            position: absolute !important;
             object-fit: contain !important;
             object-position: center center !important;
             background: #000 !important;
@@ -380,6 +487,38 @@ public struct NativePlayerView: NSViewRepresentable {
           var currentVolume = \(max(0, min(100, Int(playerManager.volume * 100))));
           var currentVideoId = '\(video.id)';
 
+          window.forcePlayerRelayout = function() {
+            try {
+              window.dispatchEvent(new Event('resize'));
+              var ifr = document.getElementById('ytPlayer') || document.querySelector('iframe');
+              if (ifr) {
+                ifr.style.width = '100%';
+                ifr.style.height = '100%';
+                if (ifr.contentWindow) {
+                  ifr.contentWindow.dispatchEvent(new Event('resize'));
+                  ifr.contentWindow.postMessage(JSON.stringify({event: "listening"}), '*');
+                }
+              }
+              var p = document.getElementById('movie_player') || document.querySelector('.html5-video-player');
+              if (p && typeof p.setSize === 'function') {
+                var w = window.innerWidth || document.documentElement.clientWidth;
+                var h = window.innerHeight || document.documentElement.clientHeight;
+                if (w > 0 && h > 0) {
+                  p.setSize(w, h);
+                }
+              }
+              var v = document.querySelector('video');
+              if (v) {
+                v.style.setProperty('width', '100%', 'important');
+                v.style.setProperty('height', '100%', 'important');
+                v.style.setProperty('top', '0px', 'important');
+                v.style.setProperty('left', '0px', 'important');
+                v.style.setProperty('position', 'absolute', 'important');
+              }
+            } catch(e) {}
+          };
+          window.addEventListener('resize', window.forcePlayerRelayout);
+
           function ensureAudioPlayback() {
             var ifr = document.getElementById('ytPlayer');
             if (ifr && ifr.contentWindow) {
@@ -426,6 +565,7 @@ public struct NativePlayerView: NSViewRepresentable {
               } catch(e) {}
             }
             postStateSync();
+            window.forcePlayerRelayout();
           };
 
           function postStateSync() {
@@ -841,6 +981,11 @@ public struct NativePlayerView: NSViewRepresentable {
                     video.video-stream.html5-main-video,
                     video.html5-main-video,
                     video {
+                        width: 100% !important;
+                        height: 100% !important;
+                        top: 0 !important;
+                        left: 0 !important;
+                        position: absolute !important;
                         object-fit: contain !important;
                         object-position: center center !important;
                         background: #000 !important;
@@ -853,6 +998,32 @@ public struct NativePlayerView: NSViewRepresentable {
         applyStyles();
         document.addEventListener('DOMContentLoaded', applyStyles);
         window.addEventListener('load', applyStyles);
+
+        // Ensure HTML5 video element always fills the container and never renders at 1/4 frame
+        function ensureVideoFullFrame() {
+            try {
+                var v = document.querySelector('video');
+                if (v) {
+                    if (v.style.width !== '100%' || v.style.height !== '100%') {
+                        v.style.setProperty('width', '100%', 'important');
+                        v.style.setProperty('height', '100%', 'important');
+                        v.style.setProperty('top', '0px', 'important');
+                        v.style.setProperty('left', '0px', 'important');
+                        v.style.setProperty('position', 'absolute', 'important');
+                    }
+                }
+                var p = document.getElementById('movie_player') || document.querySelector('.html5-video-player');
+                if (p && typeof p.setSize === 'function') {
+                    var w = window.innerWidth || document.documentElement.clientWidth;
+                    var h = window.innerHeight || document.documentElement.clientHeight;
+                    if (w > 0 && h > 0) {
+                        p.setSize(w, h);
+                    }
+                }
+            } catch(e) {}
+        }
+        setInterval(ensureVideoFullFrame, 250);
+        window.addEventListener('resize', ensureVideoFullFrame);
 
         // Pointer event simulation to satisfy modern browser user activation
         function simulatePointerClick(elem) {

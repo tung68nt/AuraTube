@@ -1,9 +1,9 @@
 {
-  "version": "2.0.80",
-  "build": 81,
-  "title": "AuraTube v2.0.80 (Sửa lỗi chọn kích thước PiP mặc định trong Cài đặt)",
-  "releaseNotes": "• Sửa lỗi không chọn được các mức kích thước cửa sổ nổi (380p / 540p / 720p) trong Cài đặt: Lưu cấu hình defaultWidth vào UserDefaults và tự động cập nhật ngay lập tức dù PiP đang mở hay đóng.\n• Mở rộng vùng bấm cảm ứng (contentShape) cho toàn bộ từng thanh phân đoạn kích thước.",
-  "downloadUrl": "https://github.com/tung68nt/AuraTube/releases/download/v2.0.80/AuraTube-v2.0.80.dmg",
+  "version": "2.0.82",
+  "build": 83,
+  "title": "AuraTube v2.0.82 (Khắc phục triệt để lỗi video bị thu nhỏ 1/4 khung hình khi thoát PiP)",
+  "releaseNotes": "• Sửa triệt để lỗi video player bị co rút về góc dưới 1/4 khung hình (50% width, 50% height) khi đưa video từ chế độ PiP (Picture-in-Picture) trở lại màn hình chính.\n• Bổ sung container WebPlayerHostingView chuyên dụng tự động đồng bộ frame 100% bounds và đồng bộ backingScaleFactor trên màn hình Retina.\n• Loại bỏ xung đột 3D GPU layer transform (translateZ) và ràng buộc kích thước 100% tràn viền cho phần tử video, tự động kích hoạt layout refresh ngay khi chuyển đổi cửa sổ.",
+  "downloadUrl": "https://github.com/tung68nt/AuraTube/releases/download/v2.0.82/AuraTube-v2.0.82.dmg",
   "publishedAt": "2026-09-19",
   "minOSVersion": "13.0",
   "fileSize": "5.4 MB"

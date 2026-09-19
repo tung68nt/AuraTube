@@ -855,6 +855,7 @@ public final class PlayerManager: ObservableObject {
             PiPWindowController.shared.show(video: currentVideo)
         } else {
             PiPWindowController.shared.close()
+            refreshPlayerLayout()
         }
     }
     
@@ -871,6 +872,26 @@ public final class PlayerManager: ObservableObject {
         wasAutoPiPTriggered = false
         isPictureInPictureActive = false
         PiPWindowController.shared.close()
+        refreshPlayerLayout()
+    }
+    
+    // MARK: - Layout Refresh (Guarantees Full Frame Recovery after PiP/Window Resizes)
+    public func refreshPlayerLayout() {
+        DispatchQueue.main.async {
+            if let wv = MainWebPlayerPool.shared.webView as? ScrollForwardingWKWebView {
+                wv.triggerRelayout()
+            }
+        }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+            if let wv = MainWebPlayerPool.shared.webView as? ScrollForwardingWKWebView {
+                wv.triggerRelayout()
+            }
+        }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) {
+            if let wv = MainWebPlayerPool.shared.webView as? ScrollForwardingWKWebView {
+                wv.triggerRelayout()
+            }
+        }
     }
     
     // MARK: - Autoplay Control Methods
