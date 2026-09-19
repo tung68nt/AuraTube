@@ -25,6 +25,7 @@ public struct PlayerControlOverlay: View {
     @ObservedObject private var playerManager = PlayerManager.shared
     @ObservedObject private var clock = PlaybackClock.shared
     @StateObject private var vm = PlayerControlViewModel()
+    @State private var showPiPSettingsPopover: Bool = false
     
     public init() {}
     
@@ -439,17 +440,15 @@ public struct PlayerControlOverlay: View {
                     .clipShape(Circle())
             }
             .buttonStyle(.plain)
-            .contextMenu {
-                Button {
-                    playerManager.togglePictureInPicture()
-                } label: {
-                    Label(playerManager.isPictureInPictureActive ? "Đưa video về cửa sổ chính (P)" : "Chuyển sang cửa sổ nổi PiP (P)", systemImage: playerManager.isPictureInPictureActive ? "pip.exit" : "pip.enter")
-                }
-                Divider()
-                Toggle("Tự động chuyển PiP khi chuyển app", isOn: $playerManager.autoPiPOnAppSwitch)
-                Toggle("Tắt PiP khi bấm lại app chính", isOn: $playerManager.autoReturnPiPOnAppFocus)
+            .onRightClick {
+                showPiPSettingsPopover.toggle()
             }
-            .help(playerManager.isPictureInPictureActive ? "Đưa video về cửa sổ chính (P)" : "Chuyển sang cửa sổ nổi PiP (P) - Chuột phải để cài đặt")
+            .popover(isPresented: $showPiPSettingsPopover, arrowEdge: .top) {
+                PiPLiquidGlassSettingsPopover(playerManager: playerManager) {
+                    showPiPSettingsPopover = false
+                }
+            }
+            .help(playerManager.isPictureInPictureActive ? "Đưa video về cửa sổ chính (P) • Chuột phải để cài đặt" : "Chuyển sang cửa sổ nổi PiP (P) • Chuột phải để cài đặt")
             
             // Fullscreen Button (ALWAYS PRESENT ON THE RIGHT)
             Button(action: {

@@ -188,6 +188,10 @@ public final class PiPWindowController: NSObject, NSWindowDelegate {
         }
     }
     
+    public var currentWidth: CGFloat {
+        pipWindow?.frame.width ?? 540
+    }
+    
     public func toggleSnapSize() {
         guard let panel = pipWindow else { return }
         let currentWidth = panel.frame.width

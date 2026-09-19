@@ -443,41 +443,7 @@ public struct ContentView: View {
                         
                         // Main Window PiP Quick Button (Visible when watching a video)
                         if vm.watchingVideo != nil {
-                            LiquidGlassCircleButton(
-                                action: {
-                                    playerManager.togglePictureInPicture()
-                                },
-                                size: 28,
-                                isActive: playerManager.isPictureInPictureActive,
-                                activeTint: Color.red.opacity(0.85)
-                            ) {
-                                Image(systemName: playerManager.isPictureInPictureActive ? "pip.exit" : "pip.enter")
-                                    .font(.system(size: 11.5, weight: .medium))
-                                    .foregroundColor(playerManager.isPictureInPictureActive ? .white : ThemeColor.textPrimary(for: colorScheme).opacity(0.85))
-                            }
-                            .contextMenu {
-                                Button {
-                                    playerManager.togglePictureInPicture()
-                                } label: {
-                                    Label(playerManager.isPictureInPictureActive ? "Đưa video về cửa sổ chính (P)" : "Chuyển sang cửa sổ nổi PiP (P)", systemImage: playerManager.isPictureInPictureActive ? "pip.exit" : "pip.enter")
-                                }
-                                if playerManager.isPictureInPictureActive {
-                                    Divider()
-                                    Button("Kích thước PiP: Nhỏ (380p)") {
-                                        PiPWindowController.shared.setPipSize(width: 380)
-                                    }
-                                    Button("Kích thước PiP: Trung bình (540p)") {
-                                        PiPWindowController.shared.setPipSize(width: 540)
-                                    }
-                                    Button("Kích thước PiP: Lớn (720p)") {
-                                        PiPWindowController.shared.setPipSize(width: 720)
-                                    }
-                                }
-                                Divider()
-                                Toggle("Tự động chuyển PiP khi chuyển app", isOn: $playerManager.autoPiPOnAppSwitch)
-                                Toggle("Tắt PiP khi bấm lại app chính", isOn: $playerManager.autoReturnPiPOnAppFocus)
-                            }
-                            .help(playerManager.isPictureInPictureActive ? "Đưa video về cửa sổ chính (P)" : "Chuyển video sang cửa sổ nổi PiP (P) - Chuột phải để cài đặt")
+                            LiquidGlassPiPButton()
                         }
                         
                         // Theme Toggle Button (Light / Dark / Auto System)

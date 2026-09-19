@@ -1,9 +1,9 @@
 {
-  "version": "2.0.72",
-  "build": 73,
-  "title": "AuraTube v2.0.72 (Khắc phục triệt để lỗi video ngang bị ép thành khổ dọc 9:16)",
-  "releaseNotes": "• Sửa lỗi video ngang bị ép thành khổ dọc 9:16: Loại bỏ hoàn toàn logic cũ ép khổ dọc dựa trên từ khóa tiêu đề (như 'tiktok', 'reels', '#short') cho các video dài (>65s).\n• Chuẩn hóa nhận diện tỷ lệ khung hình: Các video dài hơn 65 giây luôn được hiển thị đúng tỷ lệ chuẩn 16:9 màn ảnh rộng; chỉ video thực sự có tỷ lệ dọc (height > width) và thời lượng ngắn mới được chuyển sang khổ dọc 9:16.\n• Đồng bộ trên cả Main Player, Fullscreen và PiP: Khắc phục lỗi tương tự trên toàn bộ trình phát chính, chế độ toàn màn hình và cửa sổ PiP thu nhỏ.",
-  "downloadUrl": "https://github.com/tung68nt/AuraTube/releases/download/v2.0.72/AuraTube-v2.0.72.dmg",
+  "version": "2.0.73",
+  "build": 74,
+  "title": "AuraTube v2.0.73 (Nâng cấp toàn diện hiệu ứng Liquid Glass & Popover PiP)",
+  "releaseNotes": "• Nâng cấp giao diện Liquid Glass chuẩn Apple: Tinh chỉnh độ trong suốt, quang sai khúc xạ và viền phản chiếu ánh sáng (specular bevel) trên toàn bộ hệ thống nút bấm, thanh tìm kiếm và thẻ nội dung; khắc phục triệt để hiện tượng màu trắng đục đặc ở Light Mode.\n• Menu tùy chọn PiP Liquid Glass cao cấp: Thay thế menu hệ thống macOS cũ kỹ bằng Popover Liquid Glass mờ ảo tuyệt đẹp với các switch toggles mượt mà chuẩn visionOS / macOS Sequoia.\n• Tích hợp bộ chọn kích thước PiP trực quan: Cho phép chọn trực tiếp giữa 3 kích thước 380p (Nhỏ), 540p (Vừa), 720p (Lớn) mà không bị tự đóng menu đột ngột.\n• Nút PiP thông minh: Hỗ trợ split pill với nút mũi tên mở nhanh cài đặt và hỗ trợ chuột phải mở Liquid Glass Popover trên cả thanh công cụ và trình phát video.",
+  "downloadUrl": "https://github.com/tung68nt/AuraTube/releases/download/v2.0.73/AuraTube-v2.0.73.dmg",
   "publishedAt": "2026-09-19",
   "minOSVersion": "13.0",
   "fileSize": "5.4 MB"
