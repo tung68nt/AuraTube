@@ -2465,7 +2465,6 @@ struct SearchShortsShelfView: View {
                 }
                 .padding(.vertical, 4)
             }
-            .forwardVerticalScroll()
         }
         .padding(.vertical, 8)
     }

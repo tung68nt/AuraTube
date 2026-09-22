@@ -9,7 +9,7 @@ public final class AuraImageCache {
     public static let shared = AuraImageCache()
     
     private let memoryCache = NSCache<NSURL, NSImage>()
-    private var inFlightTasks: [URL: Task<NSImage?, Never>] = [:]
+    private var inFlightTasks: [URL: Task<CGImage?, Never>] = [:]
     
     private init() {
         // Set generous in-memory cache limit: ~150 MB or 300 images
@@ -35,10 +35,13 @@ public final class AuraImageCache {
         
         // 2. Coalesce in-flight downloads for duplicate requests
         if let existingTask = inFlightTasks[url] {
-            return await existingTask.value
+            if let cg = await existingTask.value {
+                return NSImage(cgImage: cg, size: NSSize(width: cg.width, height: cg.height))
+            }
+            return nil
         }
         
-        let task = Task<NSImage?, Never>.detached(priority: .userInitiated) {
+        let task = Task<CGImage?, Never>.detached(priority: .userInitiated) {
             var request = URLRequest(url: url)
             request.cachePolicy = .returnCacheDataElseLoad
             request.timeoutInterval = 12.0
@@ -48,25 +51,25 @@ public final class AuraImageCache {
                 return nil
             }
             
-            return AuraImageCache.downsample(data: data, maxPixelSize: maxPixelSize)
+            return AuraImageCache.downsampleToCGImage(data: data, maxPixelSize: maxPixelSize)
         }
         
         inFlightTasks[url] = task
-        let result = await task.value
+        let cgImage = await task.value
         inFlightTasks.removeValue(forKey: url)
         
-        if let decodedImage = result {
-            let cost = Int(decodedImage.size.width * decodedImage.size.height * 4)
-            memoryCache.setObject(decodedImage, forKey: nsUrl, cost: cost)
-        }
-        return result
+        guard let cg = cgImage else { return nil }
+        let decodedImage = NSImage(cgImage: cg, size: NSSize(width: cg.width, height: cg.height))
+        let cost = Int(cg.width * cg.height * 4)
+        memoryCache.setObject(decodedImage, forKey: nsUrl, cost: cost)
+        return decodedImage
     }
     
     /// Decode and downsample raw image data off the main thread using ImageIO
-    nonisolated private static func downsample(data: Data, maxPixelSize: CGFloat) -> NSImage? {
+    nonisolated private static func downsampleToCGImage(data: Data, maxPixelSize: CGFloat) -> CGImage? {
         let imageSourceOptions = [kCGImageSourceShouldCache: false] as CFDictionary
         guard let imageSource = CGImageSourceCreateWithData(data as CFData, imageSourceOptions) else {
-            return NSImage(data: data)
+            return nil
         }
         
         let downsampleOptions = [
@@ -76,11 +79,7 @@ public final class AuraImageCache {
             kCGImageSourceThumbnailMaxPixelSize: maxPixelSize
         ] as CFDictionary
         
-        guard let downsampledCGImage = CGImageSourceCreateThumbnailAtIndex(imageSource, 0, downsampleOptions) else {
-            return NSImage(data: data)
-        }
-        
-        return NSImage(cgImage: downsampledCGImage, size: NSSize(width: downsampledCGImage.width, height: downsampledCGImage.height))
+        return CGImageSourceCreateThumbnailAtIndex(imageSource, 0, downsampleOptions)
     }
     
     /// Clear in-memory cache if needed on memory warnings

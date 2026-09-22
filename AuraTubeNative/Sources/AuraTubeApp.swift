@@ -11,7 +11,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // 150 MB RAM Cache, 1 GB Disk Cache for buttery smooth thumbnail loading
         let memoryCapacity = 150 * 1024 * 1024
         let diskCapacity = 1024 * 1024 * 1024
-        URLCache.shared = URLCache(memoryCapacity: memoryCapacity, diskCapacity: diskCapacity, diskPath: "auratube_url_cache")
+        let cacheDir = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask).first?.appendingPathComponent("com.auratube.cache")
+        URLCache.shared = URLCache(memoryCapacity: memoryCapacity, diskCapacity: diskCapacity, directory: cacheDir)
         
         AppFont.registerCustomFonts()
     }

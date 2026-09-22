@@ -100,7 +100,6 @@ public struct HomeView: View {
                     .padding(.horizontal, 24)
                     .padding(.top, 14)
                 }
-                .forwardVerticalScroll()
                 
                 // 2. Following Shelf (When user is on "Tất cả" or "🔔 Đang theo dõi")
                 if !subManager.subscribedChannels.isEmpty {
@@ -242,7 +241,6 @@ public struct HomeView: View {
                             .padding(.horizontal, 24)
                             .padding(.vertical, 4)
                         }
-                        .forwardVerticalScroll()
                     }
                     .padding(.top, 2)
                 }
@@ -776,7 +774,6 @@ struct HomeShortsShelfView: View {
                 .padding(.horizontal, 24)
                 .padding(.vertical, 4)
             }
-            .forwardVerticalScroll()
             
             // Subtle bottom divider
             Divider()
