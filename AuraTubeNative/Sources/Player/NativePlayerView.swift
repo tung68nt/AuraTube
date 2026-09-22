@@ -42,12 +42,20 @@ public final class ScrollForwardingWKWebView: WKWebView {
         triggerRelayout()
     }
     
+    private var relayoutWorkItem: DispatchWorkItem?
+    
     public override func setFrameSize(_ newSize: NSSize) {
         super.setFrameSize(newSize)
         if let win = window {
             self.layer?.contentsScale = win.backingScaleFactor
         }
-        triggerRelayout()
+        // Debounce relayout to avoid flooding WebKit with 120 JS evaluations per second during live resize
+        relayoutWorkItem?.cancel()
+        let item = DispatchWorkItem { [weak self] in
+            self?.triggerRelayout()
+        }
+        relayoutWorkItem = item
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.08, execute: item)
     }
     
     public func triggerRelayout() {
@@ -120,32 +128,32 @@ public final class WebPlayerHostingView: NSView {
     
     public override func layout() {
         super.layout()
-        if let wv = hostedWebView ?? subviews.first as? WKWebView {
-            if bounds.width > 0 && bounds.height > 0 {
-                if wv.frame != bounds {
-                    wv.frame = bounds
-                }
-                wv.isHidden = false
+        guard let wv = hostedWebView, wv.superview === self else { return }
+        if bounds.width > 0 && bounds.height > 0 {
+            if wv.frame != bounds {
+                wv.frame = bounds
             }
-            if let win = window {
-                let scale = win.backingScaleFactor
-                layer?.contentsScale = scale
-                wv.layer?.contentsScale = scale
-            }
+            wv.isHidden = false
+        }
+        if let win = window {
+            let scale = win.backingScaleFactor
+            layer?.contentsScale = scale
+            wv.layer?.contentsScale = scale
         }
     }
     
     public override func viewDidMoveToWindow() {
         super.viewDidMoveToWindow()
+        guard let wv = hostedWebView, wv.superview === self else { return }
         if let win = window {
             let scale = win.backingScaleFactor
             layer?.contentsScale = scale
-            hostedWebView?.layer?.contentsScale = scale
+            wv.layer?.contentsScale = scale
         }
         needsLayout = true
         layoutSubtreeIfNeeded()
-        if let wv = hostedWebView as? ScrollForwardingWKWebView {
-            wv.triggerRelayout()
+        if let swv = wv as? ScrollForwardingWKWebView {
+            swv.triggerRelayout()
         }
     }
 }
@@ -1178,12 +1186,12 @@ public struct NativePlayerView: NSViewRepresentable {
                     }
                 });
                 
-                // High-precision clock tick while playing (every 45ms) to ensure continuous frame-accurate stream
+                // High-precision clock tick while playing (every 80ms) to ensure continuous frame-accurate stream
                 setInterval(function() {
                     if (!v.paused && !v.ended) {
                         emitDirectSync();
                     }
-                }, 45);
+                }, 80);
             } catch(err) {}
         }
         hookVideoDirect();

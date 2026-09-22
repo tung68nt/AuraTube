@@ -740,6 +740,11 @@ final class WatchPlayerViewModel: ObservableObject {
             
             guard pm.currentVideo != nil else { return event }
             
+            // Khi PiP đang hoạt động hoặc sự kiện đến từ cửa sổ nổi PiP, nhường xử lý phím tắt cho PiPWindowController
+            if pm.isPictureInPictureActive || (event.window is NSPanel) {
+                return event
+            }
+            
             switch event.keyCode {
             case 49, 40: // Space (49) or K (40): Toggle Play / Pause
                 pm.togglePlayPause()
@@ -891,17 +896,13 @@ struct WatchPlayerContainerView: View {
         }()
         
         ZStack {
-            if isVertical {
-                verticalPlayer
-                    .opacity(playerManager.isPictureInPictureActive ? 0.0 : 1.0)
-                    .allowsHitTesting(!playerManager.isPictureInPictureActive)
+            if !playerManager.isPictureInPictureActive {
+                if isVertical {
+                    verticalPlayer
+                } else {
+                    horizontalPlayer
+                }
             } else {
-                horizontalPlayer
-                    .opacity(playerManager.isPictureInPictureActive ? 0.0 : 1.0)
-                    .allowsHitTesting(!playerManager.isPictureInPictureActive)
-            }
-            
-            if playerManager.isPictureInPictureActive {
                 pipPlaceholder
                     .contentShape(Rectangle())
                     .onTapGesture {

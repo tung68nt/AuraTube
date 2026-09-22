@@ -112,8 +112,9 @@ public final class PiPWindowController: NSObject, ObservableObject, NSWindowDele
             return
         }
         
-        let initialWidth: CGFloat = defaultWidth
-        let initialHeight: CGFloat = defaultWidth * (9.0 / 16.0)
+        let isVertical = video?.isShort == true || PlayerManager.shared.isCurrentVideoVertical
+        let initialWidth: CGFloat = isVertical ? (defaultWidth * 9.0 / 16.0) : defaultWidth
+        let initialHeight: CGFloat = isVertical ? defaultWidth : (defaultWidth * 9.0 / 16.0)
         
         // Position at bottom-right corner of main screen
         let screenFrame = NSScreen.main?.visibleFrame ?? NSRect(x: 0, y: 0, width: 1440, height: 900)
@@ -137,9 +138,9 @@ public final class PiPWindowController: NSObject, ObservableObject, NSWindowDele
         panel.hasShadow = true
         panel.backgroundColor = .clear
         panel.isOpaque = false
-        panel.minSize = NSSize(width: 300, height: 300 * (9.0 / 16.0))
-        panel.maxSize = NSSize(width: 960, height: 960 * (9.0 / 16.0))
-        panel.aspectRatio = NSSize(width: 16, height: 9)
+        panel.minSize = isVertical ? NSSize(width: 180, height: 180 * (16.0 / 9.0)) : NSSize(width: 300, height: 300 * (9.0 / 16.0))
+        panel.maxSize = isVertical ? NSSize(width: 540, height: 540 * (16.0 / 9.0)) : NSSize(width: 1280, height: 1280 * (9.0 / 16.0))
+        panel.aspectRatio = isVertical ? NSSize(width: 9, height: 16) : NSSize(width: 16, height: 9)
         panel.delegate = self
         
         // Extra safety: aggressively strip out any default window chrome buttons
@@ -151,6 +152,7 @@ public final class PiPWindowController: NSObject, ObservableObject, NSWindowDele
         panel.standardWindowButton(.zoomButton)?.removeFromSuperview()
         
         let hostingView = NSHostingView(rootView: PiPFloatingContentView().ignoresSafeArea())
+        hostingView.autoresizingMask = [.width, .height]
         hostingView.wantsLayer = true
         hostingView.layer?.cornerRadius = 16
         hostingView.layer?.masksToBounds = true
@@ -233,9 +235,13 @@ public final class PiPWindowController: NSObject, ObservableObject, NSWindowDele
     }
     
     public func windowDidResize(_ notification: Notification) {
+        // Giữ resize mượt mà 120Hz; không spam UserDefaults hay re-render view trong lúc kéo chuột
+    }
+    
+    public func windowDidEndLiveResize(_ notification: Notification) {
         if let panel = pipWindow {
             defaultWidth = panel.frame.width
-            objectWillChange.send()
+            UserDefaults.standard.set(Double(panel.frame.width), forKey: Self.pipWidthKey)
         }
     }
     
@@ -351,8 +357,10 @@ public struct PiPFloatingContentView: View {
             Color.black
             
             // 1. Full-bleed edge-to-edge Native Video Player
-            NativePlayerView(cornerRadius: 16)
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
+            if playerManager.isPictureInPictureActive {
+                NativePlayerView(cornerRadius: 16)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+            }
             
             // 2. Interactive Control Overlay (On Hover)
             if hud.isHovering {

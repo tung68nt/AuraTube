@@ -294,6 +294,10 @@ public final class PlayerManager: ObservableObject {
             w.collectionBehavior.remove(.fullScreenNone)
         }
         
+        if isPictureInPictureActive {
+            exitPictureInPicture()
+        }
+        
         isVideoFullscreen.toggle()
         
         if let w = window {
@@ -364,7 +368,11 @@ public final class PlayerManager: ObservableObject {
                 if currentTime == 0 && self.currentTime > 1.0 && (self.isPlaying || isPlaying == true) {
                     // Bogus uninitialized 0.0s update ignored
                 } else {
-                    self.currentTime = currentTime
+                    // Throttle @Published currentTime mutations to prevent 22Hz re-renders of root ContentView;
+                    // PlaybackClock already delivers ultra-smooth 60fps progress bar updates
+                    if abs(self.currentTime - currentTime) >= 0.25 || currentTime == 0 || !self.isPlaying {
+                        self.currentTime = currentTime
+                    }
                 }
                 
                 let now = ProcessInfo.processInfo.systemUptime
@@ -849,6 +857,9 @@ public final class PlayerManager: ObservableObject {
     public func togglePictureInPicture() {
         guard currentVideo != nil else { return }
         wasAutoPiPTriggered = false
+        if isVideoFullscreen {
+            toggleFullscreen()
+        }
         isPictureInPictureActive.toggle()
         if isPictureInPictureActive {
             lastPiPEnterTimestamp = Date().timeIntervalSinceReferenceDate
@@ -861,6 +872,9 @@ public final class PlayerManager: ObservableObject {
     
     public func enterPictureInPicture(isAutoTriggered: Bool = false) {
         guard currentVideo != nil, !isPictureInPictureActive else { return }
+        if isVideoFullscreen {
+            toggleFullscreen()
+        }
         wasAutoPiPTriggered = isAutoTriggered
         lastPiPEnterTimestamp = Date().timeIntervalSinceReferenceDate
         isPictureInPictureActive = true

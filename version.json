@@ -1,10 +1,10 @@
 {
-  "version": "2.0.84",
-  "build": 85,
-  "title": "AuraTube v2.0.84 (Khắc phục triệt để độ trễ & giật lag khi chuyển video từ PiP về ứng dụng chính)",
-  "releaseNotes": "• Duy trì cấu trúc khung hình player chính trong layout tree để lưu giữ kích thước chuẩn, triệt tiêu hoàn toàn hiện tượng video bị co rút về kích thước nhỏ của PiP trước khi phóng to.\n• Tự động che chắn khung hình tạm thời khi chuyển đổi cho đến khi tính toán xong bounds chuẩn, bảo đảm video hiển thị khít 100% khung hình ngay từ mili-giây đầu tiên.\n• Loại bỏ các chu kỳ gọi lặp lại setSize() trong JavaScript, giúp luồng giải mã video của YouTube chạy mượt mà tức thì mà không bị khựng lại hay chờ đệm 1-2 giây.",
-  "downloadUrl": "https://github.com/tung68nt/AuraTube/releases/download/v2.0.84/AuraTube-v2.0.84.dmg",
-  "publishedAt": "2026-09-20",
+  "version": "2.0.85",
+  "build": 86,
+  "title": "AuraTube v2.0.85 (Khắc phục triệt để lỗi PiP giật lag, chớp nháy và co khung hình)",
+  "releaseNotes": "• Khắc phục triệt để lỗi co frame và chớp nháy trong PiP: Unmount hoàn toàn player ở cửa sổ chính khi bật PiP để chuyển giao 100% quyền kiểm soát WKWebView cho cửa sổ nổi, triệt tiêu xung đột kích thước khung hình.\n• Loại bỏ giật lag (IPC Flooding): Bổ sung debounce 80ms khi kéo co giãn cửa sổ PiP, tối ưu tần số directSync và throttle biến thời gian của PlayerManager, loại bỏ tình trạng ép SwiftUI re-render 22 lần/giây.\n• Sửa xung đột phím tắt (Double Toggle): Nhường quyền xử lý phím tắt độc quyền cho PiPWindowController khi cửa sổ PiP hoạt động, tránh hiện tượng bấm Play/Pause bị đảo trạng thái 2 lần.\n• Tự động căn chỉnh tỷ lệ khổ dọc (Shorts 9:16) hoặc khổ ngang (16:9) chuẩn xác trên cửa sổ PiP.",
+  "downloadUrl": "https://github.com/tung68nt/AuraTube/releases/download/v2.0.85/AuraTube-v2.0.85.dmg",
+  "publishedAt": "2026-09-22",
   "minOSVersion": "13.0",
   "fileSize": "5.4 MB"
 }
