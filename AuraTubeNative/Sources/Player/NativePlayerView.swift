@@ -448,11 +448,7 @@ public struct NativePlayerView: NSViewRepresentable {
           video.video-stream.html5-main-video,
           video.html5-main-video,
           video {
-            width: 100% !important;
-            height: 100% !important;
-            top: 0 !important;
-            left: 0 !important;
-            position: absolute !important;
+            display: block !important;
             object-fit: contain !important;
             object-position: center center !important;
             background: #000 !important;
@@ -997,11 +993,7 @@ public struct NativePlayerView: NSViewRepresentable {
                     video.video-stream.html5-main-video,
                     video.html5-main-video,
                     video {
-                        width: 100% !important;
-                        height: 100% !important;
-                        top: 0 !important;
-                        left: 0 !important;
-                        position: absolute !important;
+                        display: block !important;
                         object-fit: contain !important;
                         object-position: center center !important;
                         background: #000 !important;
@@ -1014,23 +1006,6 @@ public struct NativePlayerView: NSViewRepresentable {
         applyStyles();
         document.addEventListener('DOMContentLoaded', applyStyles);
         window.addEventListener('load', applyStyles);
-
-        // Ensure HTML5 video element always fills the container and never renders at 1/4 frame
-        function ensureVideoFullFrame() {
-            try {
-                var v = document.querySelector('video');
-                if (v) {
-                    if (v.style.width !== '100%' || v.style.height !== '100%') {
-                        v.style.setProperty('width', '100%', 'important');
-                        v.style.setProperty('height', '100%', 'important');
-                        v.style.setProperty('top', '0px', 'important');
-                        v.style.setProperty('left', '0px', 'important');
-                        v.style.setProperty('position', 'absolute', 'important');
-                    }
-                }
-            } catch(e) {}
-        }
-        window.addEventListener('resize', ensureVideoFullFrame);
 
         // Pointer event simulation to satisfy modern browser user activation
         function simulatePointerClick(elem) {

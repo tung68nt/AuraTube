@@ -113,8 +113,9 @@ public final class PiPWindowController: NSObject, ObservableObject, NSWindowDele
         }
         
         let isVertical = video?.isShort == true || PlayerManager.shared.isCurrentVideoVertical
-        let initialWidth: CGFloat = isVertical ? (defaultWidth * 9.0 / 16.0) : defaultWidth
-        let initialHeight: CGFloat = isVertical ? defaultWidth : (defaultWidth * 9.0 / 16.0)
+        // For vertical (Shorts), standard ideal PiP dimensions: width 270, height 480 (9:16)
+        let initialWidth: CGFloat = isVertical ? 270 : defaultWidth
+        let initialHeight: CGFloat = isVertical ? 480 : (defaultWidth * 9.0 / 16.0)
         
         // Position at bottom-right corner of main screen
         let screenFrame = NSScreen.main?.visibleFrame ?? NSRect(x: 0, y: 0, width: 1440, height: 900)
@@ -138,8 +139,9 @@ public final class PiPWindowController: NSObject, ObservableObject, NSWindowDele
         panel.hasShadow = true
         panel.backgroundColor = .clear
         panel.isOpaque = false
-        panel.minSize = isVertical ? NSSize(width: 180, height: 180 * (16.0 / 9.0)) : NSSize(width: 300, height: 300 * (9.0 / 16.0))
-        panel.maxSize = isVertical ? NSSize(width: 540, height: 540 * (16.0 / 9.0)) : NSSize(width: 1280, height: 1280 * (9.0 / 16.0))
+        // Cap vertical PiP cleanly: min height 320, max height 576 (never covers screen height!)
+        panel.minSize = isVertical ? NSSize(width: 180, height: 320) : NSSize(width: 320, height: 180)
+        panel.maxSize = isVertical ? NSSize(width: 324, height: 576) : NSSize(width: 960, height: 540)
         panel.aspectRatio = isVertical ? NSSize(width: 9, height: 16) : NSSize(width: 16, height: 9)
         panel.delegate = self
         
@@ -205,20 +207,57 @@ public final class PiPWindowController: NSObject, ObservableObject, NSWindowDele
         pipWindow?.frame.width ?? defaultWidth
     }
     
-    public func toggleSnapSize() {
-        let currentW = currentWidth
-        let targetWidth: CGFloat
-        if currentW < 420 {
-            targetWidth = 540
-        } else if currentW < 600 {
-            targetWidth = 720
-        } else {
-            targetWidth = 380
+    public var isPanelVertical: Bool {
+        guard let panel = pipWindow else {
+            return PlayerManager.shared.isCurrentVideoVertical || PlayerManager.shared.currentVideo?.isShort == true
         }
-        setPipSize(width: targetWidth)
+        return panel.frame.height > panel.frame.width
+    }
+    
+    public func toggleSnapSize() {
+        if isPanelVertical {
+            let currentH = pipWindow?.frame.height ?? 480
+            let targetH: CGFloat
+            if currentH < 440 {
+                targetH = 480
+            } else if currentH < 520 {
+                targetH = 560
+            } else {
+                targetH = 384
+            }
+            setPipVerticalSize(height: targetH)
+        } else {
+            let currentW = currentWidth
+            let targetWidth: CGFloat
+            if currentW < 420 {
+                targetWidth = 540
+            } else if currentW < 600 {
+                targetWidth = 720
+            } else {
+                targetWidth = 380
+            }
+            setPipSize(width: targetWidth)
+        }
+    }
+    
+    public func setPipVerticalSize(height targetHeight: CGFloat) {
+        guard let panel = pipWindow else { return }
+        let targetWidth = targetHeight * (9.0 / 16.0)
+        let currentFrame = panel.frame
+        let newX = currentFrame.maxX - targetWidth
+        let newY = currentFrame.minY
+        let newFrame = NSRect(x: newX, y: newY, width: targetWidth, height: targetHeight)
+        panel.setFrame(newFrame, display: true, animate: true)
+        
+        let label = targetHeight >= 540 ? "Lớn (560p dọc)" : (targetHeight >= 450 ? "Tiêu chuẩn (480p dọc)" : "Nhỏ (384p dọc)")
+        PiPOverlayState.shared.triggerHUD(icon: "aspectratio", text: label)
     }
     
     public func setPipSize(width targetWidth: CGFloat) {
+        if isPanelVertical {
+            setPipVerticalSize(height: targetWidth * (16.0 / 9.0))
+            return
+        }
         defaultWidth = targetWidth
         objectWillChange.send()
         
@@ -239,7 +278,7 @@ public final class PiPWindowController: NSObject, ObservableObject, NSWindowDele
     }
     
     public func windowDidEndLiveResize(_ notification: Notification) {
-        if let panel = pipWindow {
+        if let panel = pipWindow, !isPanelVertical {
             defaultWidth = panel.frame.width
             UserDefaults.standard.set(Double(panel.frame.width), forKey: Self.pipWidthKey)
         }
@@ -453,14 +492,26 @@ public struct PiPFloatingContentView: View {
             
             Divider()
             
-            Button("Kích thước: Nhỏ (380p)") {
-                PiPWindowController.shared.setPipSize(width: 380)
-            }
-            Button("Kích thước: Trung bình (540p)") {
-                PiPWindowController.shared.setPipSize(width: 540)
-            }
-            Button("Kích thước: Lớn (720p)") {
-                PiPWindowController.shared.setPipSize(width: 720)
+            if PiPWindowController.shared.isPanelVertical {
+                Button("Kích thước: Nhỏ (384p dọc)") {
+                    PiPWindowController.shared.setPipVerticalSize(height: 384)
+                }
+                Button("Kích thước: Tiêu chuẩn (480p dọc)") {
+                    PiPWindowController.shared.setPipVerticalSize(height: 480)
+                }
+                Button("Kích thước: Lớn (560p dọc)") {
+                    PiPWindowController.shared.setPipVerticalSize(height: 560)
+                }
+            } else {
+                Button("Kích thước: Nhỏ (380p)") {
+                    PiPWindowController.shared.setPipSize(width: 380)
+                }
+                Button("Kích thước: Trung bình (540p)") {
+                    PiPWindowController.shared.setPipSize(width: 540)
+                }
+                Button("Kích thước: Lớn (720p)") {
+                    PiPWindowController.shared.setPipSize(width: 720)
+                }
             }
             
             Divider()

@@ -1,9 +1,9 @@
 {
-  "version": "2.0.86",
-  "build": 87,
-  "title": "AuraTube v2.0.86 (Khắc phục triệt để lỗi cuộn giật lag & đơ chuột)",
-  "releaseNotes": "• Triệt tiêu bẫy kẹt cuộn chuột (Horizontal Scroll Trap): Chuyển tiếp tự động sự kiện cuộn dọc của con lăn chuột qua các hàng ngang (Tag Chips, Kênh theo dõi, Kệ Shorts), chấm dứt hoàn toàn hiện tượng đơ chuột/mất tín hiệu khi lướt trang.\n• Bộ nhớ đệm ảnh RAM siêu tốc (AuraImageCache): Lưu trữ thumbnail trong bộ nhớ đệm RAM và giải mã nền (background downsampling), triệt tiêu hiện tượng nghẽn Main Thread khi tải ảnh, đảm bảo cuộn mượt mà chuẩn 120Hz ProMotion.\n• Tối ưu hóa Scroll Monitor trong Shorts: Tăng tốc độ phản hồi lăn chuột trong Shorts feed, bảo đảm không rò rỉ hay nuốt sự kiện lăn chuột của các màn hình khác.\n• Tối ưu hóa hiệu năng Card: Chuyển đổi trạng thái Hover sang lightweight State, giảm tải animation và shadow khi cuộn nhanh.",
-  "downloadUrl": "https://github.com/tung68nt/AuraTube/releases/download/v2.0.86/AuraTube-v2.0.86.dmg",
+  "version": "2.0.87",
+  "build": 88,
+  "title": "AuraTube v2.0.87 (Tối ưu hóa gợi ý Shorts & Chuẩn hóa PiP Shorts)",
+  "releaseNotes": "• Nâng cấp thuật toán gợi ý Shorts: Loại bỏ bộ lọc tháng gây mất kệ Shorts InnerTube, chuyển sang nguồn cấp Shorts xu hướng, viral triệu view chuẩn định dạng dọc 9:16.\n• Chuẩn hóa cửa sổ PiP cho Shorts: Cố định tỷ lệ dọc tiêu chuẩn 9:16 (kích thước 270x480pt, giới hạn tối đa 576pt), không còn bị phóng to choán màn hình.\n• Sửa triệt để lỗi video PiP bị phóng to/mất khung hình: Khắc phục xung đột CSS và script ép tọa độ top/left, giữ nguyên vẹn 100% khung hình và căn giữa chuẩn xác.\n• Bổ sung nút bấm PiP tiện lợi trực tiếp trên thanh công cụ xem Shorts.",
+  "downloadUrl": "https://github.com/tung68nt/AuraTube/releases/download/v2.0.87/AuraTube-v2.0.87.dmg",
   "publishedAt": "2026-09-22",
   "minOSVersion": "13.0",
   "fileSize": "5.5 MB"

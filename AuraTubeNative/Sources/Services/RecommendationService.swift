@@ -398,9 +398,10 @@ public final class RecommendationService: ObservableObject {
             ("bóng đá việt nam highlight mới nhất", YTDLPService.filterThisWeek)
         ]
         
-        let shortsPillars: [(query: String, params: String)] = [
-            ("#shorts trending việt nam mới nhất", YTDLPService.filterThisMonth),
-            ("#shorts hài hước triệu view việt nam", YTDLPService.filterThisMonth)
+        let shortsPillars: [String] = [
+            "shorts trending việt nam",
+            "shorts hài hước triệu view",
+            "shorts viral triệu view"
         ]
         
         var regularStreams: [[Video]] = []
@@ -416,11 +417,9 @@ public final class RecommendationService: ObservableObject {
             }
             for sp in shortsPillars {
                 group.addTask {
-                    let res = await YTDLPService.shared.searchVideosWithContinuation(query: sp.query, params: sp.params, limit: 12)
-                    var candidates = res.shorts
-                    if candidates.isEmpty {
-                        candidates = res.videos.filter { $0.totalDurationSeconds > 0 && $0.totalDurationSeconds <= 65 }
-                    }
+                    // Do not pass upload date filter params: InnerTube removes the Shorts shelf when filters are present!
+                    let res = await YTDLPService.shared.searchVideosWithContinuation(query: sp, params: nil, limit: 14)
+                    let candidates = res.shorts
                     let freshShorts = candidates.filter { Self.isFreshTrendingVideo($0) }
                     return (isShorts: true, videos: freshShorts)
                 }

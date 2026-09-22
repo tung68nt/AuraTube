@@ -28,20 +28,19 @@ final class NativeShortsViewModel: ObservableObject {
     }
     
     private let smartDiscoverySeeds = [
-        "#shorts trending việt nam",
-        "#shorts hài hước triệu view việt nam",
-        "#shorts nhạc trend tiktok việt nam",
-        "#shorts công nghệ review hay",
-        "#shorts ẩm thực đường phố việt nam",
-        "#shorts đời sống thường ngày việt nam",
-        "#shorts giải trí vui nhộn triệu view",
-        "#shorts biến hình hot trend việt nam",
-        "#shorts tin tức hot việt nam 24h",
-        "#shorts khám phá thế giới việt nam",
-        "#shorts gaming highlight việt nam",
-        "#shorts mẹo vặt cuộc sống thông minh"
+        "shorts trending việt nam",
+        "shorts viral việt nam",
+        "shorts hài hước triệu view",
+        "shorts giải trí hay nhất",
+        "shorts công nghệ đời sống",
+        "shorts ẩm thực đường phố việt nam",
+        "shorts tin tức nóng hổi",
+        "shorts biến hình tiktok triệu view",
+        "shorts khám phá thế giới kỳ thú",
+        "shorts mẹo hay cuộc sống",
+        "shorts âm nhạc hot trend"
     ]
-    private var streamIndex: Int = Int.random(in: 0...11)
+    private var streamIndex: Int = Int.random(in: 0...10)
     private var snapSettleTask: Task<Void, Never>? = nil
     private var eventMonitor: Any? = nil
     private var lastScrollDate: Date = Date()
@@ -101,28 +100,28 @@ final class NativeShortsViewModel: ObservableObject {
         var queriesToFetch: [String] = []
         
         if let initial = preferredInitial {
-            queriesToFetch.append("#shorts " + initial.uploader)
+            queriesToFetch.append("shorts " + initial.uploader)
         }
         
         // 1. Channel & Creator Affinity: Favorite channels watched or subscribed
         let topChannels = RecommendationService.shared.topChannels
         let subs = ChannelSubscriptionManager.shared.subscribedChannels
         if let ch = topChannels.randomElement() {
-            queriesToFetch.append("#shorts \(ch)")
+            queriesToFetch.append("shorts \(ch)")
         } else if let sub = subs.randomElement() {
             let name = sub.handle ?? sub.title
-            queriesToFetch.append("#shorts \(name)")
+            queriesToFetch.append("shorts \(name)")
         }
         
         // 2. Interest & Search Intent: Topics user searches for or watches
         let topKw = RecommendationService.shared.topKeywords
         let recentSearches = RecommendationService.shared.recentSearches
         if let kw = topKw.randomElement() ?? recentSearches.randomElement() {
-            queriesToFetch.append("#shorts \(kw)")
+            queriesToFetch.append("shorts \(kw)")
         }
         
         // 3. Dynamic Viral Discovery: Pick varied seeds
-        let seed = smartDiscoverySeeds.shuffled().first ?? "#shorts trending việt nam"
+        let seed = smartDiscoverySeeds.shuffled().first ?? "shorts trending việt nam"
         if !queriesToFetch.contains(seed) {
             queriesToFetch.append(seed)
         }
@@ -131,10 +130,11 @@ final class NativeShortsViewModel: ObservableObject {
         var primaryContinuation: String? = nil
         
         for (idx, q) in queriesToFetch.prefix(3).enumerated() {
-            let res = await YTDLPService.shared.searchVideosWithContinuation(query: q, params: YTDLPService.filterThisMonth, limit: 16)
+            // Do NOT pass upload date filters (such as filterThisMonth) because InnerTube removes the Shorts shelf when filters are active!
+            let res = await YTDLPService.shared.searchVideosWithContinuation(query: q, params: nil, limit: 16)
             var extracted = res.shorts
             if extracted.isEmpty {
-                extracted = res.videos.filter { ($0.duration ?? 0) <= 65 }
+                extracted = res.videos.filter { $0.isShort || $0.durationFormatted == "Shorts" || $0.isExplicitShort == true }
             }
             if idx == 0 {
                 primaryContinuation = res.continuationToken
@@ -143,8 +143,10 @@ final class NativeShortsViewModel: ObservableObject {
         }
         
         if candidateVideos.isEmpty {
-            let fallbackRes = await YTDLPService.shared.searchVideos(query: smartDiscoverySeeds.randomElement() ?? "#shorts việt nam", params: YTDLPService.filterThisMonth, limit: 20)
-            candidateVideos.append(contentsOf: fallbackRes.filter { ($0.isShort || ($0.duration ?? 0) <= 65) && RecommendationService.isFreshTrendingVideo($0) })
+            let fallbackQuery = smartDiscoverySeeds.randomElement() ?? "shorts trending việt nam"
+            let fallbackRes = await YTDLPService.shared.searchVideosWithContinuation(query: fallbackQuery, params: nil, limit: 20)
+            let valid = fallbackRes.shorts.isEmpty ? fallbackRes.videos.filter { $0.isShort || $0.durationFormatted == "Shorts" || $0.isExplicitShort == true } : fallbackRes.shorts
+            candidateVideos.append(contentsOf: valid.filter { RecommendationService.isFreshTrendingVideo($0) })
         }
         
         // Smart Deduplication & Non-Repetition against past sessions
@@ -193,15 +195,16 @@ final class NativeShortsViewModel: ObservableObject {
         let nextQuery = smartDiscoverySeeds[streamIndex % smartDiscoverySeeds.count]
         
         if let token = continuationToken {
-            let res = await YTDLPService.shared.searchVideosWithContinuation(query: nextQuery, continuationToken: token, params: YTDLPService.filterThisMonth)
-            newShorts = res.shorts.isEmpty ? res.videos.filter { ($0.duration ?? 0) <= 65 } : res.shorts
+            let res = await YTDLPService.shared.searchVideosWithContinuation(query: nextQuery, continuationToken: token, params: nil)
+            newShorts = res.shorts.isEmpty ? res.videos.filter { $0.isShort || $0.durationFormatted == "Shorts" || $0.isExplicitShort == true } : res.shorts
             self.continuationToken = res.continuationToken
         }
         
         if newShorts.isEmpty {
             streamIndex = (streamIndex + 1) % smartDiscoverySeeds.count
             let fallbackQuery = smartDiscoverySeeds[streamIndex]
-            newShorts = await YTDLPService.shared.searchVideos(query: fallbackQuery, params: YTDLPService.filterThisMonth, limit: 16)
+            let res = await YTDLPService.shared.searchVideosWithContinuation(query: fallbackQuery, params: nil, limit: 16)
+            newShorts = res.shorts.isEmpty ? res.videos.filter { $0.isShort || $0.durationFormatted == "Shorts" || $0.isExplicitShort == true } : res.shorts
         }
         
         newShorts = newShorts.filter { RecommendationService.isFreshTrendingVideo($0) }
@@ -1762,6 +1765,17 @@ struct ShortFeedRowView: View {
                     NSPasteboard.general.clearContents()
                     NSPasteboard.general.setString(url, forType: .string)
                     vm.showToast("🔗 Đã sao chép liên kết Short!")
+                }
+                
+                // PiP Button
+                ActionButton(
+                    icon: "pip.enter",
+                    label: "PiP",
+                    isActive: false,
+                    activeColor: .white
+                ) {
+                    PlayerManager.shared.loadAndPlay(video: short)
+                    PlayerManager.shared.enterPictureInPicture()
                 }
                 
                 // Full Player Button
