@@ -1,10 +1,10 @@
 {
-  "version": "2.0.85",
-  "build": 86,
-  "title": "AuraTube v2.0.85 (Khắc phục triệt để lỗi PiP giật lag, chớp nháy và co khung hình)",
-  "releaseNotes": "• Khắc phục triệt để lỗi co frame và chớp nháy trong PiP: Unmount hoàn toàn player ở cửa sổ chính khi bật PiP để chuyển giao 100% quyền kiểm soát WKWebView cho cửa sổ nổi, triệt tiêu xung đột kích thước khung hình.\n• Loại bỏ giật lag (IPC Flooding): Bổ sung debounce 80ms khi kéo co giãn cửa sổ PiP, tối ưu tần số directSync và throttle biến thời gian của PlayerManager, loại bỏ tình trạng ép SwiftUI re-render 22 lần/giây.\n• Sửa xung đột phím tắt (Double Toggle): Nhường quyền xử lý phím tắt độc quyền cho PiPWindowController khi cửa sổ PiP hoạt động, tránh hiện tượng bấm Play/Pause bị đảo trạng thái 2 lần.\n• Tự động căn chỉnh tỷ lệ khổ dọc (Shorts 9:16) hoặc khổ ngang (16:9) chuẩn xác trên cửa sổ PiP.",
-  "downloadUrl": "https://github.com/tung68nt/AuraTube/releases/download/v2.0.85/AuraTube-v2.0.85.dmg",
+  "version": "2.0.86",
+  "build": 87,
+  "title": "AuraTube v2.0.86 (Khắc phục triệt để lỗi cuộn giật lag & đơ chuột)",
+  "releaseNotes": "• Triệt tiêu bẫy kẹt cuộn chuột (Horizontal Scroll Trap): Chuyển tiếp tự động sự kiện cuộn dọc của con lăn chuột qua các hàng ngang (Tag Chips, Kênh theo dõi, Kệ Shorts), chấm dứt hoàn toàn hiện tượng đơ chuột/mất tín hiệu khi lướt trang.\n• Bộ nhớ đệm ảnh RAM siêu tốc (AuraImageCache): Lưu trữ thumbnail trong bộ nhớ đệm RAM và giải mã nền (background downsampling), triệt tiêu hiện tượng nghẽn Main Thread khi tải ảnh, đảm bảo cuộn mượt mà chuẩn 120Hz ProMotion.\n• Tối ưu hóa Scroll Monitor trong Shorts: Tăng tốc độ phản hồi lăn chuột trong Shorts feed, bảo đảm không rò rỉ hay nuốt sự kiện lăn chuột của các màn hình khác.\n• Tối ưu hóa hiệu năng Card: Chuyển đổi trạng thái Hover sang lightweight State, giảm tải animation và shadow khi cuộn nhanh.",
+  "downloadUrl": "https://github.com/tung68nt/AuraTube/releases/download/v2.0.86/AuraTube-v2.0.86.dmg",
   "publishedAt": "2026-09-22",
   "minOSVersion": "13.0",
-  "fileSize": "5.4 MB"
+  "fileSize": "5.5 MB"
 }

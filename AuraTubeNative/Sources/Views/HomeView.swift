@@ -100,6 +100,7 @@ public struct HomeView: View {
                     .padding(.horizontal, 24)
                     .padding(.top, 14)
                 }
+                .forwardVerticalScroll()
                 
                 // 2. Following Shelf (When user is on "Tất cả" or "🔔 Đang theo dõi")
                 if !subManager.subscribedChannels.isEmpty {
@@ -193,12 +194,10 @@ public struct HomeView: View {
                                         VStack(spacing: 6) {
                                             ZStack {
                                                 if !channel.avatarUrl.isEmpty {
-                                                    AsyncImage(url: URL(string: channel.avatarUrl)) { phase in
-                                                        if let img = phase.image {
-                                                            img.resizable().scaledToFill()
-                                                        } else {
-                                                            Circle().fill(Color(white: 0.22))
-                                                        }
+                                                    CachedAsyncThumbnail(url: channel.avatarUrl, maxPixelSize: 120) { img in
+                                                        img.resizable().scaledToFill()
+                                                    } placeholder: {
+                                                        Circle().fill(Color(white: 0.22))
                                                     }
                                                     .frame(width: 52, height: 52)
                                                     .clipShape(Circle())
@@ -243,6 +242,7 @@ public struct HomeView: View {
                             .padding(.horizontal, 24)
                             .padding(.vertical, 4)
                         }
+                        .forwardVerticalScroll()
                     }
                     .padding(.top, 2)
                 }
@@ -610,16 +610,11 @@ public struct HomeView: View {
     }
 }
 
-@MainActor
-final class CardHoverViewModel: ObservableObject {
-    @Published var isHovered = false
-}
-
 public struct VideoCardView: View {
     let video: Video
     let onSelect: () -> Void
     @Environment(\.colorScheme) private var colorScheme
-    @StateObject private var hoverVm = CardHoverViewModel()
+    @State private var isHovered = false
     
     public var body: some View {
         Button(action: onSelect) {
@@ -629,13 +624,11 @@ public struct VideoCardView: View {
                     Color.clear
                         .aspectRatio(16/9, contentMode: .fit)
                         .overlay(
-                            AsyncImage(url: URL(string: video.thumbnail)) { phase in
-                                if let img = phase.image {
-                                    img.resizable().scaledToFill()
-                                } else {
-                                    (colorScheme == .dark ? Color(white: 0.12) : Color(white: 0.88))
-                                }
-                            }
+                            CachedAsyncThumbnail(
+                                url: video.thumbnail,
+                                maxPixelSize: 640,
+                                placeholderColor: colorScheme == .dark ? Color(white: 0.12) : Color(white: 0.88)
+                            )
                         )
                         .clipped()
                         .clipShape(RoundedRectangle(cornerRadius: 11, style: .continuous))
@@ -644,8 +637,8 @@ public struct VideoCardView: View {
                             .strokeBorder(
                                 LinearGradient(
                                     colors: [
-                                        (colorScheme == .dark ? Color.white : Color.black).opacity(hoverVm.isHovered ? 0.22 : 0.10),
-                                        (colorScheme == .dark ? Color.white : Color.black).opacity(hoverVm.isHovered ? 0.08 : 0.02)
+                                        (colorScheme == .dark ? Color.white : Color.black).opacity(isHovered ? 0.22 : 0.10),
+                                        (colorScheme == .dark ? Color.white : Color.black).opacity(isHovered ? 0.08 : 0.02)
                                     ],
                                     startPoint: .top,
                                     endPoint: .bottom
@@ -653,9 +646,9 @@ public struct VideoCardView: View {
                                 lineWidth: 0.75
                             )
                     )
-                    .shadow(color: (colorScheme == .dark ? Color.black : Color.black.opacity(0.12)).opacity(hoverVm.isHovered ? 0.35 : 0.15), radius: hoverVm.isHovered ? 10 : 5, y: hoverVm.isHovered ? 4 : 2)
-                    .scaleEffect(hoverVm.isHovered ? 1.015 : 1.0)
-                    .animation(.spring(response: 0.2, dampingFraction: 0.8), value: hoverVm.isHovered)
+                    .shadow(color: (colorScheme == .dark ? Color.black : Color.black.opacity(0.12)).opacity(isHovered ? 0.35 : 0.15), radius: isHovered ? 10 : 5, y: isHovered ? 4 : 2)
+                    .scaleEffect(isHovered ? 1.015 : 1.0)
+                    .animation(.easeOut(duration: 0.15), value: isHovered)
                     
                     Text(video.durationFormatted)
                         .font(.system(size: 11.5, weight: .medium))
@@ -671,13 +664,11 @@ public struct VideoCardView: View {
                 HStack(alignment: .top, spacing: 12) {
                     // Channel Avatar
                     if let avatar = video.channelAvatarUrl, !avatar.isEmpty {
-                        AsyncImage(url: URL(string: avatar)) { phase in
-                            if let img = phase.image {
-                                img.resizable().scaledToFill()
-                            } else {
-                                Circle().fill(colorScheme == .dark ? Color(white: 0.2) : Color(white: 0.85))
-                            }
-                        }
+                        CachedAsyncThumbnail(
+                            url: avatar,
+                            maxPixelSize: 80,
+                            placeholderColor: colorScheme == .dark ? Color(white: 0.2) : Color(white: 0.85)
+                        )
                         .frame(width: 36, height: 36)
                         .clipShape(Circle())
                         .overlay(Circle().stroke(ThemeColor.divider(for: colorScheme), lineWidth: 1))
@@ -724,7 +715,7 @@ public struct VideoCardView: View {
             }
         }
         .buttonStyle(.plain)
-        .onHover { hoverVm.isHovered = $0 }
+        .onHover { isHovered = $0 }
     }
 }
 
@@ -785,6 +776,7 @@ struct HomeShortsShelfView: View {
                 .padding(.horizontal, 24)
                 .padding(.vertical, 4)
             }
+            .forwardVerticalScroll()
             
             // Subtle bottom divider
             Divider()

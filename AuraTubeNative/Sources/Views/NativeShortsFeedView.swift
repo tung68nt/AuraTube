@@ -47,6 +47,13 @@ final class NativeShortsViewModel: ObservableObject {
     private var lastScrollDate: Date = Date()
     private var accumulatedDeltaY: CGFloat = 0
     private var lastAutoScrolledId: String = ""
+    public var isFeedActive: Bool = false
+    
+    deinit {
+        if let monitor = eventMonitor {
+            NSEvent.removeMonitor(monitor)
+        }
+    }
     
     func openShort(_ video: Video, proxy: ScrollViewProxy? = nil) {
         if let idx = shorts.firstIndex(where: { $0.id == video.id }) {
@@ -228,10 +235,11 @@ final class NativeShortsViewModel: ObservableObject {
     // MARK: - Ultra-responsive Mouse Wheel & Trackpad Magnetic Snap (YouTube Shorts Engine)
     
     func startScrollMonitor(proxy: ScrollViewProxy) {
+        isFeedActive = true
         guard eventMonitor == nil else { return }
         
         eventMonitor = NSEvent.addLocalMonitorForEvents(matching: .scrollWheel) { [weak self] event in
-            guard let self = self else { return event }
+            guard let self = self, self.isFeedActive else { return event }
             guard let window = event.window, window.isKeyWindow else { return event }
             
             // Allow normal scrolling when mouse is over sidebar (left 220pt)
@@ -270,21 +278,21 @@ final class NativeShortsViewModel: ObservableObject {
             }
             
             let rawDelta = event.scrollingDeltaY
-            guard abs(rawDelta) > 0.05 else { return nil }
+            guard abs(rawDelta) > 0.05 else { return event }
             
             // Normalize mouse wheel vs trackpad deltas
             let scaledDelta: CGFloat = event.hasPreciseScrollingDeltas ? rawDelta : (rawDelta * 22.0)
             
             let now = Date()
-            if now.timeIntervalSince(self.lastScrollDate) < 0.24 {
-                // Cooldown between transitions - absorb event
+            if now.timeIntervalSince(self.lastScrollDate) < 0.10 {
+                // Short cooldown between transitions - absorb event
                 return nil
             }
             
             self.accumulatedDeltaY += scaledDelta
             
             // Magnetic Snap Trigger: single wheel click or short trackpad flick
-            if abs(self.accumulatedDeltaY) >= 10 {
+            if abs(self.accumulatedDeltaY) >= 8 {
                 let isDown = self.accumulatedDeltaY < 0
                 self.accumulatedDeltaY = 0
                 self.lastScrollDate = now
@@ -302,6 +310,7 @@ final class NativeShortsViewModel: ObservableObject {
     }
     
     func stopScrollMonitor() {
+        isFeedActive = false
         if let monitor = eventMonitor {
             NSEvent.removeMonitor(monitor)
             eventMonitor = nil
@@ -1459,13 +1468,11 @@ struct ShortFeedRowView: View {
                 // Layer 1: Permanent High-Res Thumbnail (Always present underneath, guarantees 0% black screen)
                 ZStack {
                     Color(white: 0.10)
-                    AsyncImage(url: URL(string: short.thumbnail)) { phase in
-                        if let img = phase.image {
-                            img.resizable().scaledToFill()
-                        } else {
-                            Color(white: 0.12)
-                        }
-                    }
+                    CachedAsyncThumbnail(
+                        url: short.thumbnail,
+                        maxPixelSize: 720,
+                        placeholderColor: Color(white: 0.12)
+                    )
                     .frame(width: cardWidth, height: cardHeight)
                     .clipped()
                 }

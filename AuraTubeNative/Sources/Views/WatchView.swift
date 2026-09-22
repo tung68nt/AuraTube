@@ -109,13 +109,7 @@ public struct WatchView: View {
                             // Uploader info
                             HStack(spacing: 12) {
                                 if let avatarUrl = displayVideo.channelAvatarUrl, !avatarUrl.isEmpty {
-                                    AsyncImage(url: URL(string: avatarUrl)) { phase in
-                                        if let img = phase.image {
-                                            img.resizable().scaledToFill()
-                                        } else {
-                                            Circle().fill(Color(white: 0.2))
-                                        }
-                                    }
+                                    CachedAsyncThumbnail(url: avatarUrl, maxPixelSize: 84, placeholderColor: Color(white: 0.2))
                                     .frame(width: 42, height: 42)
                                     .clipShape(Circle())
                                     .overlay(Circle().stroke(ThemeColor.divider(for: colorScheme), lineWidth: 1))
@@ -528,14 +522,12 @@ public struct WatchView: View {
                                     ZStack(alignment: .bottomTrailing) {
                                         ZStack {
                                             (colorScheme == .dark ? Color(white: 0.08) : Color(white: 0.88))
-                                            AsyncImage(url: URL(string: item.thumbnail)) { phase in
-                                                if let img = phase.image {
-                                                    img.resizable()
-                                                        .aspectRatio(contentMode: item.isShort ? .fit : .fill)
-                                                } else {
-                                                    (colorScheme == .dark ? Color(white: 0.12) : Color(white: 0.82))
-                                                }
-                                            }
+                                            CachedAsyncThumbnail(
+                                                url: item.thumbnail,
+                                                maxPixelSize: 320,
+                                                contentMode: item.isShort ? .fit : .fill,
+                                                placeholderColor: colorScheme == .dark ? Color(white: 0.12) : Color(white: 0.82)
+                                            )
                                         }
                                         .frame(width: 156, height: 88)
                                         .clipped()

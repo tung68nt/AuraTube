@@ -7,6 +7,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     override init() {
         super.init()
         AppDelegate.shared = self
+        
+        // 150 MB RAM Cache, 1 GB Disk Cache for buttery smooth thumbnail loading
+        let memoryCapacity = 150 * 1024 * 1024
+        let diskCapacity = 1024 * 1024 * 1024
+        URLCache.shared = URLCache(memoryCapacity: memoryCapacity, diskCapacity: diskCapacity, diskPath: "auratube_url_cache")
+        
         AppFont.registerCustomFonts()
     }
     

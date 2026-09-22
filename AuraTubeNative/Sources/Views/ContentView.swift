@@ -1117,13 +1117,7 @@ struct DownloadRowCard: View {
         HStack(spacing: 14) {
             // Thumbnail Preview
             ZStack {
-                AsyncImage(url: URL(string: item.thumbnail)) { phase in
-                    if let img = phase.image {
-                        img.resizable().scaledToFill()
-                    } else {
-                        Color(white: 0.15)
-                    }
-                }
+                CachedAsyncThumbnail(url: item.thumbnail, maxPixelSize: 192, placeholderColor: Color(white: 0.15))
                 .frame(width: 96, height: 54)
                 .cornerRadius(6)
                 .clipped()
@@ -1278,13 +1272,7 @@ struct FloatingDownloadHUD: View {
         HStack(spacing: 12) {
             // Thumbnail Preview
             ZStack {
-                AsyncImage(url: URL(string: item.thumbnail)) { phase in
-                    if let img = phase.image {
-                        img.resizable().scaledToFill()
-                    } else {
-                        Color(white: 0.15)
-                    }
-                }
+                CachedAsyncThumbnail(url: item.thumbnail, maxPixelSize: 108, placeholderColor: Color(white: 0.15))
                 .frame(width: 54, height: 36)
                 .cornerRadius(6)
                 .clipped()
@@ -2236,18 +2224,16 @@ struct SearchResultsView: View {
 struct SearchChannelCardView: View {
     @Environment(\.colorScheme) private var colorScheme
     let channel: ChannelInfo
-    @StateObject private var hoverVm = LiquidHoverViewModel()
+    @State private var isHovered = false
     
     var body: some View {
         HStack(spacing: 24) {
             // Large Circular Avatar
-            AsyncImage(url: URL(string: channel.avatarUrl)) { phase in
-                if let img = phase.image {
-                    img.resizable().scaledToFill()
-                } else {
-                    Circle().fill(Color(white: 0.18))
-                }
-            }
+            CachedAsyncThumbnail(
+                url: channel.avatarUrl,
+                maxPixelSize: 164,
+                placeholderColor: Color(white: 0.18)
+            )
             .frame(width: 82, height: 82)
             .clipShape(Circle())
             .overlay(Circle().strokeBorder(ThemeColor.divider(for: colorScheme), lineWidth: 1.5))
@@ -2322,10 +2308,10 @@ struct SearchChannelCardView: View {
         .padding(.vertical, 14)
         .background(
             RoundedRectangle(cornerRadius: 14, style: .continuous)
-                .fill(hoverVm.isHovered ? ThemeColor.sidebarHover(for: colorScheme) : Color.clear)
+                .fill(isHovered ? ThemeColor.sidebarHover(for: colorScheme) : Color.clear)
         )
         .onHover { hovering in
-            hoverVm.isHovered = hovering
+            isHovered = hovering
         }
     }
 }
@@ -2335,20 +2321,18 @@ struct SearchVideoRowView: View {
     @Environment(\.colorScheme) private var colorScheme
     let video: Video
     let onSelect: () -> Void
-    @StateObject private var hoverVm = LiquidHoverViewModel()
+    @State private var isHovered = false
     
     var body: some View {
         Button(action: onSelect) {
             HStack(alignment: .top, spacing: 18) {
                 // Left: 16:9 Thumbnail
                 ZStack(alignment: .bottomTrailing) {
-                    AsyncImage(url: URL(string: video.thumbnail)) { phase in
-                        if let img = phase.image {
-                            img.resizable().scaledToFill()
-                        } else {
-                            (colorScheme == .dark ? Color(white: 0.12) : Color(white: 0.88))
-                        }
-                    }
+                    CachedAsyncThumbnail(
+                        url: video.thumbnail,
+                        maxPixelSize: 640,
+                        placeholderColor: colorScheme == .dark ? Color(white: 0.12) : Color(white: 0.88)
+                    )
                     .frame(width: 320, height: 180)
                     .clipped()
                     .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
@@ -2357,8 +2341,8 @@ struct SearchVideoRowView: View {
                             .strokeBorder(
                                 LinearGradient(
                                     colors: [
-                                        (colorScheme == .dark ? Color.white : Color.black).opacity(hoverVm.isHovered ? 0.28 : 0.10),
-                                        (colorScheme == .dark ? Color.white : Color.black).opacity(hoverVm.isHovered ? 0.10 : 0.02)
+                                        (colorScheme == .dark ? Color.white : Color.black).opacity(isHovered ? 0.28 : 0.10),
+                                        (colorScheme == .dark ? Color.white : Color.black).opacity(isHovered ? 0.10 : 0.02)
                                     ],
                                     startPoint: .top,
                                     endPoint: .bottom
@@ -2396,13 +2380,11 @@ struct SearchVideoRowView: View {
                     // Channel
                     HStack(spacing: 8) {
                         if let avatar = video.channelAvatarUrl, !avatar.isEmpty {
-                            AsyncImage(url: URL(string: avatar)) { phase in
-                                if let img = phase.image {
-                                    img.resizable().scaledToFill()
-                                } else {
-                                    Circle().fill(colorScheme == .dark ? Color(white: 0.2) : Color(white: 0.85))
-                                }
-                            }
+                            CachedAsyncThumbnail(
+                                url: avatar,
+                                maxPixelSize: 64,
+                                placeholderColor: colorScheme == .dark ? Color(white: 0.2) : Color(white: 0.85)
+                            )
                             .frame(width: 24, height: 24)
                             .clipShape(Circle())
                         } else {
@@ -2440,13 +2422,13 @@ struct SearchVideoRowView: View {
             .padding(10)
             .background(
                 RoundedRectangle(cornerRadius: 12, style: .continuous)
-                    .fill(hoverVm.isHovered ? ThemeColor.sidebarHover(for: colorScheme) : Color.clear)
+                    .fill(isHovered ? ThemeColor.sidebarHover(for: colorScheme) : Color.clear)
             )
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
         .onHover { hovering in
-            hoverVm.isHovered = hovering
+            isHovered = hovering
         }
     }
 }
@@ -2483,6 +2465,7 @@ struct SearchShortsShelfView: View {
                 }
                 .padding(.vertical, 4)
             }
+            .forwardVerticalScroll()
         }
         .padding(.vertical, 8)
     }
@@ -2493,20 +2476,18 @@ struct SearchShortCardView: View {
     @Environment(\.colorScheme) private var colorScheme
     let video: Video
     let onSelect: () -> Void
-    @StateObject private var hoverVm = LiquidHoverViewModel()
+    @State private var isHovered = false
     
     var body: some View {
         Button(action: onSelect) {
             VStack(alignment: .leading, spacing: 8) {
                 // 9:16 Vertical Thumbnail
                 ZStack(alignment: .bottomTrailing) {
-                    AsyncImage(url: URL(string: video.thumbnail)) { phase in
-                        if let img = phase.image {
-                            img.resizable().scaledToFill()
-                        } else {
-                            (colorScheme == .dark ? Color(white: 0.14) : Color(white: 0.85))
-                        }
-                    }
+                    CachedAsyncThumbnail(
+                        url: video.thumbnail,
+                        maxPixelSize: 500,
+                        placeholderColor: colorScheme == .dark ? Color(white: 0.14) : Color(white: 0.85)
+                    )
                     .frame(width: 170, height: 285)
                     .clipped()
                     .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
@@ -2515,8 +2496,8 @@ struct SearchShortCardView: View {
                             .strokeBorder(
                                 LinearGradient(
                                     colors: [
-                                        (colorScheme == .dark ? Color.white : Color.black).opacity(hoverVm.isHovered ? 0.35 : 0.12),
-                                        (colorScheme == .dark ? Color.white : Color.black).opacity(hoverVm.isHovered ? 0.12 : 0.03)
+                                        (colorScheme == .dark ? Color.white : Color.black).opacity(isHovered ? 0.35 : 0.12),
+                                        (colorScheme == .dark ? Color.white : Color.black).opacity(isHovered ? 0.12 : 0.03)
                                     ],
                                     startPoint: .top,
                                     endPoint: .bottom
@@ -2545,7 +2526,7 @@ struct SearchShortCardView: View {
                 // Short Title
                 Text(video.title)
                     .font(.system(size: 13, weight: .semibold))
-                    .foregroundColor(hoverVm.isHovered ? ThemeColor.textPrimary(for: colorScheme) : ThemeColor.textPrimary(for: colorScheme).opacity(0.88))
+                    .foregroundColor(isHovered ? ThemeColor.textPrimary(for: colorScheme) : ThemeColor.textPrimary(for: colorScheme).opacity(0.88))
                     .lineLimit(2)
                     .frame(width: 170, alignment: .leading)
                     .multilineTextAlignment(.leading)
@@ -2554,7 +2535,7 @@ struct SearchShortCardView: View {
         }
         .buttonStyle(.plain)
         .onHover { hovering in
-            hoverVm.isHovered = hovering
+            isHovered = hovering
         }
     }
 }
