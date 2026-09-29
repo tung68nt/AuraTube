@@ -16,10 +16,26 @@ struct RecommendedChannel: Identifiable {
 
 @MainActor
 final class HomeViewModel: ObservableObject {
-    @Published var videos: [Video] = []
-    @Published var selectedTag = "🔥 Thịnh hành"
+    @Published var videos: [Video] = [] {
+        didSet {
+            regularVideos = videos.filter { !$0.isShort }
+            shortVideos = videos.filter { $0.isShort }
+            AuraImageCache.shared.prefetchImages(for: videos.prefix(12).map { $0.thumbnail })
+        }
+    }
+    @Published private(set) var regularVideos: [Video] = []
+    @Published private(set) var shortVideos: [Video] = []
+    @Published var selectedTag = "Thịnh hành"
     @Published var selectedChannel: ChannelInfo? = nil
-    @Published var channelVideos: [Video] = []
+    @Published var channelVideos: [Video] = [] {
+        didSet {
+            channelRegularVideos = channelVideos.filter { !$0.isShort }
+            channelShortVideos = channelVideos.filter { $0.isShort }
+            AuraImageCache.shared.prefetchImages(for: channelVideos.prefix(8).map { $0.thumbnail })
+        }
+    }
+    @Published private(set) var channelRegularVideos: [Video] = []
+    @Published private(set) var channelShortVideos: [Video] = []
     @Published var isLoading = true
     @Published var isChannelLoading = false
     
@@ -34,24 +50,84 @@ final class HomeViewModel: ObservableObject {
     ]
 }
 
+private struct FrequentChannelItem: View {
+    let channelName: String
+    let isSelected: Bool
+    let avatarUrl: String?
+    let onSelect: () -> Void
+    
+    @Environment(\.colorScheme) private var colorScheme
+    @State private var isHovered = false
+    
+    var body: some View {
+        Button(action: onSelect) {
+            VStack(spacing: 6) {
+                ZStack {
+                    if let url = avatarUrl, !url.isEmpty {
+                        CachedAsyncThumbnail(url: url, maxPixelSize: 120) { img in
+                            img.resizable().scaledToFill()
+                        } placeholder: {
+                            Circle()
+                                .fill(colorScheme == .dark ? Color(white: 0.18) : Color(white: 0.90))
+                        }
+                        .frame(width: 46, height: 46)
+                        .clipShape(Circle())
+                    } else {
+                        Circle()
+                            .fill(colorScheme == .dark ? Color(white: 0.18) : Color(white: 0.90))
+                            .frame(width: 46, height: 46)
+                        Text(String(channelName.prefix(1)).uppercased())
+                            .font(.system(size: 16, weight: .semibold))
+                            .foregroundColor(ThemeColor.textPrimary(for: colorScheme))
+                    }
+                }
+                .overlay(
+                    Circle()
+                        .strokeBorder(
+                            isSelected ? Color.cyan : (isHovered ? (colorScheme == .dark ? Color.white.opacity(0.35) : Color.black.opacity(0.25)) : ThemeColor.divider(for: colorScheme)),
+                            lineWidth: isSelected ? 2 : 1
+                        )
+                )
+                .shadow(color: Color.black.opacity(colorScheme == .dark ? 0.25 : 0.06), radius: isHovered ? 4 : 2, y: 1)
+                .scaleEffect(isHovered ? 1.05 : 1.0)
+                .animation(.spring(response: 0.25, dampingFraction: 0.75), value: isHovered)
+                
+                Text(channelName)
+                    .font(.system(size: 11, weight: isSelected ? .bold : .medium))
+                    .foregroundColor(isSelected ? .cyan : ThemeColor.textPrimary(for: colorScheme))
+                    .frame(width: 68)
+                    .lineLimit(1)
+                    .truncationMode(.tail)
+            }
+        }
+        .buttonStyle(.plain)
+        .onHover { isHovered = $0 }
+    }
+}
+
 public struct HomeView: View {
     var onSelectVideo: (Video) -> Void
+    var onSelectChannel: ((ChannelInfo) -> Void)? = nil
     
     @Environment(\.colorScheme) private var colorScheme
     @StateObject private var vm = HomeViewModel()
     @ObservedObject private var subManager = ChannelSubscriptionManager.shared
     @ObservedObject private var recService = RecommendationService.shared
     
+    private let trendingTag = "Thịnh hành"
+    private let followingTag = "Đang theo dõi"
+    private let allTag = "Tất cả"
+    
     private var allTags: [String] {
-        var list = ["🔥 Thịnh hành", "Tất cả", "🔔 Đang theo dõi"]
+        var list = [trendingTag, allTag, followingTag]
         for t in recService.dynamicInterestTags {
-            if !list.contains(t) && t != "🔥 Thịnh hành" {
+            if !list.contains(t) && t != trendingTag {
                 list.append(t)
             }
         }
         let baseCategories = [
-            "🎵 Âm nhạc", "🎭 Giải trí", "💻 Công nghệ", "🎮 Gaming",
-            "📰 Tin tức", "🍲 Ẩm thực", "⚽ Bóng đá", "🎙️ Podcast"
+            "Âm nhạc", "Giải trí", "Công nghệ", "Gaming",
+            "Tin tức", "Ẩm thực", "Thể thao", "Podcast"
         ]
         for c in baseCategories {
             if !list.contains(c) {
@@ -65,8 +141,12 @@ public struct HomeView: View {
         GridItem(.adaptive(minimum: 300, maximum: 380), spacing: 20, alignment: .top)
     ]
     
-    public init(onSelectVideo: @escaping (Video) -> Void) {
+    public init(
+        onSelectVideo: @escaping (Video) -> Void,
+        onSelectChannel: ((ChannelInfo) -> Void)? = nil
+    ) {
         self.onSelectVideo = onSelectVideo
+        self.onSelectChannel = onSelectChannel
     }
     
     public var body: some View {
@@ -76,24 +156,34 @@ public struct HomeView: View {
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(spacing: 7) {
                         ForEach(allTags, id: \.self) { tag in
-                            let isFollowedTag = tag.contains("Đang theo dõi")
+                            let isFollowedTag = (tag == followingTag)
                             let displayTitle = (isFollowedTag && !subManager.subscribedChannels.isEmpty)
-                                ? "🔔 Đang theo dõi (\(subManager.subscribedChannels.count))"
+                                ? "\(followingTag) (\(subManager.subscribedChannels.count))"
                                 : tag
                             
                             LiquidGlassCapsuleButton(
                                 action: { selectTag(tag) },
                                 isSelected: vm.selectedTag == tag
                             ) {
-                                Text(displayTitle)
-                                    .font(.system(size: 12.5, weight: vm.selectedTag == tag ? .bold : .medium))
-                                    .foregroundColor(
-                                        vm.selectedTag == tag ?
-                                            (colorScheme == .dark ? Color(red: 15/255, green: 15/255, blue: 15/255) : Color.white) :
-                                            (colorScheme == .dark ? Color(red: 241/255, green: 241/255, blue: 241/255) : Color(red: 15/255, green: 15/255, blue: 15/255))
-                                    )
-                                    .padding(.horizontal, 13)
-                                    .frame(height: 28)
+                                HStack(spacing: 5) {
+                                    if tag == trendingTag {
+                                        Image(systemName: "flame.fill")
+                                            .font(.system(size: 11, weight: .semibold))
+                                    } else if tag == followingTag {
+                                        Image(systemName: "bell.fill")
+                                            .font(.system(size: 10, weight: .semibold))
+                                    }
+                                    
+                                    Text(displayTitle)
+                                        .font(.system(size: 12.5, weight: vm.selectedTag == tag ? .bold : .medium))
+                                }
+                                .foregroundColor(
+                                    vm.selectedTag == tag ?
+                                        (colorScheme == .dark ? Color(red: 15/255, green: 15/255, blue: 15/255) : Color.white) :
+                                        (colorScheme == .dark ? Color(red: 241/255, green: 241/255, blue: 241/255) : Color(red: 15/255, green: 15/255, blue: 15/255))
+                                )
+                                .padding(.horizontal, 13)
+                                .frame(height: 28)
                             }
                         }
                     }
@@ -101,7 +191,7 @@ public struct HomeView: View {
                     .padding(.top, 14)
                 }
                 
-                // 2. Following Shelf (When user is on "Tất cả" or "🔔 Đang theo dõi")
+                // 2. Following Shelf (When user is on "Tất cả" or "Đang theo dõi")
                 if !subManager.subscribedChannels.isEmpty {
                     VStack(alignment: .leading, spacing: 10) {
                         HStack(alignment: .center) {
@@ -115,7 +205,7 @@ public struct HomeView: View {
                             
                             Spacer()
                             
-                            if vm.selectedTag == "🔔 Đang theo dõi" {
+                            if vm.selectedTag == followingTag {
                                 Button(action: {
                                     Task {
                                         await subManager.fetchFeed(forceRefresh: true)
@@ -135,7 +225,7 @@ public struct HomeView: View {
                                 }
                                 .buttonStyle(.plain)
                             } else {
-                                Button(action: { selectTag("🔔 Đang theo dõi") }) {
+                                Button(action: { selectTag(followingTag) }) {
                                     HStack(spacing: 4) {
                                         Text("Xem tất cả video")
                                             .font(.system(size: 12, weight: .medium))
@@ -153,7 +243,7 @@ public struct HomeView: View {
                         ScrollView(.horizontal, showsIndicators: false) {
                             HStack(spacing: 14) {
                                 // "All channels" chip (when in Following view)
-                                if vm.selectedTag == "🔔 Đang theo dõi" {
+                                if vm.selectedTag == followingTag {
                                     Button(action: {
                                         vm.selectedChannel = nil
                                     }) {
@@ -181,8 +271,8 @@ public struct HomeView: View {
                                 ForEach(subManager.subscribedChannels) { channel in
                                     let isSelected = vm.selectedChannel?.id == channel.id
                                     Button(action: {
-                                        if vm.selectedTag != "🔔 Đang theo dõi" {
-                                            vm.selectedTag = "🔔 Đang theo dõi"
+                                        if vm.selectedTag != followingTag {
+                                            vm.selectedTag = followingTag
                                         }
                                         if isSelected {
                                             vm.selectedChannel = nil
@@ -202,11 +292,11 @@ public struct HomeView: View {
                                                     .clipShape(Circle())
                                                 } else {
                                                     Circle()
-                                                        .fill(LinearGradient(colors: [Color(white: 0.2), Color(white: 0.3)], startPoint: .topLeading, endPoint: .bottomTrailing))
+                                                        .fill(colorScheme == .dark ? Color(white: 0.2) : Color(white: 0.88))
                                                         .frame(width: 52, height: 52)
                                                     Text(String(channel.title.prefix(1)).uppercased())
                                                         .font(.system(size: 18, weight: .bold))
-                                                        .foregroundColor(.white)
+                                                        .foregroundColor(ThemeColor.textPrimary(for: colorScheme))
                                                 }
                                             }
                                             .overlay(
@@ -245,9 +335,44 @@ public struct HomeView: View {
                     .padding(.top, 2)
                 }
                 
+                // 2.5. Frequent Channels & Habit Shelf (Personalized Learning)
+                let topChannelsToShow = recService.topChannels.filter { ch in
+                    !subManager.subscribedChannels.contains(where: { $0.title.caseInsensitiveCompare(ch) == .orderedSame })
+                }
+                if !topChannelsToShow.isEmpty && (vm.selectedTag == allTag || vm.selectedTag == trendingTag) {
+                    VStack(alignment: .leading, spacing: 10) {
+                        HStack(spacing: 6) {
+                            Text("Kênh bạn xem nhiều")
+                                .font(.system(size: 13, weight: .semibold))
+                                .foregroundColor(ThemeColor.textPrimary(for: colorScheme))
+                            Text("• Dựa trên thói quen")
+                                .font(.system(size: 11))
+                                .foregroundColor(ThemeColor.textTertiary(for: colorScheme))
+                            Spacer()
+                        }
+                        .padding(.horizontal, 24)
+                        
+                        ScrollView(.horizontal, showsIndicators: false) {
+                            HStack(spacing: 14) {
+                                ForEach(topChannelsToShow, id: \.self) { ch in
+                                    FrequentChannelItem(
+                                        channelName: ch,
+                                        isSelected: vm.selectedTag == ch,
+                                        avatarUrl: recService.getAvatarUrl(for: ch),
+                                        onSelect: { selectTag(ch) }
+                                    )
+                                }
+                            }
+                            .padding(.horizontal, 24)
+                            .padding(.vertical, 4)
+                        }
+                    }
+                    .padding(.top, 2)
+                }
+                
                 // 3. Section Title
                 HStack {
-                    if vm.selectedTag == "🔔 Đang theo dõi" {
+                    if vm.selectedTag == followingTag {
                         if let selectedCh = vm.selectedChannel {
                             HStack(spacing: 8) {
                                 Text("Video từ:")
@@ -262,25 +387,35 @@ public struct HomeView: View {
                                 .font(.system(size: 20, weight: .bold))
                                 .foregroundColor(ThemeColor.textPrimary(for: colorScheme))
                         }
-                    } else if vm.selectedTag == "🔥 Thịnh hành" {
-                        VStack(alignment: .leading, spacing: 3) {
-                            HStack(spacing: 8) {
-                                Text("🔥 Thịnh hành tại Việt Nam")
+                    } else if vm.selectedTag == trendingTag {
+                        VStack(alignment: .leading, spacing: 4) {
+                            HStack(spacing: 10) {
+                                Text("Thịnh hành tại Việt Nam")
                                     .font(.system(size: 20, weight: .bold))
                                     .foregroundColor(ThemeColor.textPrimary(for: colorScheme))
-                                Text("Mới nhất (1 Tuần - 1 Tháng)")
-                                    .font(.system(size: 11, weight: .bold))
-                                    .foregroundColor(.white)
-                                    .padding(.horizontal, 8)
-                                    .padding(.vertical, 3)
-                                    .background(Color.red)
-                                    .clipShape(Capsule())
+                                
+                                HStack(spacing: 5) {
+                                    Circle()
+                                        .fill(Color.red)
+                                        .frame(width: 5, height: 5)
+                                    Text("Mới nhất")
+                                        .font(.system(size: 11, weight: .semibold))
+                                        .foregroundColor(Color.red)
+                                }
+                                .padding(.horizontal, 8)
+                                .padding(.vertical, 3)
+                                .background(Color.red.opacity(0.12))
+                                .clipShape(Capsule())
+                                .overlay(
+                                    Capsule()
+                                        .strokeBorder(Color.red.opacity(0.2), lineWidth: 0.75)
+                                )
                             }
-                            Text("Tổng hợp video dài và Shorts xu hướng nóng nhất, loại bỏ video cũ")
+                            Text("Tổng hợp video và Shorts xu hướng nổi bật tại Việt Nam")
                                 .font(.system(size: 12))
                                 .foregroundColor(ThemeColor.textSecondary(for: colorScheme))
                         }
-                    } else if vm.selectedTag == "Tất cả" {
+                    } else if vm.selectedTag == allTag {
                         VStack(alignment: .leading, spacing: 3) {
                             Text(recService.hasPersonalizedProfile ? "Đề xuất cho bạn" : "Khám phá & Nổi bật")
                                 .font(.system(size: 20, weight: .bold))
@@ -307,11 +442,56 @@ public struct HomeView: View {
                     }
                     
                     Spacer()
+                    
+                    // Refresh Feed Button
+                    Button(action: {
+                        Task {
+                            if vm.selectedTag == followingTag {
+                                if let ch = vm.selectedChannel {
+                                    selectChannel(ch)
+                                } else {
+                                    await subManager.fetchFeed(forceRefresh: true)
+                                }
+                            } else if vm.selectedTag == trendingTag {
+                                vm.isLoading = true
+                                let fresh = await recService.fetchVietnamTrendingFeed(forceRefresh: true)
+                                if !fresh.isEmpty {
+                                    vm.videos = fresh
+                                }
+                                vm.isLoading = false
+                            } else if vm.selectedTag == allTag {
+                                vm.isLoading = true
+                                vm.videos = await recService.fetchRecommendations()
+                                vm.isLoading = false
+                            } else {
+                                selectTag(vm.selectedTag)
+                            }
+                        }
+                    }) {
+                        HStack(spacing: 5) {
+                            Image(systemName: "arrow.clockwise")
+                                .font(.system(size: 11, weight: .semibold))
+                                .rotationEffect(.degrees(vm.isLoading ? 360 : 0))
+                                .animation(vm.isLoading ? Animation.linear(duration: 1).repeatForever(autoreverses: false) : .default, value: vm.isLoading)
+                            Text("Làm mới")
+                                .font(.system(size: 11.5, weight: .medium))
+                        }
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 5)
+                        .background(ThemeColor.cardBackground(for: colorScheme))
+                        .clipShape(Capsule())
+                        .overlay(
+                            Capsule().stroke(ThemeColor.cardBorder(for: colorScheme), lineWidth: 0.8)
+                        )
+                        .foregroundColor(ThemeColor.textSecondary(for: colorScheme))
+                    }
+                    .buttonStyle(.plain)
+                    .help("Làm mới danh sách video")
                 }
                 .padding(.horizontal, 24)
                 
                 // 4. Content Area: Empty State vs Video Grid
-                if vm.selectedTag == "🔔 Đang theo dõi" && subManager.subscribedChannels.isEmpty {
+                if vm.selectedTag == followingTag && subManager.subscribedChannels.isEmpty {
                     // Empty state for Following tab
                     VStack(spacing: 18) {
                         ZStack {
@@ -356,11 +536,11 @@ public struct HomeView: View {
                                     HStack(spacing: 12) {
                                         ZStack {
                                             Circle()
-                                                .fill(LinearGradient(colors: [Color.cyan.opacity(0.3), Color.blue.opacity(0.3)], startPoint: .topLeading, endPoint: .bottomTrailing))
+                                                .fill(colorScheme == .dark ? Color(white: 0.2) : Color(white: 0.88))
                                                 .frame(width: 44, height: 44)
                                             Text(String(rec.title.prefix(1)).uppercased())
                                                 .font(.system(size: 16, weight: .bold))
-                                                .foregroundColor(.white)
+                                                .foregroundColor(ThemeColor.textPrimary(for: colorScheme))
                                         }
                                         
                                         VStack(alignment: .leading, spacing: 2) {
@@ -410,7 +590,7 @@ public struct HomeView: View {
                 } else {
                     // Video Grid display
                     let currentList: [Video] = {
-                        if vm.selectedTag == "🔔 Đang theo dõi" {
+                        if vm.selectedTag == followingTag {
                             if vm.selectedChannel != nil {
                                 return vm.channelVideos
                             } else {
@@ -422,7 +602,7 @@ public struct HomeView: View {
                     }()
                     
                     let isCurrentLoading: Bool = {
-                        if vm.selectedTag == "🔔 Đang theo dõi" {
+                        if vm.selectedTag == followingTag {
                             if vm.selectedChannel != nil {
                                 return vm.isChannelLoading
                             } else {
@@ -468,16 +648,30 @@ public struct HomeView: View {
                         }
                         .frame(maxWidth: .infinity, minHeight: 240)
                     } else {
-                        let regularVideos = currentList.filter { !$0.isShort }
-                        let shortVideos = currentList.filter { $0.isShort }
+                        let regularVideos: [Video] = {
+                            if vm.selectedTag == followingTag {
+                                return (vm.selectedChannel != nil) ? vm.channelRegularVideos : subManager.feedVideos.filter { !$0.isShort }
+                            } else {
+                                return vm.regularVideos
+                            }
+                        }()
+                        let shortVideos: [Video] = {
+                            if vm.selectedTag == followingTag {
+                                return (vm.selectedChannel != nil) ? vm.channelShortVideos : subManager.feedVideos.filter { $0.isShort }
+                            } else {
+                                return vm.shortVideos
+                            }
+                        }()
                         
                         if shortVideos.isEmpty {
                             // Only regular 16:9 videos
                             LazyVGrid(columns: columns, alignment: .leading, spacing: 28) {
                                 ForEach(regularVideos) { video in
-                                    VideoCardView(video: video) {
-                                        onSelectVideo(video)
-                                    }
+                                    VideoCardView(
+                                        video: video,
+                                        onSelect: { onSelectVideo(video) },
+                                        onSelectChannel: onSelectChannel
+                                    )
                                 }
                             }
                             .padding(.horizontal, 24)
@@ -505,9 +699,11 @@ public struct HomeView: View {
                                 // 1. Top regular videos (16:9 grid)
                                 LazyVGrid(columns: columns, alignment: .leading, spacing: 28) {
                                     ForEach(topVideos) { video in
-                                        VideoCardView(video: video) {
-                                            onSelectVideo(video)
-                                        }
+                                        VideoCardView(
+                                            video: video,
+                                            onSelect: { onSelectVideo(video) },
+                                            onSelectChannel: onSelectChannel
+                                        )
                                     }
                                 }
                                 .padding(.horizontal, 24)
@@ -522,9 +718,11 @@ public struct HomeView: View {
                                 if !remainingVideos.isEmpty {
                                     LazyVGrid(columns: columns, alignment: .leading, spacing: 28) {
                                         ForEach(remainingVideos) { video in
-                                            VideoCardView(video: video) {
-                                                onSelectVideo(video)
-                                            }
+                                            VideoCardView(
+                                                video: video,
+                                                onSelect: { onSelectVideo(video) },
+                                                onSelectChannel: onSelectChannel
+                                            )
                                         }
                                     }
                                     .padding(.horizontal, 24)
@@ -545,7 +743,7 @@ public struct HomeView: View {
         vm.selectedTag = tag
         vm.selectedChannel = nil
         
-        if tag == "🔔 Đang theo dõi" {
+        if tag == followingTag {
             Task {
                 await subManager.fetchFeed()
             }
@@ -554,9 +752,9 @@ public struct HomeView: View {
         
         Task {
             vm.isLoading = true
-            if tag == "Tất cả" {
+            if tag == allTag {
                 vm.videos = await RecommendationService.shared.fetchRecommendations()
-            } else if tag == "🔥 Thịnh hành" {
+            } else if tag == trendingTag {
                 let feed = await RecommendationService.shared.fetchVietnamTrendingFeed(forceRefresh: true)
                 vm.videos = feed.isEmpty ? await RecommendationService.shared.fetchRecommendations() : feed
             } else if RecommendationService.shared.isVietnamCategory(tag) {
@@ -592,11 +790,18 @@ public struct HomeView: View {
     }
     
     private func loadInitial() async {
-        vm.isLoading = true
-        let feed = await RecommendationService.shared.fetchVietnamTrendingFeed(forceRefresh: true)
+        let cached = RecommendationService.shared.getCachedTrending()
+        if !cached.isEmpty {
+            vm.videos = cached
+            vm.isLoading = false
+        } else {
+            vm.isLoading = true
+        }
+        
+        let feed = await RecommendationService.shared.fetchVietnamTrendingFeed(forceRefresh: cached.isEmpty)
         if !feed.isEmpty {
             vm.videos = feed
-        } else {
+        } else if vm.videos.isEmpty {
             vm.videos = await RecommendationService.shared.fetchRecommendations()
         }
         vm.isLoading = false
@@ -611,13 +816,14 @@ public struct HomeView: View {
 public struct VideoCardView: View {
     let video: Video
     let onSelect: () -> Void
+    var onSelectChannel: ((ChannelInfo) -> Void)? = nil
     @Environment(\.colorScheme) private var colorScheme
     @State private var isHovered = false
     
     public var body: some View {
-        Button(action: onSelect) {
-            VStack(alignment: .leading, spacing: 12) {
-                // Thumbnail Wrap
+        VStack(alignment: .leading, spacing: 12) {
+            // Thumbnail Wrap (Clicking thumbnail plays video)
+            Button(action: onSelect) {
                 ZStack(alignment: .bottomTrailing) {
                     Color.clear
                         .aspectRatio(16/9, contentMode: .fit)
@@ -628,25 +834,36 @@ public struct VideoCardView: View {
                                 placeholderColor: colorScheme == .dark ? Color(white: 0.12) : Color(white: 0.88)
                             )
                         )
+                        .overlay(
+                            Group {
+                                if let ratio = PlayerManager.shared.watchProgressRatio(for: video.id) {
+                                    VStack(spacing: 0) {
+                                        Spacer()
+                                        GeometryReader { geo in
+                                            ZStack(alignment: .leading) {
+                                                Rectangle()
+                                                    .fill(Color.black.opacity(0.6))
+                                                    .frame(height: 3.5)
+                                                Rectangle()
+                                                    .fill(Color.red)
+                                                    .frame(width: max(0, min(geo.size.width, geo.size.width * CGFloat(ratio))), height: 3.5)
+                                            }
+                                        }
+                                        .frame(height: 3.5)
+                                    }
+                                }
+                            }
+                        )
                         .clipped()
                         .clipShape(RoundedRectangle(cornerRadius: 11, style: .continuous))
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 11, style: .continuous)
-                            .strokeBorder(
-                                LinearGradient(
-                                    colors: [
-                                        (colorScheme == .dark ? Color.white : Color.black).opacity(isHovered ? 0.22 : 0.10),
-                                        (colorScheme == .dark ? Color.white : Color.black).opacity(isHovered ? 0.08 : 0.02)
-                                    ],
-                                    startPoint: .top,
-                                    endPoint: .bottom
-                                ),
-                                lineWidth: 0.75
-                            )
-                    )
-                    .shadow(color: (colorScheme == .dark ? Color.black : Color.black.opacity(0.12)).opacity(isHovered ? 0.35 : 0.15), radius: isHovered ? 10 : 5, y: isHovered ? 4 : 2)
-                    .scaleEffect(isHovered ? 1.015 : 1.0)
-                    .animation(.easeOut(duration: 0.15), value: isHovered)
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 11, style: .continuous)
+                                .strokeBorder(
+                                    (colorScheme == .dark ? Color.white : Color.black).opacity(isHovered ? 0.30 : 0.08),
+                                    lineWidth: 0.75
+                                )
+                        )
+                        .shadow(color: Color.black.opacity(colorScheme == .dark ? 0.25 : 0.08), radius: 4, y: 2)
                     
                     Text(video.durationFormatted)
                         .font(.system(size: 11.5, weight: .medium))
@@ -657,10 +874,20 @@ public struct VideoCardView: View {
                         .foregroundColor(.white)
                         .padding(6)
                 }
-                
-                // Card Details
-                HStack(alignment: .top, spacing: 12) {
-                    // Channel Avatar
+            }
+            .buttonStyle(.plain)
+            
+            // Card Details
+            HStack(alignment: .top, spacing: 12) {
+                // Channel Avatar (Clicking opens channel)
+                Button(action: {
+                    let ch = ChannelInfo(
+                        id: video.uploaderId ?? "",
+                        title: video.uploader,
+                        avatarUrl: video.channelAvatarUrl ?? ""
+                    )
+                    onSelectChannel?(ch)
+                }) {
                     if let avatar = video.channelAvatarUrl, !avatar.isEmpty {
                         CachedAsyncThumbnail(
                             url: avatar,
@@ -687,8 +914,13 @@ public struct VideoCardView: View {
                                 .foregroundColor(ThemeColor.textPrimary(for: colorScheme))
                         }
                     }
-                    
-                    VStack(alignment: .leading, spacing: 3) {
+                }
+                .buttonStyle(.plain)
+                .help("Xem kênh \(video.uploader)")
+                
+                VStack(alignment: .leading, spacing: 3) {
+                    // Title (Clicking plays video)
+                    Button(action: onSelect) {
                         Text(video.title)
                             .font(.system(size: 14, weight: .semibold))
                             .foregroundColor(ThemeColor.textPrimary(for: colorScheme))
@@ -696,23 +928,35 @@ public struct VideoCardView: View {
                             .multilineTextAlignment(.leading)
                             .lineSpacing(2)
                             .frame(height: 38, alignment: .topLeading)
-                        
+                    }
+                    .buttonStyle(.plain)
+                    
+                    // Uploader Name (Clicking opens channel)
+                    Button(action: {
+                        let ch = ChannelInfo(
+                            id: video.uploaderId ?? "",
+                            title: video.uploader,
+                            avatarUrl: video.channelAvatarUrl ?? ""
+                        )
+                        onSelectChannel?(ch)
+                    }) {
                         Text(video.uploader)
                             .font(.system(size: 12.5))
                             .foregroundColor(ThemeColor.textSecondary(for: colorScheme))
                             .lineLimit(1)
-                        
-                        Text(!video.metadataFormatted.isEmpty ? video.metadataFormatted : " ")
-                            .font(.system(size: 12))
-                            .foregroundColor(video.metadataFormatted.isEmpty ? .clear : ThemeColor.textTertiary(for: colorScheme))
-                            .lineLimit(1)
                     }
-                    .frame(maxWidth: .infinity, alignment: .topLeading)
-                    Spacer(minLength: 0)
+                    .buttonStyle(.plain)
+                    .help("Xem kênh \(video.uploader)")
+                    
+                    Text(!video.metadataFormatted.isEmpty ? video.metadataFormatted : " ")
+                        .font(.system(size: 12))
+                        .foregroundColor(video.metadataFormatted.isEmpty ? .clear : ThemeColor.textTertiary(for: colorScheme))
+                        .lineLimit(1)
                 }
+                .frame(maxWidth: .infinity, alignment: .topLeading)
+                Spacer(minLength: 0)
             }
         }
-        .buttonStyle(.plain)
         .onHover { isHovered = $0 }
     }
 }

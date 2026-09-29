@@ -18,6 +18,8 @@ app.userAgentFallback = CHROME_UA;
 
 // Always allow seamless instant video autoplay without requiring prior manual click
 app.commandLine.appendSwitch('autoplay-policy', 'no-user-gesture-required');
+app.commandLine.appendSwitch('enable-gpu-rasterization');
+app.commandLine.appendSwitch('enable-zero-copy');
 
 // Ensure Homebrew and system tools (yt-dlp, ffmpeg, node) are in PATH
 const defaultPaths = ['/opt/homebrew/bin', '/usr/local/bin', '/usr/bin', '/bin'];

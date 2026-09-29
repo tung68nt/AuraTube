@@ -15,6 +15,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const forwardBtn = document.getElementById('forwardBtn');
   const volumeBtn = document.getElementById('volumeBtn');
   const timeDisplay = document.getElementById('timeDisplay');
+  const miniSpeedSelect = document.getElementById('miniSpeedSelect');
 
   const seekContainer = document.getElementById('seekContainer');
   const seekProgress = document.getElementById('seekProgress');
@@ -343,8 +344,34 @@ document.addEventListener('DOMContentLoaded', () => {
       if (video.duration) {
         video.currentTime = Math.min(video.duration, video.currentTime + 10);
       }
+    } else if (e.key === '>' || (e.shiftKey && (e.key === '.' || e.code === 'Period')) || e.key === ']') {
+      if (miniSpeedSelect) {
+        const rates = [0.25, 0.5, 0.75, 1, 1.25, 1.5, 1.75, 2];
+        const cur = parseFloat(miniSpeedSelect.value) || 1.0;
+        const next = rates.find(r => r > cur + 0.01) || cur;
+        miniSpeedSelect.value = String(next);
+        miniSpeedSelect.dispatchEvent(new Event('change'));
+      }
+    } else if (e.key === '<' || (e.shiftKey && (e.key === ',' || e.code === 'Comma')) || e.key === '[') {
+      if (miniSpeedSelect) {
+        const rates = [0.25, 0.5, 0.75, 1, 1.25, 1.5, 1.75, 2];
+        const cur = parseFloat(miniSpeedSelect.value) || 1.0;
+        const prev = [...rates].reverse().find(r => r < cur - 0.01) || cur;
+        miniSpeedSelect.value = String(prev);
+        miniSpeedSelect.dispatchEvent(new Event('change'));
+      }
     }
   });
+
+  if (miniSpeedSelect) {
+    miniSpeedSelect.addEventListener('change', (e) => {
+      const rate = parseFloat(e.target.value) || 1.0;
+      video.playbackRate = rate;
+      if (window.miniAPI && window.miniAPI.sendControl) {
+        window.miniAPI.sendControl('setPlaybackRate', rate);
+      }
+    });
+  }
 
   // Subscribe Button
   subscribeBtn.addEventListener('click', () => {
@@ -769,6 +796,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
       updatePlayIcons(!media.paused);
       updateVolumeUI(Boolean(media.muted));
+
+      if (typeof media.playbackRate === 'number' && media.playbackRate > 0) {
+        video.playbackRate = media.playbackRate;
+        if (miniSpeedSelect) {
+          miniSpeedSelect.value = String(media.playbackRate);
+        }
+      }
 
       if (media.duration && media.duration > 0) {
         const progress = ((media.currentTime || 0) / media.duration) * 100;

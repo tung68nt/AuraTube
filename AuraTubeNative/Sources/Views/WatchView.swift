@@ -14,16 +14,23 @@ public struct WatchView: View {
     let video: Video
     var onBack: () -> Void
     var onSelectRelated: (Video) -> Void
+    var onSelectChannel: ((ChannelInfo) -> Void)? = nil
     
     @ObservedObject private var playerManager = PlayerManager.shared
     @ObservedObject private var subManager = ChannelSubscriptionManager.shared
     @StateObject private var vm = WatchViewModel()
     @Environment(\.colorScheme) private var colorScheme
     
-    public init(video: Video, onBack: @escaping () -> Void, onSelectRelated: @escaping (Video) -> Void) {
+    public init(
+        video: Video,
+        onBack: @escaping () -> Void,
+        onSelectRelated: @escaping (Video) -> Void,
+        onSelectChannel: ((ChannelInfo) -> Void)? = nil
+    ) {
         self.video = video
         self.onBack = onBack
         self.onSelectRelated = onSelectRelated
+        self.onSelectChannel = onSelectChannel
     }
     
     private var displayVideo: Video {
@@ -106,35 +113,54 @@ public struct WatchView: View {
                         
                         // Action Bar: Uploader + Buttons
                         HStack(alignment: .center, spacing: 16) {
-                            // Uploader info
                             HStack(spacing: 12) {
-                                if let avatarUrl = displayVideo.channelAvatarUrl, !avatarUrl.isEmpty {
-                                    CachedAsyncThumbnail(url: avatarUrl, maxPixelSize: 84, placeholderColor: Color(white: 0.2))
-                                    .frame(width: 42, height: 42)
-                                    .clipShape(Circle())
-                                    .overlay(Circle().stroke(ThemeColor.divider(for: colorScheme), lineWidth: 1))
-                                } else {
-                                    ZStack {
-                                        Circle()
-                                            .fill(LinearGradient(colors: colorScheme == .dark ? [Color(white: 0.15), Color(white: 0.25)] : [Color(white: 0.82), Color(white: 0.92)], startPoint: .topLeading, endPoint: .bottomTrailing))
-                                            .frame(width: 42, height: 42)
-                                            .overlay(Circle().stroke(ThemeColor.divider(for: colorScheme), lineWidth: 1))
-                                        Text(String(displayVideo.uploader.prefix(1)).uppercased())
-                                            .font(.system(size: 16, weight: .bold))
-                                            .foregroundColor(ThemeColor.textPrimary(for: colorScheme))
+                                // Uploader info (Clicking opens Channel View)
+                            Button(action: {
+                                let ch = ChannelInfo(
+                                    id: displayVideo.uploaderId ?? "",
+                                    title: displayVideo.uploader,
+                                    avatarUrl: displayVideo.channelAvatarUrl ?? ""
+                                )
+                                onSelectChannel?(ch)
+                            }) {
+                                HStack(spacing: 12) {
+                                    if let avatarUrl = displayVideo.channelAvatarUrl, !avatarUrl.isEmpty {
+                                        CachedAsyncThumbnail(url: avatarUrl, maxPixelSize: 84, placeholderColor: Color(white: 0.2))
+                                        .frame(width: 42, height: 42)
+                                        .clipShape(Circle())
+                                        .overlay(Circle().stroke(ThemeColor.divider(for: colorScheme), lineWidth: 1))
+                                    } else {
+                                        ZStack {
+                                            Circle()
+                                                .fill(LinearGradient(colors: colorScheme == .dark ? [Color(white: 0.15), Color(white: 0.25)] : [Color(white: 0.82), Color(white: 0.92)], startPoint: .topLeading, endPoint: .bottomTrailing))
+                                                .frame(width: 42, height: 42)
+                                                .overlay(Circle().stroke(ThemeColor.divider(for: colorScheme), lineWidth: 1))
+                                            Text(String(displayVideo.uploader.prefix(1)).uppercased())
+                                                .font(.system(size: 16, weight: .bold))
+                                                .foregroundColor(ThemeColor.textPrimary(for: colorScheme))
+                                        }
+                                    }
+                                    
+                                    VStack(alignment: .leading, spacing: 2) {
+                                        HStack(spacing: 4) {
+                                            Text(displayVideo.uploader)
+                                                .font(.system(size: 15, weight: .semibold))
+                                                .foregroundColor(ThemeColor.textPrimary(for: colorScheme))
+                                                .lineLimit(1)
+                                            Image(systemName: "chevron.right")
+                                                .font(.system(size: 9.5, weight: .bold))
+                                                .foregroundColor(ThemeColor.textTertiary(for: colorScheme))
+                                        }
+                                        Text(displayVideo.metadataFormatted.isEmpty ? "Xem kênh" : displayVideo.metadataFormatted)
+                                            .font(.system(size: 12.5))
+                                            .foregroundColor(ThemeColor.textSecondary(for: colorScheme))
+                                            .lineLimit(1)
                                     }
                                 }
-                                
-                                VStack(alignment: .leading, spacing: 2) {
-                                    Text(displayVideo.uploader)
-                                        .font(.system(size: 15, weight: .semibold))
-                                        .foregroundColor(ThemeColor.textPrimary(for: colorScheme))
-                                        .lineLimit(1)
-                                    Text(displayVideo.metadataFormatted.isEmpty ? "YouTube" : displayVideo.metadataFormatted)
-                                        .font(.system(size: 12.5))
-                                        .foregroundColor(ThemeColor.textSecondary(for: colorScheme))
-                                        .lineLimit(1)
-                                }
+                                .contentShape(Rectangle())
+                            }
+                            .buttonStyle(.plain)
+                            .help("Xem toàn bộ video của kênh \(displayVideo.uploader)")
                                 
                                 // Subscribe Button (Persisted via ChannelSubscriptionManager without login)
                                 let isSub = ChannelSubscriptionManager.shared.isSubscribed(displayVideo.uploader)
@@ -174,7 +200,7 @@ public struct WatchView: View {
                             // Action Group Buttons with Liquid Glass
                             HStack(spacing: 7) {
                                 // 1. Share Button
-                                LiquidGlassCapsuleButton(action: copyShareLink) {
+                                LiquidGlassCapsuleButton(action: { copyShareLink(includeTimestamp: false) }) {
                                     HStack(spacing: 5) {
                                         Image(systemName: "arrowshape.turn.up.right.fill")
                                             .font(.system(size: 11.5))
@@ -187,6 +213,33 @@ public struct WatchView: View {
                                     .frame(height: 32)
                                     .foregroundColor(ThemeColor.textPrimary(for: colorScheme))
                                 }
+                                .contextMenu {
+                                    Button {
+                                        copyShareLink(includeTimestamp: false)
+                                    } label: {
+                                        Label("Sao chép liên kết video", systemImage: "link")
+                                    }
+                                    Button {
+                                        copyShareLink(includeTimestamp: true)
+                                    } label: {
+                                        let ts = playerManager.currentTime
+                                        let m = Int(ts) / 60
+                                        let s = Int(ts) % 60
+                                        Label(String(format: "Sao chép tại %02d:%02d", m, s), systemImage: "clock")
+                                    }
+                                    Button {
+                                        copyEmbedCode()
+                                    } label: {
+                                        Label("Sao chép mã nhúng (Embed)", systemImage: "chevron.left.forwardslash.chevron.right")
+                                    }
+                                    Divider()
+                                    Button {
+                                        openInBrowser()
+                                    } label: {
+                                        Label("Mở trên YouTube (Trình duyệt)", systemImage: "safari")
+                                    }
+                                }
+                                .help("Sao chép liên kết (Nhấp chuột phải để xem thêm tùy chọn)")
                                 
                                 // 2. Download Button
                                 LiquidGlassCapsuleButton(action: { vm.showDownloadSheet = true }) {
@@ -546,6 +599,23 @@ public struct WatchView: View {
                                                 )
                                         )
                                         
+                                        if let ratio = playerManager.watchProgressRatio(for: item.id) {
+                                            VStack(spacing: 0) {
+                                                Spacer()
+                                                ZStack(alignment: .leading) {
+                                                    Rectangle()
+                                                        .fill(Color.black.opacity(0.6))
+                                                        .frame(height: 3)
+                                                    Rectangle()
+                                                        .fill(Color.red)
+                                                        .frame(width: max(0, min(156, 156 * CGFloat(ratio))), height: 3)
+                                                }
+                                            }
+                                            .frame(width: 156, height: 88)
+                                            .cornerRadius(10)
+                                            .allowsHitTesting(false)
+                                        }
+                                        
                                         HStack(spacing: 3) {
                                             if item.isShort {
                                                 Image(systemName: "play.square.stack.fill")
@@ -572,6 +642,14 @@ public struct WatchView: View {
                                         Text(item.uploader)
                                             .font(.system(size: 12))
                                             .foregroundColor(ThemeColor.textSecondary(for: colorScheme))
+                                            .onTapGesture {
+                                                let ch = ChannelInfo(
+                                                    id: item.uploaderId ?? "",
+                                                    title: item.uploader,
+                                                    avatarUrl: item.channelAvatarUrl ?? ""
+                                                )
+                                                onSelectChannel?(ch)
+                                            }
                                         if !item.metadataFormatted.isEmpty {
                                             Text(item.metadataFormatted)
                                                 .font(.system(size: 11.5))
@@ -605,8 +683,8 @@ public struct WatchView: View {
             }
         }
         .task(id: displayVideo.id) {
-            // Load related videos
-            let related = await YTDLPService.shared.searchVideos(query: displayVideo.uploader)
+            // Load intelligent personalized related videos (InnerTube + user affinity)
+            let related = await RecommendationService.shared.fetchRelatedVideos(for: displayVideo)
             vm.relatedVideos = related
             if let firstNext = related.first(where: { $0.id != displayVideo.id }) {
                 playerManager.nextVideo = firstNext
@@ -614,10 +692,31 @@ public struct WatchView: View {
         }
     }
 
-    private func copyShareLink() {
-        let url = "https://www.youtube.com/watch?v=\(displayVideo.id)"
+    private func copyShareLink(includeTimestamp: Bool = false) {
+        let ts: Double? = includeTimestamp ? playerManager.currentTime : nil
+        let url = YouTubeURLParser.makeShareURL(videoId: displayVideo.id, timestamp: ts)
         NSPasteboard.general.clearContents()
         NSPasteboard.general.setString(url, forType: .string)
+        if includeTimestamp, let t = ts, t > 1.0 {
+            let m = Int(t) / 60
+            let s = Int(t) % 60
+            PlayerManager.shared.flashHUD(icon: "clock.badge.checkmark.fill", text: String(format: "Đã sao chép link tại %02d:%02d 📋", m, s))
+        } else {
+            PlayerManager.shared.flashHUD(icon: "link", text: "Đã sao chép link video 📋")
+        }
+    }
+    
+    private func copyEmbedCode() {
+        let embed = "<iframe width=\"560\" height=\"315\" src=\"https://www.youtube.com/embed/\(displayVideo.id)\" title=\"YouTube video player\" frameborder=\"0\" allow=\"accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture\" allowfullscreen></iframe>"
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString(embed, forType: .string)
+        PlayerManager.shared.flashHUD(icon: "chevron.left.forwardslash.chevron.right", text: "Đã sao chép mã nhúng (Embed) 📋")
+    }
+    
+    private func openInBrowser() {
+        if let url = URL(string: "https://www.youtube.com/watch?v=\(displayVideo.id)") {
+            NSWorkspace.shared.open(url)
+        }
     }
 }
 
@@ -804,6 +903,52 @@ final class WatchPlayerViewModel: ObservableObject {
                 pm.togglePictureInPicture()
                 return nil
                 
+            case 15: // R: Reload Current Video (when buffering/lagging)
+                pm.reloadCurrentVideo()
+                Task { @MainActor in
+                    self.wakeControls()
+                    self.flashFeedback(icon: "arrow.clockwise", text: "Đang tải lại video...")
+                }
+                return nil
+                
+            case 47: // Period (.): If Shift is held ('>'), increase playback speed
+                if event.modifierFlags.contains(.shift) {
+                    pm.increasePlaybackRate()
+                    Task { @MainActor in
+                        self.wakeControls()
+                        self.flashFeedback(icon: "speedometer", text: "Tốc độ: \(pm.displayPlaybackRate)")
+                    }
+                    return nil
+                }
+                return event
+                
+            case 43: // Comma (,): If Shift is held ('<'), decrease playback speed
+                if event.modifierFlags.contains(.shift) {
+                    pm.decreasePlaybackRate()
+                    Task { @MainActor in
+                        self.wakeControls()
+                        self.flashFeedback(icon: "speedometer", text: "Tốc độ: \(pm.displayPlaybackRate)")
+                    }
+                    return nil
+                }
+                return event
+                
+            case 30: // Right Bracket (]): Increase playback speed
+                pm.increasePlaybackRate()
+                Task { @MainActor in
+                    self.wakeControls()
+                    self.flashFeedback(icon: "speedometer", text: "Tốc độ: \(pm.displayPlaybackRate)")
+                }
+                return nil
+                
+            case 33: // Left Bracket ([): Decrease playback speed
+                pm.decreasePlaybackRate()
+                Task { @MainActor in
+                    self.wakeControls()
+                    self.flashFeedback(icon: "speedometer", text: "Tốc độ: \(pm.displayPlaybackRate)")
+                }
+                return nil
+                
             case 29: pm.seek(to: 0); return nil // 0
             case 18: pm.seek(to: pm.duration * 0.1); return nil // 1
             case 19: pm.seek(to: pm.duration * 0.2); return nil // 2
@@ -861,6 +1006,33 @@ final class WatchPlayerViewModel: ObservableObject {
     }
 }
 
+// MARK: - Screen Frame Tracker ensuring PiP transition always targets the exact player position
+struct PlayerScreenFrameTracker: NSViewRepresentable {
+    func makeNSView(context: Context) -> TrackerView {
+        TrackerView()
+    }
+    func updateNSView(_ nsView: TrackerView, context: Context) {
+        nsView.reportFrame()
+    }
+    final class TrackerView: NSView {
+        override func layout() {
+            super.layout()
+            reportFrame()
+        }
+        override func viewDidMoveToWindow() {
+            super.viewDidMoveToWindow()
+            reportFrame()
+        }
+        func reportFrame() {
+            guard let win = window, !(win is NSPanel), bounds.width > 150, bounds.height > 80 else { return }
+            let rect = win.convertToScreen(convert(bounds, to: nil))
+            if rect.width > 150 && rect.height > 80 {
+                PiPWindowController.shared.mainPlayerScreenFrame = rect
+            }
+        }
+    }
+}
+
 @MainActor
 struct WatchPlayerContainerView: View {
     let displayVideo: Video
@@ -903,6 +1075,7 @@ struct WatchPlayerContainerView: View {
                     .transition(.opacity)
             }
         }
+        .background(PlayerScreenFrameTracker())
         .frame(maxWidth: .infinity)
         .onHover { isHovered in
             vm.isMouseOverPlayer = isHovered
@@ -977,21 +1150,22 @@ struct WatchPlayerContainerView: View {
             .allowsHitTesting(false)
             
             // 4. Centered PiP Status & Action
+            let isHiddenAudio = PiPWindowController.shared.isPiPHiddenKeepAudio
             VStack(spacing: 12) {
                 ZStack {
                     Circle()
-                        .fill(Color.white.opacity(0.12))
+                        .fill(isHiddenAudio ? Color.blue.opacity(0.25) : Color.white.opacity(0.12))
                         .frame(width: 60, height: 60)
-                    Image(systemName: "pip")
+                    Image(systemName: isHiddenAudio ? "headphones" : "pip")
                         .font(.system(size: 26, weight: .semibold))
                         .foregroundColor(.white)
                 }
                 
-                Text("Video đang phát ở chế độ Picture-in-Picture")
+                Text(isHiddenAudio ? "Đang phát âm thanh trong nền (PiP đã ẩn)" : "Video đang phát ở chế độ Picture-in-Picture")
                     .font(.system(size: 15, weight: .semibold))
                     .foregroundColor(.white)
                 
-                Text("Cửa sổ nổi đang hiển thị trên màn hình của bạn")
+                Text(isHiddenAudio ? "Nhạc vẫn đang tiếp tục phát. Bấm nút dưới để đưa video về cửa sổ này" : "Cửa sổ nổi đang hiển thị trên màn hình của bạn")
                     .font(.system(size: 12.5))
                     .foregroundColor(.white.opacity(0.70))
                 
@@ -1267,10 +1441,44 @@ struct WatchPlayerContainerView: View {
         .allowsHitTesting(false)
     }
     
-    // MARK: - Center Play / Pause Indicator (Synchronized with Timeline)
+    // MARK: - Center Play / Pause & Buffering Recovery Indicator
     private var centerPlayPauseOverlay: some View {
         Group {
-            if !playerManager.isPlaying {
+            if playerManager.isBuffering {
+                VStack(spacing: 10) {
+                    ProgressView()
+                        .controlSize(.regular)
+                        .colorScheme(.dark)
+                    
+                    Button(action: {
+                        playerManager.reloadCurrentVideo()
+                    }) {
+                        HStack(spacing: 5) {
+                            Image(systemName: "arrow.clockwise")
+                                .font(.system(size: 11, weight: .bold))
+                            Text("Tải lại video")
+                                .font(.system(size: 11.5, weight: .semibold))
+                        }
+                        .foregroundColor(.white)
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 6)
+                        .background(Color.black.opacity(0.68))
+                        .clipShape(Capsule())
+                        .overlay(
+                            Capsule().strokeBorder(Color.white.opacity(0.25), lineWidth: 0.8)
+                        )
+                    }
+                    .buttonStyle(.plain)
+                    .help("Bấm để làm mới luồng video khi mạng chập chờn (R)")
+                }
+                .padding(14)
+                .background(
+                    RoundedRectangle(cornerRadius: 14, style: .continuous)
+                        .fill(Color.black.opacity(0.55))
+                )
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
+                .transition(.opacity)
+            } else if !playerManager.isPlaying {
                 Button(action: {
                     playerManager.togglePlayPause()
                 }) {

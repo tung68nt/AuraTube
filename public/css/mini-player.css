@@ -408,6 +408,31 @@ body {
   color: #dddddd;
   margin-left: 6px;
   font-weight: 500;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.yt-controls-right {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.yt-speed-select {
+  font-size: 10px;
+  font-weight: 600;
+  background: rgba(255, 255, 255, 0.20);
+  border: none;
+  outline: none;
+  padding: 2px 4px;
+  border-radius: 4px;
+  color: #fff;
+  cursor: pointer;
+}
+
+.yt-speed-select option {
+  background: #222;
+  color: #fff;
 }
 
 .yt-quality-badge {

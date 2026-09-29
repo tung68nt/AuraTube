@@ -169,11 +169,16 @@ async function getBestStreamUrl(videoId, quality = '1080', forceRefresh = false)
       formatFilter = '18/bestvideo[height<=360][protocol=https]+bestaudio[protocol=https]/bestvideo[height<=360]+bestaudio/best[height<=360]/best';
       runArgs = INFO_YTDLP_ARGS;
       isSeparate = true;
+    } else if (quality === 'shorts') {
+      // YouTube Shorts: Fast 720p vertical stream (height <= 1280), preferring hardware-accelerated H.264 (avc1/mp4) + AAC (m4a)
+      formatFilter = 'bestvideo[height<=1280][ext=mp4][vcodec^=avc1]+bestaudio[ext=m4a]/bestvideo[height<=1280][ext=mp4]+bestaudio[ext=m4a]/bestvideo[height<=1280]+bestaudio/best';
+      runArgs = INFO_YTDLP_ARGS;
+      isSeparate = true;
     } else {
       // Full authentic quality (2160p 4K, 1440p 2K, 1080p, 720p, 480p, 360p, 240p, 144p):
-      // Extracts pure direct Google Video bitstream with zero compression
+      // Prioritize hardware-accelerated AVC1/MP4 + M4A, falling back to VP9/AV1
       const targetHeight = parseInt(quality, 10) || 1080;
-      formatFilter = `bestvideo[height<=${targetHeight}][protocol=https]+bestaudio[protocol=https]/bestvideo[height<=${targetHeight}]+bestaudio/18/best`;
+      formatFilter = `bestvideo[height<=${targetHeight}][ext=mp4][vcodec^=avc1][protocol=https]+bestaudio[ext=m4a][protocol=https]/bestvideo[height<=${targetHeight}][protocol=https]+bestaudio[protocol=https]/bestvideo[height<=${targetHeight}]+bestaudio/18/best`;
       runArgs = INFO_YTDLP_ARGS;
       isSeparate = true;
     }

@@ -24,6 +24,9 @@ public final class ScrollForwardingWKWebView: WKWebView {
         self.nextResponder?.scrollWheel(with: event)
     }
     
+    public static var isTransitioning: Bool = false
+    private var relayoutWorkItem: DispatchWorkItem?
+    
     public override func viewDidMoveToWindow() {
         super.viewDidMoveToWindow()
         if let win = window {
@@ -39,23 +42,25 @@ public final class ScrollForwardingWKWebView: WKWebView {
             }
         }
         needsLayout = true
-        triggerRelayout()
+        if !Self.isTransitioning {
+            triggerRelayout()
+        }
     }
-    
-    private var relayoutWorkItem: DispatchWorkItem?
     
     public override func setFrameSize(_ newSize: NSSize) {
         super.setFrameSize(newSize)
         if let win = window {
             self.layer?.contentsScale = win.backingScaleFactor
         }
-        // Debounce relayout to avoid flooding WebKit with 120 JS evaluations per second during live resize
+        if Self.isTransitioning {
+            return
+        }
         relayoutWorkItem?.cancel()
         let item = DispatchWorkItem { [weak self] in
             self?.triggerRelayout()
         }
         relayoutWorkItem = item
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.08, execute: item)
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.05, execute: item)
     }
     
     public func triggerRelayout() {
@@ -102,27 +107,36 @@ public final class WebPlayerHostingView: NSView {
         webView.autoresizingMask = [.width, .height]
         webView.translatesAutoresizingMaskIntoConstraints = true
         
+        let targetFrame: NSRect
         if bounds.width > 0 && bounds.height > 0 {
-            webView.frame = bounds
-            webView.isHidden = false
-            if let win = window {
-                webView.layer?.contentsScale = win.backingScaleFactor
-            }
+            targetFrame = bounds
+        } else if let s = superview, s.bounds.width > 0 && s.bounds.height > 0 {
+            targetFrame = s.bounds
         } else {
-            // Hide temporarily until real layout bounds are determined to prevent showing small PiP frame snapshot
-            webView.isHidden = true
+            targetFrame = webView.frame
+        }
+        
+        if targetFrame.width > 0 && targetFrame.height > 0 {
+            if webView.frame != targetFrame {
+                webView.frame = targetFrame
+            }
+        }
+        webView.isHidden = false
+        
+        if let win = window {
+            webView.layer?.contentsScale = win.backingScaleFactor
         }
         
         needsLayout = true
         layoutSubtreeIfNeeded()
         
         if bounds.width > 0 && bounds.height > 0 {
-            webView.frame = bounds
-            webView.isHidden = false
-        }
-        
-        if let wv = webView as? ScrollForwardingWKWebView {
-            wv.triggerRelayout()
+            if webView.frame != bounds {
+                webView.frame = bounds
+            }
+            if !ScrollForwardingWKWebView.isTransitioning, let wv = webView as? ScrollForwardingWKWebView {
+                wv.triggerRelayout()
+            }
         }
     }
     
@@ -134,6 +148,14 @@ public final class WebPlayerHostingView: NSView {
                 wv.frame = bounds
             }
             wv.isHidden = false
+            
+            // Record screen frame if this hosting view is in the main window
+            if let win = window, !(win is NSPanel) {
+                let screenRect = win.convertToScreen(convert(bounds, to: nil))
+                if screenRect.width > 200 && screenRect.height > 100 {
+                    PiPWindowController.shared.mainPlayerScreenFrame = screenRect
+                }
+            }
         }
         if let win = window {
             let scale = win.backingScaleFactor
@@ -193,7 +215,7 @@ public struct NativePlayerView: NSViewRepresentable {
         config.mediaTypesRequiringUserActionForPlayback = []
         config.allowsAirPlayForMediaPlayback = true
         config.preferences.isElementFullscreenEnabled = true
-        config.preferences.setValue(true, forKey: "allowFileAccessFromFileURLs")
+        config.preferences.setValue(false, forKey: "allowFileAccessFromFileURLs")
         config.preferences.setValue(true, forKey: "fullScreenEnabled")
         
         // Bypass WebKit user activation restrictions for autoplay and unmuted audio
@@ -213,8 +235,6 @@ public struct NativePlayerView: NSViewRepresentable {
         contentController.add(context.coordinator, contentWorld: .defaultClient, name: "playerBridge")
         
         let cleanScript = NativePlayerView.cleanScriptSource
-        let userScriptStart = WKUserScript(source: cleanScript, injectionTime: .atDocumentStart, forMainFrameOnly: false)
-        contentController.addUserScript(userScriptStart)
         let userScriptEnd = WKUserScript(source: cleanScript, injectionTime: .atDocumentEnd, forMainFrameOnly: false)
         contentController.addUserScript(userScriptEnd)
         config.userContentController = contentController
@@ -318,8 +338,11 @@ public struct NativePlayerView: NSViewRepresentable {
         }
         
         playerManager.onQualityChange = { [weak webView] quality in
+            let effectiveQ = (quality == "auto") ? PlayerManager.shared.resolvedOptimalQuality : quality
             let ytQuality: String
-            switch quality {
+            switch effectiveQ {
+            case "4320": ytQuality = "highres"
+            case "2880": ytQuality = "hd2880"
             case "2160": ytQuality = "hd2160"
             case "1440": ytQuality = "hd1440"
             case "1080": ytQuality = "hd1080"
@@ -328,7 +351,7 @@ public struct NativePlayerView: NSViewRepresentable {
             case "360": ytQuality = "medium"
             case "240": ytQuality = "small"
             case "144": ytQuality = "tiny"
-            default: ytQuality = "default"
+            default: ytQuality = "hd1080"
             }
             let js = """
             (function() {
@@ -337,6 +360,7 @@ public struct NativePlayerView: NSViewRepresentable {
                     ifr.contentWindow.postMessage(JSON.stringify({
                         type: 'forceQuality',
                         quality: '\(quality)',
+                        optimalQuality: '\(effectiveQ)',
                         ytQuality: '\(ytQuality)'
                     }), '*');
                     ifr.contentWindow.postMessage(JSON.stringify({
@@ -349,6 +373,38 @@ public struct NativePlayerView: NSViewRepresentable {
                         func: "setPlaybackQuality",
                         args: ['\(ytQuality)']
                     }), '*');
+                }
+            })();
+            """
+            webView?.evaluateJavaScript(js, completionHandler: nil)
+        }
+        
+        playerManager.onPlaybackRateChange = { [weak webView] rate in
+            let js = """
+            (function() {
+                if (typeof currentPlaybackRate !== 'undefined') {
+                    currentPlaybackRate = \(rate);
+                }
+                var ifr = document.getElementById('ytPlayer') || document.querySelector('iframe');
+                if (ifr && ifr.contentWindow) {
+                    ifr.contentWindow.postMessage(JSON.stringify({
+                        event: "command",
+                        func: "setPlaybackRate",
+                        args: [\(rate)]
+                    }), '*');
+                    ifr.contentWindow.postMessage(JSON.stringify({
+                        type: 'setPlaybackRate',
+                        rate: \(rate)
+                    }), '*');
+                }
+                var v = document.querySelector('video');
+                if (v) {
+                    v.playbackRate = \(rate);
+                    v.defaultPlaybackRate = \(rate);
+                }
+                var p = document.getElementById('movie_player') || document.querySelector('.html5-video-player');
+                if (p && typeof p.setPlaybackRate === 'function') {
+                    p.setPlaybackRate(\(rate));
                 }
             })();
             """
@@ -373,9 +429,11 @@ public struct NativePlayerView: NSViewRepresentable {
             context.coordinator.clickAttempts = 0
             
             if wasLoaded {
-                // Video switch: Use loadNewVideo with startPos=0 and quality preference
-                let q = (playerManager.selectedQuality != "auto") ? playerManager.selectedQuality : "1080"
-                let js = "if (typeof window.loadNewVideo === 'function') { window.loadNewVideo('\(video.id)', 0, '\(q)'); } else { location.reload(); }"
+                // Video switch: Use loadNewVideo with resume startSec and quality preference
+                let effectiveQ = (playerManager.selectedQuality != "auto") ? playerManager.selectedQuality : playerManager.resolvedOptimalQuality
+                let rate = playerManager.playbackRate
+                let startSec = Int(playerManager.currentTime)
+                let js = "if (typeof window.loadNewVideo === 'function') { window.loadNewVideo('\(video.id)', \(startSec), '\(effectiveQ)', \(rate)); } else { location.reload(); }"
                 webView.evaluateJavaScript(js) { [weak webView, weak coord = context.coordinator] _, err in
                     if err != nil {
                         guard let v = webView else { return }
@@ -404,7 +462,20 @@ public struct NativePlayerView: NSViewRepresentable {
     
     public static func generateHTML(for video: Video, playerManager: PlayerManager) -> String {
         let startPos = max(0, Int(playerManager.currentTime))
-        let qParam = (playerManager.selectedQuality != "auto") ? "hd\(playerManager.selectedQuality)" : "hd1080"
+        let effectiveQ = (playerManager.selectedQuality != "auto") ? playerManager.selectedQuality : playerManager.resolvedOptimalQuality
+        let qParam: String = {
+            switch effectiveQ {
+            case "4320": return "highres"
+            case "2880": return "hd2880"
+            case "2160": return "hd2160"
+            case "1440": return "hd1440"
+            case "1080": return "hd1080"
+            case "720": return "hd720"
+            case "480": return "large"
+            case "360": return "medium"
+            default: return "hd1080"
+            }
+        }()
         
         return """
         <!DOCTYPE html>
@@ -449,6 +520,11 @@ public struct NativePlayerView: NSViewRepresentable {
           video.html5-main-video,
           video {
             display: block !important;
+            width: 100% !important;
+            height: 100% !important;
+            position: absolute !important;
+            top: 0px !important;
+            left: 0px !important;
             object-fit: contain !important;
             object-position: center center !important;
             background: #000 !important;
@@ -506,6 +582,8 @@ public struct NativePlayerView: NSViewRepresentable {
           var isMuted = \(playerManager.isMuted ? "true" : "false");
           var currentVolume = \(max(0, min(100, Int(playerManager.volume * 100))));
           var currentVideoId = '\(video.id)';
+          var currentPlaybackRate = \(playerManager.playbackRate);
+          var initialStartPos = \(startPos);
 
           window.forcePlayerRelayout = function() {
             try {
@@ -536,6 +614,8 @@ public struct NativePlayerView: NSViewRepresentable {
             if (ifr && ifr.contentWindow) {
               try {
                 ifr.contentWindow.postMessage(JSON.stringify({event: "command", func: "playVideo", args: []}), '*');
+                ifr.contentWindow.postMessage(JSON.stringify({event: "command", func: "setPlaybackRate", args: [currentPlaybackRate]}), '*');
+                ifr.contentWindow.postMessage(JSON.stringify({type: 'setPlaybackRate', rate: currentPlaybackRate}), '*');
                 if (!isMuted) {
                   ifr.contentWindow.postMessage(JSON.stringify({event: "command", func: "unMute", args: []}), '*');
                   ifr.contentWindow.postMessage(JSON.stringify({event: "command", func: "setVolume", args: [currentVolume]}), '*');
@@ -544,11 +624,34 @@ public struct NativePlayerView: NSViewRepresentable {
             }
           }
 
-          window.loadNewVideo = function(newId, startSec, targetQuality) {
+          window.loadNewVideo = function(newId, startSec, targetQuality, targetRate) {
             isPlaying = true;
             currentVideoId = newId;
+            if (typeof targetRate === 'number' && targetRate > 0) {
+              currentPlaybackRate = targetRate;
+            }
             var start = startSec || 0;
-            var q = targetQuality ? ('hd' + targetQuality) : 'hd1080';
+            var q = 'hd1080';
+            if (targetQuality === '4320') q = 'highres';
+            else if (targetQuality === '2880') q = 'hd2880';
+            else if (targetQuality === '2160') q = 'hd2160';
+            else if (targetQuality === '1440') q = 'hd1440';
+            else if (targetQuality === '1080') q = 'hd1080';
+            else if (targetQuality === '720') q = 'hd720';
+            else if (targetQuality === '480') q = 'large';
+            else if (targetQuality === '360') q = 'medium';
+            
+            try {
+              localStorage.setItem('yt-player-quality', JSON.stringify({
+                data: q,
+                creation: Date.now(),
+                expiration: Date.now() + 864000000
+              }));
+              localStorage.setItem('yt-player-av-quality', JSON.stringify({
+                data: q,
+                creation: Date.now()
+              }));
+            } catch(e) {}
             var ifr = document.getElementById('ytPlayer');
             
             clearTimeout(window._loadFallbackTimer);
@@ -570,6 +673,16 @@ public struct NativePlayerView: NSViewRepresentable {
                   args: [newId, start, q]
                 }), '*');
                 ifr.contentWindow.postMessage(JSON.stringify({event: "command", func: "playVideo", args: []}), '*');
+                if (start > 0) {
+                  setTimeout(function() {
+                    try {
+                      ifr.contentWindow.postMessage(JSON.stringify({event: "command", func: "seekTo", args: [start, true]}), '*');
+                      ifr.contentWindow.postMessage(JSON.stringify({type: "seekTo", seconds: start}), '*');
+                    } catch(e) {}
+                  }, 250);
+                }
+                ifr.contentWindow.postMessage(JSON.stringify({event: "command", func: "setPlaybackRate", args: [currentPlaybackRate]}), '*');
+                ifr.contentWindow.postMessage(JSON.stringify({type: 'setPlaybackRate', rate: currentPlaybackRate}), '*');
                 
                 setTimeout(ensureAudioPlayback, 80);
                 setTimeout(ensureAudioPlayback, 200);
@@ -578,6 +691,20 @@ public struct NativePlayerView: NSViewRepresentable {
             }
             postStateSync();
             window.forcePlayerRelayout();
+          };
+
+          window.reloadPlayer = function(startSec) {
+            var ifr = document.getElementById('ytPlayer');
+            var start = (typeof startSec === 'number') ? startSec : Math.floor(lastReportedTime || 0);
+            if (ifr) {
+              var baseSrc = "https://www.youtube.com/embed/" + currentVideoId + "?autoplay=1&enablejsapi=1&origin=https://auratube.app&playsinline=1&rel=0&iv_load_policy=3&modestbranding=1&start=" + start + "&_t=" + Date.now();
+              ifr.src = baseSrc;
+              setTimeout(function() {
+                ensureAudioPlayback();
+              }, 350);
+            } else {
+              location.reload();
+            }
           };
 
           function postStateSync() {
@@ -627,6 +754,15 @@ public struct NativePlayerView: NSViewRepresentable {
                 if (window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.playerBridge) {
                   window.webkit.messageHandlers.playerBridge.postMessage({ type: 'playerReady' });
                 }
+                if (initialStartPos > 0) {
+                  try {
+                    if (ifr && ifr.contentWindow) {
+                      ifr.contentWindow.postMessage(JSON.stringify({event: "command", func: "seekTo", args: [initialStartPos, true]}), '*');
+                      ifr.contentWindow.postMessage(JSON.stringify({type: "seekTo", seconds: initialStartPos}), '*');
+                    }
+                  } catch(e) {}
+                  initialStartPos = 0;
+                }
                 ensureAudioPlayback();
                 setTimeout(ensureAudioPlayback, 120);
                 setTimeout(ensureAudioPlayback, 350);
@@ -641,8 +777,18 @@ public struct NativePlayerView: NSViewRepresentable {
                 if (state === 1) {
                   isPlaying = true;
                   ensureAudioPlayback();
+                  if (window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.playerBridge) {
+                    window.webkit.messageHandlers.playerBridge.postMessage({ type: 'buffering', isBuffering: false });
+                  }
+                } else if (state === 3) {
+                  if (window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.playerBridge) {
+                    window.webkit.messageHandlers.playerBridge.postMessage({ type: 'buffering', isBuffering: true });
+                  }
                 } else if (state === 2 || state === 0) {
                   isPlaying = false;
+                  if (window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.playerBridge) {
+                    window.webkit.messageHandlers.playerBridge.postMessage({ type: 'buffering', isBuffering: false });
+                  }
                   if (state === 0) {
                     if (window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.playerBridge) {
                       window.webkit.messageHandlers.playerBridge.postMessage({ type: 'playbackEnded' });
@@ -663,8 +809,21 @@ public struct NativePlayerView: NSViewRepresentable {
 
               if (data.event === 'infoDelivery' && data.info) {
                 if (typeof data.info.playerState === 'number') {
-                  if (data.info.playerState === 1) isPlaying = true;
-                  else if (data.info.playerState === 2 || data.info.playerState === 0) isPlaying = false;
+                  if (data.info.playerState === 1) {
+                    isPlaying = true;
+                    if (window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.playerBridge) {
+                      window.webkit.messageHandlers.playerBridge.postMessage({ type: 'buffering', isBuffering: false });
+                    }
+                  } else if (data.info.playerState === 3) {
+                    if (window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.playerBridge) {
+                      window.webkit.messageHandlers.playerBridge.postMessage({ type: 'buffering', isBuffering: true });
+                    }
+                  } else if (data.info.playerState === 2 || data.info.playerState === 0) {
+                    isPlaying = false;
+                    if (window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.playerBridge) {
+                      window.webkit.messageHandlers.playerBridge.postMessage({ type: 'buffering', isBuffering: false });
+                    }
+                  }
                 }
                 if (data.info.availableQualityLevels && data.info.availableQualityLevels.length > 0) {
                   if (window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.playerBridge) {
@@ -694,6 +853,13 @@ public struct NativePlayerView: NSViewRepresentable {
     
     public static let cleanScriptSource: String = """
     (function() {
+        if (window.__auratube_clean_script_injected) return;
+        window.__auratube_clean_script_injected = true;
+        
+        try {
+            Object.defineProperty(window, 'devicePixelRatio', { get: function() { return 2.0; } });
+        } catch(e) {}
+
         function applyStyles() {
             try {
                 var target = document.head || document.documentElement || document.body;
@@ -994,13 +1160,28 @@ public struct NativePlayerView: NSViewRepresentable {
                     video.html5-main-video,
                     video {
                         display: block !important;
+                        width: 100% !important;
+                        height: 100% !important;
+                        position: absolute !important;
+                        top: 0px !important;
+                        left: 0px !important;
                         object-fit: contain !important;
                         object-position: center center !important;
                         background: #000 !important;
+                        -webkit-font-smoothing: antialiased !important;
+                        image-rendering: -webkit-optimize-contrast !important;
+                        transform: translateZ(0) !important;
+                        backface-visibility: hidden !important;
                     }
                 `;
                     target.appendChild(s);
                 }
+                try {
+                    localStorage.setItem('yt-player-audio-quality', JSON.stringify({
+                        data: 'high',
+                        creation: Date.now()
+                    }));
+                } catch(e) {}
             } catch(e) {}
         }
         applyStyles();
@@ -1041,8 +1222,10 @@ public struct NativePlayerView: NSViewRepresentable {
 
         function clickLargePlay() {
             try {
+                var v = document.querySelector('video');
+                if (v && !v.paused && v.currentTime > 0.05) return;
                 var btns = document.querySelectorAll(
-                    '.ytp-large-play-button, button.ytp-large-play-button, .ytp-large-play-button-bg, .ytp-cairo-refresh-signature-moments, .ytp-play-button'
+                    '.ytp-large-play-button, button.ytp-large-play-button, .ytp-large-play-button-bg'
                 );
                 for (var i = 0; i < btns.length; i++) {
                     var btn = btns[i];
@@ -1056,26 +1239,34 @@ public struct NativePlayerView: NSViewRepresentable {
 
         // Safely start playback once ready without interfering with audio track
         var autoPlayDone = false;
+        var autoPlayInterval = null;
         function autoStartPlayback() {
+            if (autoPlayDone) return;
             try {
-                clickLargePlay();
                 var v = document.querySelector('video');
                 if (v) {
+                    if (!v.paused && v.currentTime > 0.05) {
+                        autoPlayDone = true;
+                        if (autoPlayInterval) { clearInterval(autoPlayInterval); autoPlayInterval = null; }
+                        return;
+                    }
+                    clickLargePlay();
                     if (v.paused) {
                         var p = v.play();
                         if (p !== undefined) {
                             p.then(function() {
                                 autoPlayDone = true;
+                                if (autoPlayInterval) { clearInterval(autoPlayInterval); autoPlayInterval = null; }
                             }).catch(function() {});
                         }
-                    } else if (v.currentTime > 0.05) {
-                        autoPlayDone = true;
                     }
                     if (!v.paused && v.currentTime > 0.02 && !v.__auratube_unmuted) {
                         v.__auratube_unmuted = true;
                         v.muted = false;
                         v.volume = 1.0;
                     }
+                } else {
+                    clickLargePlay();
                 }
                 var player = document.getElementById('movie_player') || document.querySelector('.html5-video-player');
                 if (player) {
@@ -1086,8 +1277,8 @@ public struct NativePlayerView: NSViewRepresentable {
             } catch(err) {}
         }
 
-        var autoPlayInterval = setInterval(autoStartPlayback, 100);
-        setTimeout(function() { clearInterval(autoPlayInterval); }, 4000);
+        autoPlayInterval = setInterval(autoStartPlayback, 200);
+        setTimeout(function() { if (autoPlayInterval) { clearInterval(autoPlayInterval); autoPlayInterval = null; } }, 3500);
         document.addEventListener('DOMContentLoaded', autoStartPlayback);
         window.addEventListener('load', autoStartPlayback);
 
@@ -1098,8 +1289,17 @@ public struct NativePlayerView: NSViewRepresentable {
                 if (!v || v.__auratube_hooked) return;
                 v.__auratube_hooked = true;
                 
-                function emitDirectSync() {
+                var lastEmittedTime = -1;
+                var lastEmittedPlaying = null;
+                function emitDirectSync(force) {
                     try {
+                        var isPlaying = !v.paused && !v.ended;
+                        var curTime = v.currentTime || 0;
+                        if (!force && lastEmittedPlaying === isPlaying && Math.abs(curTime - lastEmittedTime) < 0.1) {
+                            return;
+                        }
+                        lastEmittedTime = curTime;
+                        lastEmittedPlaying = isPlaying;
                         var vidId = '';
                         var player = document.getElementById('movie_player') || document.querySelector('.html5-video-player');
                         if (player && typeof player.getVideoData === 'function') {
@@ -1115,33 +1315,41 @@ public struct NativePlayerView: NSViewRepresentable {
                             window.webkit.messageHandlers.playerBridge.postMessage({
                                 type: 'directSync',
                                 videoId: vidId,
-                                currentTime: v.currentTime,
+                                currentTime: curTime,
                                 duration: v.duration || 0,
-                                isPlaying: !v.paused && !v.ended
+                                isPlaying: isPlaying
                             });
                         }
                     } catch(e) {}
                 }
                 
-                v.addEventListener('timeupdate', emitDirectSync);
+                v.addEventListener('timeupdate', function() { emitDirectSync(false); });
                 v.addEventListener('play', function() {
-                    emitDirectSync();
-                    autoStartPlayback();
+                    emitDirectSync(true);
+                    if (window.__auratube_playback_rate && Math.abs(v.playbackRate - window.__auratube_playback_rate) > 0.01) {
+                        v.playbackRate = window.__auratube_playback_rate;
+                    }
+                    autoPlayDone = true;
+                    if (autoPlayInterval) { clearInterval(autoPlayInterval); autoPlayInterval = null; }
                 });
-                v.addEventListener('pause', emitDirectSync);
+                v.addEventListener('pause', function() { emitDirectSync(true); });
                 v.addEventListener('playing', function() {
-                    emitDirectSync();
-                    autoStartPlayback();
+                    emitDirectSync(true);
+                    if (window.__auratube_playback_rate && Math.abs(v.playbackRate - window.__auratube_playback_rate) > 0.01) {
+                        v.playbackRate = window.__auratube_playback_rate;
+                    }
+                    autoPlayDone = true;
+                    if (autoPlayInterval) { clearInterval(autoPlayInterval); autoPlayInterval = null; }
                 });
                 v.addEventListener('ended', function() {
-                    emitDirectSync();
+                    emitDirectSync(true);
                     try {
                         if (window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.playerBridge) {
                             window.webkit.messageHandlers.playerBridge.postMessage({ type: 'playbackEnded' });
                         }
                     } catch(e) {}
                 });
-                v.addEventListener('seeked', emitDirectSync);
+                v.addEventListener('seeked', function() { emitDirectSync(true); });
                 
                 // Picture-in-Picture event hooks
                 v.addEventListener('enterpictureinpicture', function() {
@@ -1212,7 +1420,45 @@ public struct NativePlayerView: NSViewRepresentable {
             }
         }, true);
 
-        // Quality reporting & active control
+        // Quality reporting & active high-resolution control
+        var isManualQualityLocked = false;
+        var lastAutoPromotionTime = 0;
+
+        function autoPromoteResolution() {
+            if (isManualQualityLocked) return;
+            var now = Date.now();
+            if (now - lastAutoPromotionTime < 2500) return;
+            try {
+                var p = document.getElementById('movie_player') || document.querySelector('.html5-video-player');
+                if (!p) return;
+                var cur = (typeof p.getPlaybackQuality === 'function') ? p.getPlaybackQuality() : '';
+                var levels = (typeof p.getAvailableQualityLevels === 'function') ? p.getAvailableQualityLevels() : [];
+                if (!levels || levels.length === 0) return;
+
+                // If YouTube is playing in low SD resolution (medium = 360p, large = 480p, tiny = 144p, small = 240p)
+                if (cur === 'medium' || cur === 'large' || cur === 'small' || cur === 'tiny' || cur === 'auto' || cur === 'default') {
+                    // Check if HD / 2K / 4K streams exist in available qualities
+                    var candidates = ['highres', 'hd2880', 'hd2160', 'hd1440', 'hd1080', 'hd720'];
+                    var bestCandidate = null;
+                    for (var i = 0; i < candidates.length; i++) {
+                        if (levels.indexOf(candidates[i]) !== -1) {
+                            bestCandidate = candidates[i];
+                            break;
+                        }
+                    }
+                    if (bestCandidate) {
+                        lastAutoPromotionTime = now;
+                        var targetH = '1080';
+                        if (bestCandidate === 'highres' || bestCandidate === 'hd2160') targetH = '2160';
+                        else if (bestCandidate === 'hd1440') targetH = '1440';
+                        else if (bestCandidate === 'hd720') targetH = '720';
+                        
+                        forceQualityChange('auto', targetH, bestCandidate, 0);
+                    }
+                }
+            } catch(e) {}
+        }
+
         function checkAndReportQualities() {
             try {
                 var p = document.getElementById('movie_player') || document.querySelector('.html5-video-player');
@@ -1233,6 +1479,7 @@ public struct NativePlayerView: NSViewRepresentable {
                         }
                     } catch(e) {}
                 }
+                autoPromoteResolution();
             } catch(e) {}
         }
         setInterval(checkAndReportQualities, 1500);
@@ -1256,63 +1503,81 @@ public struct NativePlayerView: NSViewRepresentable {
                 }
             } catch(e) {}
         }
-        document.addEventListener('loadedmetadata', reportVideoDimensions, true);
-        document.addEventListener('loadeddata', reportVideoDimensions, true);
-        document.addEventListener('playing', reportVideoDimensions, true);
-        document.addEventListener('timeupdate', reportVideoDimensions, true);
+        document.addEventListener('loadedmetadata', function() { reportVideoDimensions(); autoPromoteResolution(); }, true);
+        document.addEventListener('loadeddata', function() { reportVideoDimensions(); autoPromoteResolution(); }, true);
+        document.addEventListener('playing', function() { reportVideoDimensions(); autoPromoteResolution(); }, true);
+        document.addEventListener('timeupdate', function() {
+            reportVideoDimensions();
+            var v = document.querySelector('video');
+            if (v && v.currentTime > 0.1 && v.currentTime < 6.0) {
+                autoPromoteResolution();
+            }
+        }, true);
         document.addEventListener('resize', reportVideoDimensions, true);
         setInterval(reportVideoDimensions, 1200);
 
-        function forceQualityChange(targetQuality, retries) {
+        function forceQualityChange(targetQuality, optimalQuality, ytQualityHint, retries) {
             retries = retries || 0;
             try {
                 var p = document.getElementById('movie_player') || document.querySelector('.html5-video-player');
-                if (!p) return;
-
-                var ytQuality = 'default';
-                switch (targetQuality) {
-                    case '4320': ytQuality = 'highres'; break;
-                    case '2880': ytQuality = 'hd2880'; break;
-                    case '2160': ytQuality = 'hd2160'; break;
-                    case '1440': ytQuality = 'hd1440'; break;
-                    case '1080': ytQuality = 'hd1080'; break;
-                    case '720': ytQuality = 'hd720'; break;
-                    case '480': ytQuality = 'large'; break;
-                    case '360': ytQuality = 'medium'; break;
-                    case '240': ytQuality = 'small'; break;
-                    case '144': ytQuality = 'tiny'; break;
-                    default: ytQuality = 'default'; break;
+                if (!p) {
+                    if (retries < 15) {
+                        setTimeout(function() { forceQualityChange(targetQuality, optimalQuality, ytQualityHint, retries + 1); }, 250);
+                    }
+                    return;
                 }
 
-                // 1. Save quality in localStorage so YouTube preserves the user's resolution
-                try {
-                    if (targetQuality !== 'auto') {
-                        localStorage.setItem('yt-player-quality', JSON.stringify({
-                            data: ytQuality,
-                            creation: Date.now()
-                        }));
-                    } else {
-                        localStorage.removeItem('yt-player-quality');
+                if (targetQuality !== 'auto') {
+                    isManualQualityLocked = (targetQuality === '360' || targetQuality === '480' || targetQuality === '240' || targetQuality === '144');
+                } else {
+                    isManualQualityLocked = false;
+                }
+
+                var effectiveQ = targetQuality;
+                if (effectiveQ === 'auto') {
+                    effectiveQ = optimalQuality || '1080';
+                }
+
+                var ytQuality = ytQualityHint;
+                if (!ytQuality || ytQuality === 'default') {
+                    switch (effectiveQ) {
+                        case '4320': ytQuality = 'highres'; break;
+                        case '2880': ytQuality = 'hd2880'; break;
+                        case '2160': ytQuality = 'hd2160'; break;
+                        case '1440': ytQuality = 'hd1440'; break;
+                        case '1080': ytQuality = 'hd1080'; break;
+                        case '720': ytQuality = 'hd720'; break;
+                        case '480': ytQuality = 'large'; break;
+                        case '360': ytQuality = 'medium'; break;
+                        case '240': ytQuality = 'small'; break;
+                        case '144': ytQuality = 'tiny'; break;
+                        default: ytQuality = 'hd1080'; break;
                     }
+                }
+
+                // 1. Save quality in localStorage so YouTube remembers high resolution
+                try {
+                    localStorage.setItem('yt-player-quality', JSON.stringify({
+                        data: ytQuality,
+                        creation: Date.now(),
+                        expiration: Date.now() + 864000000
+                    }));
+                    localStorage.setItem('yt-player-av-quality', JSON.stringify({
+                        data: ytQuality,
+                        creation: Date.now()
+                    }));
                 } catch(e) {}
 
-                // 2. Direct player methods with exact matched quality from getAvailableQualityData
+                // 2. Direct player methods with exact matched quality from getAvailableQualityData or Levels
                 var targetFormatQuality = ytQuality;
                 if (typeof p.getAvailableQualityData === 'function') {
                     var qData = p.getAvailableQualityData() || [];
                     for (var i = 0; i < qData.length; i++) {
                         var item = qData[i];
-                        if (targetQuality === 'auto') {
-                            if (item.quality === 'auto' || item.quality === 'default') {
-                                targetFormatQuality = item.quality;
-                                break;
-                            }
-                        } else {
-                            var qLbl = (item.qualityLabel || '').toLowerCase();
-                            if (qLbl.startsWith(targetQuality) || qLbl.includes(targetQuality + 'p') || item.quality === ytQuality) {
-                                targetFormatQuality = item.quality;
-                                break;
-                            }
+                        var qLbl = (item.qualityLabel || '').toLowerCase();
+                        if (qLbl.startsWith(effectiveQ) || qLbl.includes(effectiveQ + 'p') || item.quality === ytQuality) {
+                            targetFormatQuality = item.quality;
+                            break;
                         }
                     }
                 }
@@ -1323,26 +1588,11 @@ public struct NativePlayerView: NSViewRepresentable {
                 if (typeof p.setPlaybackQuality === 'function') {
                     p.setPlaybackQuality(targetFormatQuality);
                 }
-
-                // 3. Seamlessly switch video stream to target resolution using suggestedQuality
-                if (targetQuality !== 'auto' && typeof p.loadVideoById === 'function') {
-                    var v = document.querySelector('video');
-                    var curTime = (v && v.currentTime) ? v.currentTime : 0;
-                    var vidData = (typeof p.getVideoData === 'function') ? p.getVideoData() : null;
-                    var currentVid = (vidData && vidData.video_id) ? vidData.video_id : '';
-                    if (currentVid && v && !v.paused && curTime > 0.05) {
-                        p.loadVideoById({
-                            videoId: currentVid,
-                            startSeconds: curTime,
-                            suggestedQuality: targetFormatQuality
-                        });
-                        p.unMute();
-                        p.setVolume(100);
-                        p.playVideo();
-                    }
+                if (typeof p.setPreferredQuality === 'function') {
+                    p.setPreferredQuality(targetFormatQuality);
                 }
 
-                // 4. Fallback settings menu click if present
+                // 3. Fallback settings menu click if present
                 var settingsBtn = p.querySelector('.ytp-settings-button');
                 if (settingsBtn) {
                     var stealth = document.getElementById('auratube-stealth-style');
@@ -1371,31 +1621,57 @@ public struct NativePlayerView: NSViewRepresentable {
                             qMenu.click();
                             setTimeout(function() {
                                 var subItems = p.querySelectorAll('.ytp-menuitem');
-                                var matched = null;
-                                for (var j = 0; j < subItems.length; j++) {
-                                    var text = (subItems[j].textContent || '').toLowerCase();
-                                    if (targetQuality === 'auto') {
-                                        if (text.includes('tự động') || text.includes('auto')) {
-                                            matched = subItems[j];
-                                            break;
-                                        }
-                                    } else {
-                                        if (text.includes(targetQuality + 'p') || text.startsWith(targetQuality) || text.includes(targetQuality)) {
-                                            matched = subItems[j];
+                                
+                                // Check if there is an "Advanced" / "Nâng cao" item
+                                var advItem = null;
+                                for (var k = 0; k < subItems.length; k++) {
+                                    var txt = (subItems[k].textContent || '').toLowerCase();
+                                    if (txt.includes('nâng cao') || txt.includes('advanced')) {
+                                        advItem = subItems[k];
+                                        break;
+                                    }
+                                }
+                                
+                                function selectFromSubItems(candidateList) {
+                                    var matched = null;
+                                    for (var j = 0; j < candidateList.length; j++) {
+                                        var text = (candidateList[j].textContent || '').toLowerCase();
+                                        if (text.includes(effectiveQ + 'p') || text.startsWith(effectiveQ) || text.includes(effectiveQ)) {
+                                            matched = candidateList[j];
                                             break;
                                         }
                                     }
-                                }
-                                if (matched) {
-                                    matched.click();
-                                }
-                                settingsBtn.click();
-                                setTimeout(function() {
-                                    if (stealth && stealth.parentNode) {
-                                        stealth.parentNode.removeChild(stealth);
+                                    // If not matched yet, pick highest resolution item
+                                    if (!matched && candidateList.length > 0) {
+                                        for (var j = 0; j < candidateList.length; j++) {
+                                            var text = (candidateList[j].textContent || '').toLowerCase();
+                                            if (!text.includes('tự động') && !text.includes('auto') && !text.includes('nâng cao') && !text.includes('advanced')) {
+                                                matched = candidateList[j];
+                                                break;
+                                            }
+                                        }
                                     }
-                                    checkAndReportQualities();
-                                }, 50);
+                                    if (matched) {
+                                        matched.click();
+                                    }
+                                    settingsBtn.click();
+                                    setTimeout(function() {
+                                        if (stealth && stealth.parentNode) {
+                                            stealth.parentNode.removeChild(stealth);
+                                        }
+                                        checkAndReportQualities();
+                                    }, 50);
+                                }
+                                
+                                if (advItem) {
+                                    advItem.click();
+                                    setTimeout(function() {
+                                        var advancedSubItems = p.querySelectorAll('.ytp-menuitem');
+                                        selectFromSubItems(advancedSubItems);
+                                    }, 50);
+                                } else {
+                                    selectFromSubItems(subItems);
+                                }
                             }, 50);
                         } else {
                             settingsBtn.click();
@@ -1406,8 +1682,8 @@ public struct NativePlayerView: NSViewRepresentable {
                     }, 50);
                 }
 
-                setTimeout(checkAndReportQualities, 300);
-                setTimeout(checkAndReportQualities, 1000);
+                setTimeout(checkAndReportQualities, 350);
+                setTimeout(checkAndReportQualities, 1200);
             } catch(e) {}
         }
 
@@ -1416,7 +1692,7 @@ public struct NativePlayerView: NSViewRepresentable {
                 var data = typeof e.data === 'string' ? JSON.parse(e.data) : e.data;
                 if (!data) return;
                 if (data.type === 'forceQuality') {
-                    forceQualityChange(data.quality);
+                    forceQualityChange(data.quality, data.optimalQuality, data.ytQuality);
                 }
                 if (data.type === 'togglePiP') {
                     var v = document.querySelector('video');
@@ -1456,6 +1732,21 @@ public struct NativePlayerView: NSViewRepresentable {
                     if (v) { v.pause(); }
                     var player = document.getElementById('movie_player') || document.querySelector('.html5-video-player');
                     if (player && typeof player.pauseVideo === 'function') { player.pauseVideo(); }
+                }
+                if (data.type === 'setPlaybackRate' || (data.event === 'command' && data.func === 'setPlaybackRate')) {
+                    var rate = typeof data.rate === 'number' ? data.rate : (data.args && typeof data.args[0] === 'number' ? data.args[0] : parseFloat(data.args ? data.args[0] : (data.rate || 1.0)));
+                    if (!isNaN(rate) && rate > 0) {
+                        window.__auratube_playback_rate = rate;
+                        var v = document.querySelector('video');
+                        if (v) {
+                            v.playbackRate = rate;
+                            v.defaultPlaybackRate = rate;
+                        }
+                        var player = document.getElementById('movie_player') || document.querySelector('.html5-video-player');
+                        if (player && typeof player.setPlaybackRate === 'function') {
+                            player.setPlaybackRate(rate);
+                        }
+                    }
                 }
             } catch(err) {}
         });
@@ -1551,6 +1842,11 @@ public struct NativePlayerView: NSViewRepresentable {
                     return
                 }
                 
+                if let type = body["type"] as? String, type == "buffering", let isBuff = body["isBuffering"] as? Bool {
+                    PlayerManager.shared.isBuffering = isBuff
+                    return
+                }
+                
                 if let type = body["type"] as? String, type == "togglePlayPause" {
                     PlayerManager.shared.togglePlayPause()
                     return
@@ -1614,6 +1910,7 @@ public struct NativePlayerView: NSViewRepresentable {
                     DispatchQueue.main.async {
                         if !unique.isEmpty {
                             PlayerManager.shared.availableQualities = unique
+                            PlayerManager.shared.reevaluateAndApplyOptimalQuality()
                         }
                         if let cur = body["currentQuality"] as? String, !cur.isEmpty {
                             let cleanQ: String
@@ -1698,6 +1995,35 @@ public struct NativePlayerView: NSViewRepresentable {
                         videoId: msgVideoId
                     )
                 }
+            }
+        }
+        
+        public func webView(_ webView: WKWebView, decidePolicyFor navigationAction: WKNavigationAction, decisionHandler: @escaping (WKNavigationActionPolicy) -> Void) {
+            guard let url = navigationAction.request.url else {
+                decisionHandler(.cancel)
+                return
+            }
+            let host = url.host?.lowercased() ?? ""
+            let scheme = url.scheme?.lowercased() ?? ""
+            
+            if scheme == "about" || scheme == "blob" || scheme == "data" {
+                decisionHandler(.allow)
+                return
+            }
+            
+            let isAllowed = host == "auratube.app" ||
+                            host.hasSuffix(".youtube.com") || host == "youtube.com" ||
+                            host.hasSuffix(".youtube-nocookie.com") || host == "youtube-nocookie.com" ||
+                            host.hasSuffix(".googlevideo.com") || host == "googlevideo.com" ||
+                            host.hasSuffix(".ytimg.com") || host == "ytimg.com"
+                            
+            if isAllowed {
+                decisionHandler(.allow)
+            } else {
+                if navigationAction.navigationType == .linkActivated {
+                    NSWorkspace.shared.open(url)
+                }
+                decisionHandler(.cancel)
             }
         }
     }

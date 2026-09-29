@@ -8,20 +8,75 @@ public final class RecommendationService: ObservableObject {
     private let channelsKey = "auratube_user_channel_affinity_v1"
     private let topicsKey = "auratube_user_topic_affinity_v1"
     private let searchesKey = "auratube_recent_searches_v1"
+    private let channelAvatarsKey = "auratube_channel_avatars_v1"
     
     @Published public private(set) var hasPersonalizedProfile: Bool = false
     @Published public private(set) var topChannels: [String] = []
     @Published public private(set) var topKeywords: [String] = []
     @Published public private(set) var recentSearches: [String] = []
     @Published public private(set) var dynamicInterestTags: [String] = []
+    @Published public private(set) var channelAvatars: [String: String] = [:]
     
-    // In-memory Trending Cache for fast response & low latency
+    // In-memory & Persisted Trending Cache for fast response & 0ms initial render
+    private let trendingCacheKey = "auratube_trending_feed_cache_v2"
     private var trendingCache: [Video] = []
     private var lastTrendingFetchTime: Date? = nil
     private let cacheValidityInterval: TimeInterval = 900 // 15 minutes
     
+    public func getCachedTrending() -> [Video] {
+        return trendingCache
+    }
+    
     private init() {
+        if let map = UserDefaults.standard.dictionary(forKey: channelAvatarsKey) as? [String: String] {
+            self.channelAvatars = map
+        }
+        if let data = UserDefaults.standard.data(forKey: trendingCacheKey),
+           let cached = try? JSONDecoder().decode([Video].self, from: data),
+           !cached.isEmpty {
+            self.trendingCache = cached
+            self.lastTrendingFetchTime = Date()
+        }
         refreshProfileMetrics()
+    }
+    
+    // MARK: - Avatar Management
+    
+    public func getAvatarUrl(for channelName: String) -> String? {
+        let key = channelName.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        if let direct = channelAvatars[key], !direct.isEmpty {
+            return direct
+        }
+        if let sub = ChannelSubscriptionManager.shared.subscribedChannels.first(where: { $0.title.caseInsensitiveCompare(channelName) == .orderedSame }),
+           !sub.avatarUrl.isEmpty {
+            return sub.avatarUrl
+        }
+        return nil
+    }
+    
+    public func setChannelAvatar(for channelName: String, url: String) {
+        let key = channelName.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        guard !key.isEmpty, !url.isEmpty else { return }
+        if channelAvatars[key] != url {
+            channelAvatars[key] = url
+            UserDefaults.standard.set(channelAvatars, forKey: channelAvatarsKey)
+        }
+    }
+    
+    public func fetchMissingAvatars(for channels: [String]) {
+        for ch in channels {
+            let key = ch.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+            if channelAvatars[key] == nil || channelAvatars[key]?.isEmpty == true {
+                Task {
+                    let vids = await YTDLPService.shared.searchVideos(query: ch, limit: 3)
+                    if let match = vids.first(where: { ($0.channelAvatarUrl != nil && !$0.channelAvatarUrl!.isEmpty) }) {
+                        DispatchQueue.main.async {
+                            self.setChannelAvatar(for: ch, url: match.channelAvatarUrl!)
+                        }
+                    }
+                }
+            }
+        }
     }
     
     // MARK: - Signal Collection & Tracking
@@ -31,6 +86,9 @@ public final class RecommendationService: ObservableObject {
         guard !videos.isEmpty else { return }
         for v in videos {
             recordWatch(video: v, saveImmediately: false)
+            if let avatar = v.channelAvatarUrl, !avatar.isEmpty {
+                setChannelAvatar(for: v.uploader, url: avatar)
+            }
         }
         refreshProfileMetrics()
     }
@@ -42,6 +100,10 @@ public final class RecommendationService: ObservableObject {
             var channelCounts = UserDefaults.standard.dictionary(forKey: channelsKey) as? [String: Int] ?? [:]
             channelCounts[uploader] = (channelCounts[uploader] ?? 0) + 1
             UserDefaults.standard.set(channelCounts, forKey: channelsKey)
+            
+            if let avatar = video.channelAvatarUrl, !avatar.isEmpty {
+                setChannelAvatar(for: uploader, url: avatar)
+            }
         }
         
         // Extract meaningful topic keywords & intact phrases from title
@@ -57,6 +119,40 @@ public final class RecommendationService: ObservableObject {
         if saveImmediately {
             refreshProfileMetrics()
         }
+    }
+    
+    /// Record high-retention watch completion (> 50% or finished) with enhanced signal weight
+    public func recordWatchCompletion(video: Video) {
+        let uploader = video.uploader.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !uploader.isEmpty && uploader.lowercased() != "youtube" && uploader.lowercased() != "youtube shorts" {
+            var channelCounts = UserDefaults.standard.dictionary(forKey: channelsKey) as? [String: Int] ?? [:]
+            channelCounts[uploader] = (channelCounts[uploader] ?? 0) + 2
+            UserDefaults.standard.set(channelCounts, forKey: channelsKey)
+        }
+        
+        let keywords = extractKeywordsAndPhrases(from: video.title)
+        if !keywords.isEmpty {
+            var topicCounts = UserDefaults.standard.dictionary(forKey: topicsKey) as? [String: Int] ?? [:]
+            for kw in keywords {
+                topicCounts[kw] = (topicCounts[kw] ?? 0) + 2
+            }
+            UserDefaults.standard.set(topicCounts, forKey: topicsKey)
+        }
+        
+        refreshProfileMetrics()
+    }
+    
+    /// Record bookmark as high explicit affinity
+    public func recordBookmark(video: Video) {
+        recordWatchCompletion(video: video)
+    }
+    
+    /// Reset learned preferences
+    public func resetLearnedPreferences() {
+        UserDefaults.standard.removeObject(forKey: channelsKey)
+        UserDefaults.standard.removeObject(forKey: topicsKey)
+        UserDefaults.standard.removeObject(forKey: searchesKey)
+        refreshProfileMetrics()
     }
     
     /// Record a user search query
@@ -86,17 +182,36 @@ public final class RecommendationService: ObservableObject {
     public func refreshProfileMetrics() {
         let channelCounts = UserDefaults.standard.dictionary(forKey: channelsKey) as? [String: Int] ?? [:]
         let sortedChannels = channelCounts.sorted(by: { $0.value > $1.value }).map { $0.key }
-        self.topChannels = Array(sortedChannels.prefix(6))
+        self.topChannels = Array(sortedChannels.prefix(8))
         
         let topicCounts = UserDefaults.standard.dictionary(forKey: topicsKey) as? [String: Int] ?? [:]
         let sortedTopics = topicCounts.sorted(by: { $0.value > $1.value }).map { $0.key }
-        self.topKeywords = Array(sortedTopics.prefix(8))
+        self.topKeywords = Array(sortedTopics.prefix(10))
         
         self.recentSearches = UserDefaults.standard.stringArray(forKey: searchesKey) ?? []
         
         let subCount = ChannelSubscriptionManager.shared.subscribedChannels.count
         self.hasPersonalizedProfile = !topChannels.isEmpty || !topKeywords.isEmpty || !recentSearches.isEmpty || subCount > 0
         
+        // Fetch missing channel avatars in background
+        fetchMissingAvatars(for: self.topChannels)
+        
+        buildDynamicInterestTags()
+    }
+    
+    /// Remove an individual query from recent search history
+    public func removeRecentSearch(_ query: String) {
+        var searches = UserDefaults.standard.stringArray(forKey: searchesKey) ?? []
+        searches.removeAll(where: { $0.caseInsensitiveCompare(query) == .orderedSame })
+        UserDefaults.standard.set(searches, forKey: searchesKey)
+        self.recentSearches = searches
+        buildDynamicInterestTags()
+    }
+    
+    /// Clear all recent search history
+    public func clearRecentSearches() {
+        UserDefaults.standard.removeObject(forKey: searchesKey)
+        self.recentSearches = []
         buildDynamicInterestTags()
     }
     
@@ -106,37 +221,48 @@ public final class RecommendationService: ObservableObject {
         var tags: [String] = []
         var seen = Set<String>()
         
+        let topChannelSet = Set(topChannels.map { $0.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() })
+        
         func addTag(_ t: String) {
             let clean = t.trimmingCharacters(in: .whitespacesAndNewlines)
-            guard clean.count >= 2 else { return }
+            guard clean.count >= 2 && clean.count <= 18 else { return }
             let lower = clean.lowercased()
-            if !seen.contains(lower) {
+            // Avoid duplication with topChannels row which already has its own dedicated shelf
+            if !seen.contains(lower) && !topChannelSet.contains(lower) {
                 seen.insert(lower)
-                // Capitalize first letter nicely
                 let formatted = clean.prefix(1).uppercased() + clean.dropFirst()
                 tags.append(formatted)
             }
         }
         
-        // 1. Top recent search queries
-        for s in recentSearches.prefix(3) {
-            addTag(s)
+        // 1. Recent searches: only allow short concise phrases, or extract keywords from long queries
+        for s in recentSearches.prefix(5) {
+            let clean = s.trimmingCharacters(in: .whitespacesAndNewlines)
+            if clean.count <= 18 && clean.split(separator: " ").count <= 3 {
+                addTag(clean)
+            } else {
+                let kws = extractKeywordsAndPhrases(from: clean)
+                for kw in kws.prefix(1) {
+                    if kw.count >= 3 && kw.count <= 16 {
+                        addTag(kw)
+                    }
+                }
+            }
         }
         
-        // 2. Top watched channels
-        for ch in topChannels.prefix(3) {
-            addTag(ch)
+        // 2. Top interest keywords
+        for kw in topKeywords.prefix(4) {
+            if kw.count <= 16 {
+                addTag(kw)
+            }
         }
         
-        // 3. Top interest keywords
-        for kw in topKeywords.prefix(3) {
-            addTag(kw)
-        }
-        
-        // 4. Semantic ecosystem suggestions
+        // 3. Semantic ecosystem suggestions
         for kw in topKeywords.prefix(2) {
             if let ecosystem = SemanticClusterEngine.suggestTag(for: kw) {
-                addTag(ecosystem)
+                if ecosystem.count <= 18 {
+                    addTag(ecosystem)
+                }
             }
         }
         
@@ -343,6 +469,78 @@ public final class RecommendationService: ObservableObject {
         return combined
     }
     
+    // MARK: - Intelligent Personalized Related Videos Engine
+    public func fetchRelatedVideos(for video: Video) async -> [Video] {
+        // 1. Try official YouTube InnerTube 'next' recommendation endpoint first (<0.6s)
+        var related = await YTDLPService.shared.fetchRelatedVideosViaInnerTube(videoId: video.id)
+        
+        // 2. Fallback to smart semantic keywords search if next endpoint had 0 results
+        if related.isEmpty {
+            let keywords = extractKeywordsAndPhrases(from: video.title)
+            let query: String
+            if !keywords.isEmpty {
+                query = "\(video.uploader) \(keywords.prefix(3).joined(separator: " "))"
+            } else {
+                query = video.title
+            }
+            let searchPage = await YTDLPService.shared.searchVideosWithContinuation(query: query, limit: 16)
+            if !video.isShort && !searchPage.videos.isEmpty {
+                // When watching long video, only use regular long videos from search
+                related = searchPage.videos
+            } else {
+                related = searchPage.allItems
+            }
+            related.removeAll(where: { $0.id == video.id })
+        }
+        
+        // 3. User-Affinity Personalized Re-ranking:
+        // Score videos higher if user frequently watches the creator or topic
+        if hasPersonalizedProfile && !related.isEmpty {
+            let userChannels = Set(topChannels.map { $0.lowercased() })
+            let userKws = Set(topKeywords.map { $0.lowercased() })
+            
+            related.sort { v1, v2 in
+                var score1 = 0
+                var score2 = 0
+                
+                let up1 = v1.uploader.lowercased()
+                let up2 = v2.uploader.lowercased()
+                if userChannels.contains(up1) { score1 += 4 }
+                if userChannels.contains(up2) { score2 += 4 }
+                if up1 == video.uploader.lowercased() { score1 += 2 }
+                if up2 == video.uploader.lowercased() { score2 += 2 }
+                
+                let title1 = v1.title.lowercased()
+                let title2 = v2.title.lowercased()
+                for kw in userKws {
+                    if title1.contains(kw) { score1 += 1 }
+                    if title2.contains(kw) { score2 += 1 }
+                }
+                
+                return score1 > score2
+            }
+        }
+        
+        // 4. Format-Aware Separation & Prioritization (Long Video vs Shorts)
+        if !video.isShort {
+            // When watching a regular long video, ALWAYS place regular videos first!
+            let regular = related.filter { !$0.isShort }
+            let shorts = related.filter { $0.isShort }
+            if !regular.isEmpty {
+                return regular + Array(shorts.prefix(2))
+            }
+        } else {
+            // When watching a Short, show other Shorts first
+            let shorts = related.filter { $0.isShort }
+            let regular = related.filter { !$0.isShort }
+            if !shorts.isEmpty {
+                return shorts + Array(regular.prefix(4))
+            }
+        }
+        
+        return related
+    }
+    
     private func fetchBatch(queries: [String], limitPerQuery: Int) async -> [Video] {
         guard !queries.isEmpty else { return [] }
         var results: [Video] = []
@@ -386,22 +584,15 @@ public final class RecommendationService: ObservableObject {
             return trendingCache
         }
         
-        // Core trending pillars with strict recent upload date filters
+        // Core trending pillars with strict recent upload date filters (streamlined to 4 high-yield queries for 3x faster load)
         let trendingPillars: [(query: String, params: String)] = [
             ("top trending việt nam hôm nay", YTDLPService.filterThisWeek),
             ("nhạc mới thịnh hành việt nam triệu view", YTDLPService.filterThisWeek),
-            ("gameshow việt nam triệu view mới nhất", YTDLPService.filterThisMonth),
-            ("review công nghệ schannel vật vờ mới nhất", YTDLPService.filterThisMonth),
-            ("vtv24 chuyển động 24h tin tức thời sự việt nam", YTDLPService.filterThisWeek),
-            ("ẩm thực du lịch việt nam triệu view mới nhất", YTDLPService.filterThisMonth),
-            ("gaming highlight việt nam mới nhất", YTDLPService.filterThisMonth),
-            ("bóng đá việt nam highlight mới nhất", YTDLPService.filterThisWeek)
+            ("vtv24 tin tức schannel review công nghệ mới nhất", YTDLPService.filterThisMonth)
         ]
         
         let shortsPillars: [String] = [
-            "shorts trending việt nam",
-            "shorts hài hước triệu view",
-            "shorts viral triệu view"
+            "shorts trending việt nam viral triệu view"
         ]
         
         var regularStreams: [[Video]] = []
@@ -410,7 +601,7 @@ public final class RecommendationService: ObservableObject {
         await withTaskGroup(of: (isShorts: Bool, videos: [Video]).self) { group in
             for p in trendingPillars {
                 group.addTask {
-                    let res = await YTDLPService.shared.searchVideosWithContinuation(query: p.query, params: p.params, limit: 8)
+                    let res = await YTDLPService.shared.searchVideosWithContinuation(query: p.query, params: p.params, limit: 12)
                     let freshRegular = res.videos.filter { Self.isFreshTrendingVideo($0) }
                     return (isShorts: false, videos: freshRegular)
                 }
@@ -418,7 +609,7 @@ public final class RecommendationService: ObservableObject {
             for sp in shortsPillars {
                 group.addTask {
                     // Do not pass upload date filter params: InnerTube removes the Shorts shelf when filters are present!
-                    let res = await YTDLPService.shared.searchVideosWithContinuation(query: sp, params: nil, limit: 14)
+                    let res = await YTDLPService.shared.searchVideosWithContinuation(query: sp, params: nil, limit: 16)
                     let candidates = res.shorts
                     let freshShorts = candidates.filter { Self.isFreshTrendingVideo($0) }
                     return (isShorts: true, videos: freshShorts)
@@ -482,6 +673,9 @@ public final class RecommendationService: ObservableObject {
         if !combined.isEmpty {
             self.trendingCache = combined
             self.lastTrendingFetchTime = Date()
+            if let encoded = try? JSONEncoder().encode(combined) {
+                UserDefaults.standard.set(encoded, forKey: self.trendingCacheKey)
+            }
         }
         return combined
     }
@@ -750,5 +944,124 @@ public struct VietnamTrendingEngine {
             return podcastTrendingQueries
         }
         return ["\(category) việt nam mới nhất", "\(category) triệu view"]
+    }
+}
+
+// MARK: - Search Expansion & Related Queries Intelligence
+
+extension RecommendationService {
+    /// Fetches rich related queries for a given search query (simulating YouTube's search expansion)
+    public func fetchRelatedSearchQueries(for query: String) async -> [String] {
+        let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return [] }
+        
+        // 1. Fetch suggestions for query with trailing space (YouTube's next-word completion)
+        async let nextWordSuggestions = YTDLPService.shared.fetchSearchSuggestions(query: "\(trimmed) ")
+        // 2. Fetch direct suggestions
+        async let directSuggestions = YTDLPService.shared.fetchSearchSuggestions(query: trimmed)
+        
+        let (nw, direct) = await (nextWordSuggestions, directSuggestions)
+        
+        let combined = nw + direct
+        var results: [String] = []
+        var seen = Set<String>()
+        let lowerQuery = trimmed.lowercased()
+        
+        for item in combined {
+            let clean = item.trimmingCharacters(in: .whitespacesAndNewlines)
+            let lower = clean.lowercased()
+            if lower != lowerQuery && !seen.contains(lower) && clean.count > 2 {
+                seen.insert(lower)
+                results.append(clean)
+            }
+        }
+        
+        // If results are few, append smart topical expansions
+        if results.count < 4 {
+            let templates = ["mới nhất", "hay nhất", "remix", "full", "review"]
+            for t in templates {
+                let candidate = "\(trimmed) \(t)"
+                if !seen.contains(candidate.lowercased()) {
+                    results.append(candidate)
+                    seen.insert(candidate.lowercased())
+                }
+            }
+        }
+        
+        return Array(results.prefix(8))
+    }
+    
+    /// Generates short contextual topic refinement chips (e.g. for "nhạc chill": ["Không lời", "Tiktok", "Học bài", "Mới nhất", "Dễ ngủ"])
+    public func fetchContextualSearchChips(for query: String) async -> [String] {
+        let related = await fetchRelatedSearchQueries(for: query)
+        var chips: [String] = []
+        var seen = Set<String>()
+        let lowerQuery = query.lowercased().trimmingCharacters(in: .whitespacesAndNewlines)
+        
+        for item in related {
+            var suffix = item
+            if suffix.lowercased().hasPrefix(lowerQuery) {
+                suffix = String(suffix.dropFirst(lowerQuery.count)).trimmingCharacters(in: .whitespacesAndNewlines)
+            }
+            // Strip leading dashes or punctuation
+            suffix = suffix.trimmingCharacters(in: CharacterSet(charactersIn: "-•|:"))
+            let clean = suffix.trimmingCharacters(in: .whitespacesAndNewlines)
+            let lower = clean.lowercased()
+            if clean.count >= 2 && clean.count <= 24 && !seen.contains(lower) {
+                seen.insert(lower)
+                let capitalized = clean.prefix(1).uppercased() + clean.dropFirst()
+                chips.append(capitalized)
+            }
+        }
+        
+        // Always add "Mới nhất" if not present
+        if !seen.contains("mới nhất") {
+            chips.append("Mới nhất")
+        }
+        
+        return Array(chips.prefix(8))
+    }
+    
+    /// Re-ranks search results to boost creators and topics the user has demonstrated affinity for
+    public func rankSearchResults(videos: [Video], query: String) -> [Video] {
+        guard !videos.isEmpty else { return [] }
+        let channelCounts = UserDefaults.standard.dictionary(forKey: channelsKey) as? [String: Int] ?? [:]
+        let topicCounts = UserDefaults.standard.dictionary(forKey: topicsKey) as? [String: Int] ?? [:]
+        let subManager = ChannelSubscriptionManager.shared
+        
+        // Calculate personalization score for each video
+        let scored = videos.map { video -> (video: Video, score: Double) in
+            var score: Double = 0.0
+            
+            // Subscribed channels get a strong boost
+            if subManager.isSubscribed(video.uploader) {
+                score += 15.0
+            }
+            
+            // Frequently watched channels get proportional boost
+            if let count = channelCounts[video.uploader] {
+                score += min(12.0, Double(count) * 2.5)
+            }
+            
+            // Matching user topic keywords
+            let keywords = extractKeywordsAndPhrases(from: video.title)
+            for kw in keywords {
+                if let count = topicCounts[kw] {
+                    score += min(4.0, Double(count) * 0.8)
+                }
+            }
+            
+            return (video, score)
+        }
+        
+        // Stable sort: higher score floats toward top while preserving original relevance order
+        let sorted = scored.sorted { a, b in
+            if abs(a.score - b.score) >= 3.0 {
+                return a.score > b.score
+            }
+            return false // Preserve original search ranking order
+        }
+        
+        return sorted.map { $0.video }
     }
 }

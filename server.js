@@ -55,9 +55,23 @@ app.use(express.static(path.join(__dirname, 'public'), {
   }
 }));
 
+// Keep-alive agent pooling for ultra-fast streaming chunk delivery & zero TLS handshake overhead
+const httpsAgent = new https.Agent({
+  keepAlive: true,
+  maxSockets: 64,
+  maxFreeSockets: 16,
+  timeout: 60000
+});
+const httpAgent = new http.Agent({
+  keepAlive: true,
+  maxSockets: 64,
+  maxFreeSockets: 16,
+  timeout: 60000
+});
+
 // Strict Input Validation Helpers
 const VIDEO_ID_REGEX = /^[a-zA-Z0-9_-]{11}$/;
-const VALID_QUALITIES = new Set(['2160', '1440', '1080', '720', '480', '360', '240', '144', 'audio', 'mini']);
+const VALID_QUALITIES = new Set(['2160', '1440', '1080', '720', '480', '360', '240', '144', 'audio', 'mini', 'shorts']);
 const VALID_FORMATS = new Set(['mp4', 'mp3', '2160', '1440', '1080', '720', '480', '360']);
 
 function isValidVideoId(id) {
@@ -102,11 +116,15 @@ app.get('/api/account/status', (req, res) => {
  */
 app.post('/api/account/cookie', (req, res) => {
   const { cookie } = req.body;
-  if (!cookie) {
+  if (!cookie || typeof cookie !== 'string') {
     if (fs.existsSync(COOKIE_FILE)) fs.unlinkSync(COOKIE_FILE);
     return res.json({ success: true, loggedIn: false });
   }
-  fs.writeFileSync(COOKIE_FILE, cookie, 'utf8');
+  // Max size guard (64KB) to prevent resource exhaustion
+  if (cookie.length > 65536) {
+    return res.status(400).json({ success: false, error: 'Cookie payload exceeds allowable limit' });
+  }
+  fs.writeFileSync(COOKIE_FILE, cookie, { encoding: 'utf8', mode: 0o600 });
   res.json({ success: true, loggedIn: true });
 });
 
@@ -179,6 +197,17 @@ app.get('/api/shorts', async (req, res) => {
     const tag = (req.query.tag || 'trending').trim();
     const shorts = await fastyoutube.getShortsFeed(tag, page);
     res.json({ success: true, videos: shorts });
+
+    // Pre-resolve stream URLs in background for top shorts so playback is instantaneous
+    if (shorts && shorts.length > 0) {
+      setTimeout(() => {
+        for (let i = 0; i < Math.min(3, shorts.length); i++) {
+          if (shorts[i] && shorts[i].id) {
+            ytdlp.getBestStreamUrl(shorts[i].id, 'shorts').catch(() => {});
+          }
+        }
+      }, 50);
+    }
   } catch (error) {
     console.error('Shorts error:', error);
     res.status(500).json({ success: false, error: error.message });
@@ -313,7 +342,8 @@ app.get('/api/proxy-stream', async (req, res) => {
         path: parsed.pathname + parsed.search,
         method: req.method,
         family: 4, // Force IPv4 to eliminate macOS IPv6 timeouts
-        headers: forwardHeaders
+        headers: forwardHeaders,
+        agent: parsed.protocol === 'http:' ? httpAgent : httpsAgent
       }, async (upstreamRes) => {
         if (upstreamRes.statusCode >= 400 && !isRetry) {
           proxyReq.destroy();

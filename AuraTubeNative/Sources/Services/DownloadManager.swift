@@ -101,6 +101,38 @@ public final class DownloadManager: ObservableObject {
         return "/opt/homebrew/bin/yt-dlp"
     }
     
+    private var ffmpegDir: String? {
+        let candidates = [
+            "/opt/homebrew/bin/ffmpeg",
+            "/usr/local/bin/ffmpeg",
+            "/usr/bin/ffmpeg"
+        ]
+        for path in candidates where FileManager.default.fileExists(atPath: path) {
+            return URL(fileURLWithPath: path).deletingLastPathComponent().path
+        }
+        return nil
+    }
+    
+    private var nodeBinaryPath: String? {
+        let candidates = [
+            "/opt/homebrew/bin/node",
+            "/usr/local/bin/node",
+            "/usr/bin/node"
+        ]
+        for path in candidates where FileManager.default.fileExists(atPath: path) {
+            return path
+        }
+        if let cellar = try? FileManager.default.contentsOfDirectory(atPath: "/opt/homebrew/Cellar/node") {
+            for v in cellar {
+                let p = "/opt/homebrew/Cellar/node/\(v)/bin/node"
+                if FileManager.default.fileExists(atPath: p) {
+                    return p
+                }
+            }
+        }
+        return nil
+    }
+    
     private init() {}
     
     @discardableResult
@@ -137,20 +169,49 @@ public final class DownloadManager: ObservableObject {
             "--progress"
         ]
         
+        if let ffDir = self.ffmpegDir {
+            args += ["--ffmpeg-location", ffDir]
+        }
+        
+        if let node = self.nodeBinaryPath {
+            args += ["--js-runtimes", "node:\(node)"]
+        }
+        
         if isAudioOnly {
-            args += ["-x", "--audio-format", "mp3", "--audio-quality", "0"]
-        } else {
             args += [
-                "-f", "bestvideo[height<=\(quality)][ext=mp4]+bestaudio[ext=m4a]/best[height<=\(quality)]/best",
-                "--merge-output-format", "mp4"
+                "-x",
+                "--audio-format", "mp3",
+                "--audio-quality", "0",
+                "--embed-metadata"
+            ]
+        } else {
+            // Prioritize native Apple QuickTime compatible AVC1 (H.264) video + M4A (AAC) audio
+            args += [
+                "-f", "bestvideo[vcodec^=avc1][height<=\(quality)]+bestaudio[ext=m4a]/bestvideo[ext=mp4][height<=\(quality)]+bestaudio[ext=m4a]/bestvideo[height<=\(quality)]+bestaudio/best[height<=\(quality)]/best",
+                "--merge-output-format", "mp4",
+                "--postprocessor-args", "Merger:-movflags +faststart"
             ]
         }
-        args.append("https://www.youtube.com/watch?v=\(video.id)")
+        guard video.id.range(of: "^[a-zA-Z0-9_-]{11}$", options: .regularExpression) != nil else {
+            if let idx = downloads.firstIndex(where: { $0.id == itemId }) {
+                downloads[idx].statusText = "ID video không hợp lệ"
+                downloads[idx].isError = true
+                downloads[idx].errorMessage = "ID video không đúng định dạng YouTube"
+            }
+            return itemId
+        }
+        args += ["--", "https://www.youtube.com/watch?v=\(video.id)"]
         
         DispatchQueue.global(qos: .userInitiated).async { [weak self] in
             let process = Process()
             process.executableURL = URL(fileURLWithPath: ytdlp)
             process.arguments = args
+            
+            var env = ProcessInfo.processInfo.environment
+            let currentPath = env["PATH"] ?? "/usr/bin:/bin:/usr/sbin:/sbin"
+            let extraPaths = "/opt/homebrew/bin:/opt/homebrew/sbin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin"
+            env["PATH"] = "\(extraPaths):\(currentPath)"
+            process.environment = env
             
             let pipe = Pipe()
             process.standardOutput = pipe
@@ -183,9 +244,11 @@ public final class DownloadManager: ObservableObject {
                             self?.downloads[idx].isComplete = true
                             self?.downloads[idx].isError = false
                             
-                            // Fallback detect destination file if not already captured
-                            if self?.downloads[idx].destinationPath == nil {
-                                self?.downloads[idx].destinationPath = self?.findRecentFile(matching: self!.downloads[idx])
+                            // Final destination resolution: verify file exists on disk
+                            var finalPath = self?.downloads[idx].destinationPath
+                            if finalPath == nil || !FileManager.default.fileExists(atPath: finalPath!) {
+                                finalPath = self?.findRecentFile(matching: self!.downloads[idx])
+                                self?.downloads[idx].destinationPath = finalPath
                             }
                             
                             self?.notifyCompletion(item: self!.downloads[idx])
@@ -248,19 +311,21 @@ public final class DownloadManager: ObservableObject {
         guard let idx = downloads.firstIndex(where: { $0.id == id }) else { return }
         
         // Destination detection
-        if output.contains("Destination: ") {
-            if let destRange = output.range(of: #"Destination:\s*(.+)$"#, options: .regularExpression) {
-                let rawDest = String(output[destRange]).replacingOccurrences(of: "Destination:", with: "").trimmingCharacters(in: .whitespacesAndNewlines)
-                if !rawDest.isEmpty {
-                    downloads[idx].destinationPath = rawDest
-                }
-            }
-        } else if output.contains("Merging formats into ") {
+        if output.contains("[Merger] Merging formats into ") {
             if let mergeRange = output.range(of: #"Merging formats into "([^"]+)""#, options: .regularExpression) {
                 let raw = String(output[mergeRange])
                 let clean = raw.replacingOccurrences(of: "Merging formats into \"", with: "").replacingOccurrences(of: "\"", with: "")
                 downloads[idx].destinationPath = clean
+                downloads[idx].statusText = "Đang hoàn thiện tệp MP4 chuẩn QuickTime..."
             }
+        } else if output.contains("[ExtractAudio] Destination: ") {
+            if let range = output.range(of: #"\[ExtractAudio\] Destination:\s*(.+)$"#, options: .regularExpression) {
+                let raw = String(output[range]).replacingOccurrences(of: "[ExtractAudio] Destination:", with: "").trimmingCharacters(in: .whitespacesAndNewlines)
+                if !raw.isEmpty {
+                    downloads[idx].destinationPath = raw
+                }
+            }
+            downloads[idx].statusText = "Đang xuất âm thanh MP3 320k..."
         } else if output.contains("has already been downloaded") {
             if let range = output.range(of: #"\[download\]\s*(.+?)\s*has already been downloaded"#, options: .regularExpression) {
                 let raw = String(output[range])
@@ -274,6 +339,14 @@ public final class DownloadManager: ObservableObject {
             downloads[idx].progress = 1.0
             downloads[idx].statusText = "Tệp đã có sẵn trên máy ✓"
             downloads[idx].isComplete = true
+        } else if output.contains("Destination: ") {
+            if let destRange = output.range(of: #"Destination:\s*(.+)$"#, options: .regularExpression) {
+                let rawDest = String(output[destRange]).replacingOccurrences(of: "Destination:", with: "").trimmingCharacters(in: .whitespacesAndNewlines)
+                // Filter out intermediate temporary streams like video.f137.mp4 or audio.f140.m4a
+                if !rawDest.isEmpty && !rawDest.contains(".f") && !rawDest.hasSuffix(".part") && !rawDest.hasSuffix(".temp") && !rawDest.hasSuffix(".ytdl") {
+                    downloads[idx].destinationPath = rawDest
+                }
+            }
         }
         
         // Progress percentage detection: [download]  45.6% of 25.00MiB at 3.50MiB/s ETA 00:07
@@ -327,14 +400,18 @@ public final class DownloadManager: ObservableObject {
         }
     }
     
-    private func findRecentFile(matching item: DownloadItem) -> String? {
+    public func findRecentFile(matching item: DownloadItem) -> String? {
         let dir = downloadDir
         guard let files = try? FileManager.default.contentsOfDirectory(at: dir, includingPropertiesForKeys: [.contentModificationDateKey]) else {
             return nil
         }
         
         let expectedExt = item.isAudioOnly ? "mp3" : "mp4"
-        let filtered = files.filter { $0.pathExtension.lowercased() == expectedExt }
+        let filtered = files.filter { url in
+            let ext = url.pathExtension.lowercased()
+            let name = url.lastPathComponent
+            return ext == expectedExt && !name.contains(".f") && !name.hasSuffix(".part") && !name.hasSuffix(".temp") && !name.hasSuffix(".ytdl")
+        }
         
         // Sort by most recently modified
         let sorted = filtered.sorted { url1, url2 in
@@ -354,18 +431,30 @@ public final class DownloadManager: ObservableObject {
         NSUserNotificationCenter.default.deliver(notification)
     }
     
+    public func openFile(for item: DownloadItem) {
+        var filePath = item.destinationPath
+        if filePath == nil || !FileManager.default.fileExists(atPath: filePath!) {
+            filePath = findRecentFile(matching: item)
+        }
+        
+        if let path = filePath, FileManager.default.fileExists(atPath: path) {
+            NSWorkspace.shared.open(URL(fileURLWithPath: path))
+        } else {
+            openDownloadFolder()
+        }
+    }
+    
     public func openFileInFinder(for item: DownloadItem) {
-        if let path = item.destinationPath, FileManager.default.fileExists(atPath: path) {
+        var filePath = item.destinationPath
+        if filePath == nil || !FileManager.default.fileExists(atPath: filePath!) {
+            filePath = findRecentFile(matching: item)
+        }
+        
+        if let path = filePath, FileManager.default.fileExists(atPath: path) {
             NSWorkspace.shared.activateFileViewerSelecting([URL(fileURLWithPath: path)])
-            return
+        } else {
+            openDownloadFolder()
         }
-        
-        if let fallbackPath = findRecentFile(matching: item), FileManager.default.fileExists(atPath: fallbackPath) {
-            NSWorkspace.shared.activateFileViewerSelecting([URL(fileURLWithPath: fallbackPath)])
-            return
-        }
-        
-        openDownloadFolder()
     }
     
     public func openDownloadFolder() {

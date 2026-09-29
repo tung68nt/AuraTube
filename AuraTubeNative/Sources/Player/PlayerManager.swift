@@ -4,6 +4,20 @@ import AVKit
 import MediaPlayer
 import Combine
 
+public struct SavedPlaybackRecord: Codable {
+    public let videoId: String
+    public var position: Double
+    public var duration: Double
+    public var updatedAt: Double
+    
+    public init(videoId: String, position: Double, duration: Double, updatedAt: Double = Date().timeIntervalSince1970) {
+        self.videoId = videoId
+        self.position = position
+        self.duration = duration
+        self.updatedAt = updatedAt
+    }
+}
+
 @MainActor
 public final class PlayerManager: ObservableObject {
     public static let shared = PlayerManager()
@@ -12,7 +26,7 @@ public final class PlayerManager: ObservableObject {
     
     @Published public var currentVideo: Video?
     @Published public var isPlaying: Bool = false
-    @Published public var currentTime: Double = 0
+    public var currentTime: Double = 0
     @Published public var duration: Double = 0
     @Published public var volume: Double = 1.0 {
         didSet {
@@ -26,12 +40,42 @@ public final class PlayerManager: ObservableObject {
     @Published public var currentQuality: String = "1080"
     @Published public var selectedQuality: String = "auto"
     @Published public var availableQualities: [Int] = []
+    @Published public var preferMaxQuality: Bool = UserDefaults.standard.object(forKey: "preferMaxQuality") as? Bool ?? false {
+        didSet {
+            UserDefaults.standard.set(preferMaxQuality, forKey: "preferMaxQuality")
+            reevaluateAndApplyOptimalQuality()
+        }
+    }
+    
+    public var resolvedOptimalQuality: String {
+        NetworkSpeedService.shared.recommendedQuality(from: availableQualities, preferMax: preferMaxQuality)
+    }
+    
+    public func reevaluateAndApplyOptimalQuality() {
+        guard selectedQuality == "auto" else { return }
+        onQualityChange?("auto")
+    }
+    
+    // MARK: - Playback Rate / Speed (0.25x - 2.0x)
+    public static let availablePlaybackRates: [Double] = [0.25, 0.5, 0.75, 1.0, 1.25, 1.5, 1.75, 2.0]
+    @Published public var playbackRate: Double = 1.0 {
+        didSet {
+            updateNowPlaying()
+        }
+    }
+    
     @Published public var chapters: [VideoChapter] = []
     @Published public var sponsorSegments: [SponsorSegment] = []
     @Published public var isAudioOnly: Bool = false
     @Published public var bookmarkedVideos: [Video] = []
     @Published public var historyVideos: [Video] = []
+    
+    // Saved playback positions for seamless resume across app restarts
+    @Published public var savedPlaybackRecords: [String: SavedPlaybackRecord] = [:]
+    private var lastSavedPlaybackSyncTimestamp: TimeInterval = 0
+    private var hasRecordedCompletionSignal: Bool = false
     @Published public var isLoadingStream: Bool = false
+    @Published public var isBuffering: Bool = false
     @Published public var errorMessage: String?
     @Published public var isVideoFullscreen: Bool = false
     @Published public var isPictureInPictureActive: Bool = false
@@ -72,6 +116,28 @@ public final class PlayerManager: ObservableObject {
     public func togglePiPSettingsCard() {
         withAnimation(.spring(response: 0.28, dampingFraction: 0.78)) {
             showPiPSettingsCard.toggle()
+        }
+    }
+    
+    // MARK: - Global HUD Toast Feedback
+    @Published public var hudIcon: String = ""
+    @Published public var hudText: String = ""
+    @Published public var isHudVisible: Bool = false
+    private var hudTimer: Timer? = nil
+    
+    public func flashHUD(icon: String, text: String) {
+        hudTimer?.invalidate()
+        hudIcon = icon
+        hudText = text
+        withAnimation(.spring(response: 0.25, dampingFraction: 0.8)) {
+            isHudVisible = true
+        }
+        hudTimer = Timer.scheduledTimer(withTimeInterval: 2.0, repeats: false) { [weak self] _ in
+            DispatchQueue.main.async {
+                withAnimation(.easeOut(duration: 0.25)) {
+                    self?.isHudVisible = false
+                }
+            }
         }
     }
     
@@ -120,6 +186,7 @@ public final class PlayerManager: ObservableObject {
     public var onMuteToggle: ((Bool) -> Void)?
     public var onVolumeChange: ((Double) -> Void)?
     public var onQualityChange: ((String) -> Void)?
+    public var onPlaybackRateChange: ((Double) -> Void)?
     
     private var playPauseObservers: [UUID: (Bool) -> Void] = [:]
     private var seekObservers: [UUID: (Double) -> Void] = [:]
@@ -156,6 +223,14 @@ public final class PlayerManager: ObservableObject {
         qualityObservers.removeValue(forKey: id)
     }
     
+    private var playbackRateObservers: [UUID: (Double) -> Void] = [:]
+    public func registerPlaybackRateObserver(id: UUID, _ block: @escaping (Double) -> Void) {
+        playbackRateObservers[id] = block
+    }
+    public func unregisterPlaybackRateObserver(id: UUID) {
+        playbackRateObservers.removeValue(forKey: id)
+    }
+    
     public func registerTimeSyncObserver(id: UUID, _ block: @escaping (Double, Bool) -> Void) {
         timeSyncObservers[id] = block
     }
@@ -186,6 +261,7 @@ public final class PlayerManager: ObservableObject {
     private init() {
         loadBookmarks()
         loadHistory()
+        loadPlaybackPositions()
         setupTimeObserver()
         setupRemoteCommands()
         
@@ -368,17 +444,16 @@ public final class PlayerManager: ObservableObject {
                 if currentTime == 0 && self.currentTime > 1.0 && (self.isPlaying || isPlaying == true) {
                     // Bogus uninitialized 0.0s update ignored
                 } else {
-                    // Throttle @Published currentTime mutations to prevent 22Hz re-renders of root ContentView;
-                    // PlaybackClock already delivers ultra-smooth 60fps progress bar updates
-                    if abs(self.currentTime - currentTime) >= 0.25 || currentTime == 0 || !self.isPlaying {
-                        self.currentTime = currentTime
-                    }
+                    self.currentTime = currentTime
                 }
                 
+                // Record progress for resume across app restarts
+                recordPlaybackProgress(videoId: videoId ?? currentVideo?.id, time: currentTime, duration: duration)
+                
                 let now = ProcessInfo.processInfo.systemUptime
-                // Ultra-low latency dual-player sync: 30ms post-seek convergence; 50ms regular clock for frame-accurate phase lock
+                // Routine mini player sync: 0.8s during normal playback, 0.25s post-seek for fast convergence
                 let isPostSeekConvergence = (now - lastSeekTimestamp < 2.5)
-                let syncInterval = isPostSeekConvergence ? 0.03 : 0.05
+                let syncInterval = isPostSeekConvergence ? 0.25 : 0.8
                 
                 if hasActiveMainPlayer && (now - lastMiniSyncUptime >= syncInterval) {
                     lastMiniSyncUptime = now
@@ -391,6 +466,7 @@ public final class PlayerManager: ObservableObject {
                 // If main player is NOT active, mini player is the master clock
                 if !hasActiveMainPlayer {
                     self.currentTime = currentTime
+                    recordPlaybackProgress(videoId: videoId ?? currentVideo?.id, time: currentTime, duration: duration)
                 } else {
                     // Main player is active: mini player is strictly a visual follower, ignore time updates
                 }
@@ -437,10 +513,28 @@ public final class PlayerManager: ObservableObject {
     }
     
     public func loadAndPlay(video: Video, quality: String = "1080", startTime: Double = 0) {
+        // 0. Flush any pending playback position for the previous video
+        flushSavedPlaybackPositions()
+        
         cancelAutoplay()
         commentsLoadingTask?.cancel()
         
-        // 1. Cut off any existing audio/video to guarantee zero overlap ("chồng tiếng")
+        // 1. Determine effective start / resume timestamp
+        let effectiveStartTime: Double = {
+            if startTime > 0 {
+                return startTime
+            }
+            if let saved = getSavedPlaybackPosition(for: video.id), saved > 3.0 {
+                let totalDur = video.totalDurationSeconds
+                if totalDur > 15.0 && (saved >= totalDur - 8.0 || (saved / totalDur) >= 0.95) {
+                    return 0
+                }
+                return saved
+            }
+            return 0
+        }()
+        
+        // 2. Cut off any existing audio/video to guarantee zero overlap ("chồng tiếng")
         player.pause()
         player.replaceCurrentItem(with: nil)
         ShortsPlaybackCoordinator.shared.silenceAll()
@@ -477,9 +571,10 @@ public final class PlayerManager: ObservableObject {
         self.isCurrentVideoVertical = isShortVideo
         self.currentVideoAspectRatio = isShortVideo ? (9.0 / 16.0) : (16.0 / 9.0)
         self.selectedQuality = "auto"
-        self.currentQuality = quality
+        self.currentQuality = self.resolvedOptimalQuality
         self.availableQualities = []
-        self.currentTime = startTime
+        self.hasRecordedCompletionSignal = false
+        self.currentTime = effectiveStartTime
         self.duration = video.totalDurationSeconds
         self.chapters = []
         self.comments = []
@@ -499,7 +594,17 @@ public final class PlayerManager: ObservableObject {
             observer(true)
         }
         for observer in videoChangeObservers.values {
-            observer(video, startTime)
+            observer(video, effectiveStartTime)
+        }
+        
+        if effectiveStartTime > 3.0 {
+            let m = Int(effectiveStartTime) / 60
+            let s = Int(effectiveStartTime) % 60
+            let timeStr = String(format: "%d:%02d", m, s)
+            PiPOverlayState.shared.triggerHUD(
+                icon: "clock.arrow.circlepath",
+                text: "Tiếp tục xem từ \(timeStr)"
+            )
         }
         
         // Start streaming all viewer comments in background
@@ -517,6 +622,7 @@ public final class PlayerManager: ObservableObject {
             if self.currentVideo?.id == video.id {
                 if !details.heights.isEmpty {
                     self.availableQualities = details.heights
+                    self.reevaluateAndApplyOptimalQuality()
                 }
                 var updated = self.currentVideo
                 if !details.author.isEmpty && details.author != "YouTube" {
@@ -674,14 +780,99 @@ public final class PlayerManager: ObservableObject {
         startLoadingComments(for: video.id, initialToken: tokenToUse)
     }
     
+    // MARK: - Reload / Refresh Current Video Stream
+    public func reloadCurrentVideo() {
+        guard let video = currentVideo else { return }
+        let currentPos = self.currentTime
+        let q = self.selectedQuality
+        let rate = self.playbackRate
+        
+        PiPOverlayState.shared.triggerHUD(
+            icon: "arrow.clockwise",
+            text: "Đang tải lại luồng video..."
+        )
+        
+        self.isBuffering = true
+        
+        // 1. Direct JS call to reloadPlayer if webView is active
+        if let webView = MainWebPlayerPool.shared.webView {
+            let effectiveQ = (q != "auto") ? q : resolvedOptimalQuality
+            let js = """
+            if (typeof window.reloadPlayer === 'function') {
+                window.reloadPlayer(\(Int(currentPos)));
+            } else if (typeof window.loadNewVideo === 'function') {
+                window.loadNewVideo('\(video.id)', \(Int(currentPos)), '\(effectiveQ)', \(rate));
+            } else {
+                location.reload();
+            }
+            """
+            webView.evaluateJavaScript(js) { [weak self, weak webView] _, err in
+                if err != nil, let v = webView, let s = self {
+                    let html = NativePlayerView.generateHTML(for: video, playerManager: s)
+                    v.loadHTMLString(html, baseURL: URL(string: "https://auratube.app"))
+                }
+            }
+        } else {
+            loadAndPlay(video: video, quality: q, startTime: currentPos)
+        }
+    }
+    
     public func setQuality(_ quality: String) {
         self.selectedQuality = quality
         if quality != "auto" {
             self.currentQuality = quality
+        } else {
+            self.currentQuality = resolvedOptimalQuality
         }
         onQualityChange?(quality)
         for observer in qualityObservers.values {
             observer(quality)
+        }
+    }
+    
+    // MARK: - Playback Rate Controls
+    public var displayPlaybackRate: String {
+        if abs(playbackRate - 1.0) < 0.01 {
+            return "1.0x"
+        } else if playbackRate == Double(Int(playbackRate)) {
+            return "\(Int(playbackRate))x"
+        } else {
+            return String(format: "%gx", playbackRate)
+        }
+    }
+    
+    public func setPlaybackRate(_ rate: Double) {
+        let validRate = Self.availablePlaybackRates.min(by: { abs($0 - rate) < abs($1 - rate) }) ?? rate
+        guard abs(playbackRate - validRate) > 0.001 else { return }
+        self.playbackRate = validRate
+        onPlaybackRateChange?(validRate)
+        for observer in playbackRateObservers.values {
+            observer(validRate)
+        }
+    }
+    
+    public func cyclePlaybackRate() {
+        let current = playbackRate
+        let rates = Self.availablePlaybackRates
+        if let idx = rates.firstIndex(where: { abs($0 - current) < 0.01 }) {
+            let nextIdx = (idx + 1) % rates.count
+            setPlaybackRate(rates[nextIdx])
+        } else {
+            setPlaybackRate(1.0)
+        }
+    }
+    
+    public func increasePlaybackRate() {
+        let rates = Self.availablePlaybackRates
+        if let next = rates.first(where: { $0 > playbackRate + 0.01 }) {
+            setPlaybackRate(next)
+        }
+    }
+    
+    public func decreasePlaybackRate() {
+        let rates = Self.availablePlaybackRates
+        if let prev = rates.last(where: { $0 < playbackRate - 0.01 }) {
+            setPlaybackRate(prev)
         }
     }
     
@@ -704,6 +895,7 @@ public final class PlayerManager: ObservableObject {
         if isPlaying {
             togglePlayPause()
         }
+        flushSavedPlaybackPositions()
     }
     
     public func togglePlayPause() {
@@ -726,6 +918,7 @@ public final class PlayerManager: ObservableObject {
             player.play()
         } else {
             player.pause()
+            flushSavedPlaybackPositions()
         }
         updateNowPlaying()
     }
@@ -747,6 +940,8 @@ public final class PlayerManager: ObservableObject {
         }
         let time = CMTime(seconds: clampedTime, preferredTimescale: 600)
         player.seek(to: time, toleranceBefore: .zero, toleranceAfter: .zero)
+        recordPlaybackProgress(videoId: currentVideo?.id, time: clampedTime, duration: self.duration)
+        persistPlaybackPositionsDebounced(force: false)
         updateNowPlaying()
         
         // Auto release seek lock after 1.2s max
@@ -779,6 +974,7 @@ public final class PlayerManager: ObservableObject {
     }
     
     public func stop() {
+        flushSavedPlaybackPositions()
         cancelAutoplay()
         commentsLoadingTask?.cancel()
         commentsLoadingTask = nil
@@ -860,13 +1056,10 @@ public final class PlayerManager: ObservableObject {
         if isVideoFullscreen {
             toggleFullscreen()
         }
-        isPictureInPictureActive.toggle()
         if isPictureInPictureActive {
-            lastPiPEnterTimestamp = Date().timeIntervalSinceReferenceDate
-            PiPWindowController.shared.show(video: currentVideo)
+            PiPWindowController.shared.returnToMainWindow()
         } else {
-            PiPWindowController.shared.close()
-            refreshPlayerLayout()
+            enterPictureInPicture()
         }
     }
     
@@ -877,6 +1070,10 @@ public final class PlayerManager: ObservableObject {
         }
         wasAutoPiPTriggered = isAutoTriggered
         lastPiPEnterTimestamp = Date().timeIntervalSinceReferenceDate
+        
+        // Capture exact player screen frame before changing state to eliminate race condition
+        PiPWindowController.shared.captureMainPlayerScreenFrame()
+        
         isPictureInPictureActive = true
         PiPWindowController.shared.show(video: currentVideo)
     }
@@ -884,19 +1081,12 @@ public final class PlayerManager: ObservableObject {
     public func exitPictureInPicture() {
         guard isPictureInPictureActive else { return }
         wasAutoPiPTriggered = false
-        isPictureInPictureActive = false
-        PiPWindowController.shared.close()
-        refreshPlayerLayout()
+        PiPWindowController.shared.returnToMainWindow()
     }
     
     // MARK: - Layout Refresh (Guarantees Full Frame Recovery after PiP/Window Resizes)
     public func refreshPlayerLayout() {
         DispatchQueue.main.async {
-            if let wv = MainWebPlayerPool.shared.webView as? ScrollForwardingWKWebView {
-                wv.triggerRelayout()
-            }
-        }
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
             if let wv = MainWebPlayerPool.shared.webView as? ScrollForwardingWKWebView {
                 wv.triggerRelayout()
             }
@@ -918,6 +1108,10 @@ public final class PlayerManager: ObservableObject {
             self.seek(to: 0)
             self.play()
             return
+        }
+        if let cur = currentVideo {
+            clearSavedPlaybackPosition(for: cur.id)
+            RecommendationService.shared.recordWatchCompletion(video: cur)
         }
         guard isAutoplayEnabled else { return }
         guard autoplayCountdown == nil else { return }
@@ -972,11 +1166,42 @@ public final class PlayerManager: ObservableObject {
         autoplayCountdown = nil
     }
     
+    public var canPlayPrevious: Bool {
+        return historyVideos.count > 1 || currentTime > 3.0
+    }
+    
+    public func playPreviousVideo() {
+        cancelAutoplay()
+        if currentTime > 3.0 {
+            seek(to: 0)
+            return
+        }
+        if let cur = currentVideo, let curIdx = historyVideos.firstIndex(where: { $0.id == cur.id }), curIdx + 1 < historyVideos.count {
+            let prev = historyVideos[curIdx + 1]
+            loadAndPlay(video: prev)
+        } else if historyVideos.count > 1 {
+            let prev = historyVideos[1]
+            loadAndPlay(video: prev)
+        } else {
+            seek(to: 0)
+        }
+    }
+    
     public func playNextVideo() {
         cancelAutoplay()
-        guard let next = nextVideo else { return }
-        self.nextVideo = nil
-        self.loadAndPlay(video: next)
+        if let next = nextVideo {
+            self.nextVideo = nil
+            self.loadAndPlay(video: next)
+            return
+        }
+        if let cur = currentVideo {
+            Task { @MainActor in
+                let related = await YTDLPService.shared.searchVideos(query: cur.uploader)
+                if let firstNext = related.first(where: { $0.id != cur.id }) {
+                    self.loadAndPlay(video: firstNext)
+                }
+            }
+        }
     }
     
     // MARK: - Bookmarks & History
@@ -990,6 +1215,7 @@ public final class PlayerManager: ObservableObject {
             bookmarkedVideos.remove(at: idx)
         } else {
             bookmarkedVideos.insert(video, at: 0)
+            RecommendationService.shared.recordBookmark(video: video)
         }
         saveBookmarks()
     }
@@ -1025,6 +1251,113 @@ public final class PlayerManager: ObservableObject {
                 RecommendationService.shared.syncFromExistingHistory(list)
             }
         }
+    }
+    
+    // MARK: - Playback Progress & Resume Management
+    
+    private func loadPlaybackPositions() {
+        if let data = UserDefaults.standard.data(forKey: "auratube_playback_positions"),
+           let map = try? JSONDecoder().decode([String: SavedPlaybackRecord].self, from: data) {
+            self.savedPlaybackRecords = map
+        }
+    }
+    
+    public func recordPlaybackProgress(videoId: String?, time: Double, duration: Double) {
+        guard let vid = videoId, !vid.isEmpty else { return }
+        guard !time.isNaN && !time.isInfinite && time >= 0 else { return }
+        
+        let total = duration > 0 ? duration : self.duration
+        
+        // If the video was watched near the end (within 8 seconds of end or >= 95% complete), treat as finished
+        if total > 15.0 && (time >= total - 8.0 || (time / total) >= 0.95) {
+            if savedPlaybackRecords[vid] != nil {
+                savedPlaybackRecords.removeValue(forKey: vid)
+                persistPlaybackPositionsDebounced()
+            }
+            return
+        }
+        
+        // Record watch completion signal when user crosses 50% dwell time
+        if total > 20.0 && (time / total >= 0.5) && !hasRecordedCompletionSignal {
+            hasRecordedCompletionSignal = true
+            if let cur = currentVideo {
+                RecommendationService.shared.recordWatchCompletion(video: cur)
+            }
+        }
+        
+        // Only record meaningful progress (> 3.0 seconds)
+        guard time >= 3.0 else { return }
+        
+        savedPlaybackRecords[vid] = SavedPlaybackRecord(
+            videoId: vid,
+            position: time,
+            duration: total,
+            updatedAt: Date().timeIntervalSince1970
+        )
+        
+        persistPlaybackPositionsDebounced()
+    }
+    
+    private func persistPlaybackPositionsDebounced(force: Bool = false) {
+        let now = ProcessInfo.processInfo.systemUptime
+        if !force && (now - lastSavedPlaybackSyncTimestamp < 3.0) {
+            return
+        }
+        lastSavedPlaybackSyncTimestamp = now
+        flushSavedPlaybackPositions()
+    }
+    
+    public func flushSavedPlaybackPositions() {
+        if let vid = currentVideo?.id, currentTime >= 3.0 {
+            let dur = duration > 0 ? duration : (currentVideo?.totalDurationSeconds ?? 0)
+            if dur > 15.0 && (currentTime >= dur - 8.0 || (currentTime / dur) >= 0.95) {
+                savedPlaybackRecords.removeValue(forKey: vid)
+            } else {
+                savedPlaybackRecords[vid] = SavedPlaybackRecord(
+                    videoId: vid,
+                    position: currentTime,
+                    duration: dur,
+                    updatedAt: Date().timeIntervalSince1970
+                )
+            }
+        }
+        
+        // Limit dictionary size to most recent 300 videos
+        if savedPlaybackRecords.count > 350 {
+            let sorted = savedPlaybackRecords.values.sorted { $0.updatedAt > $1.updatedAt }
+            let kept = sorted.prefix(250)
+            savedPlaybackRecords = Dictionary(uniqueKeysWithValues: kept.map { ($0.videoId, $0) })
+        }
+        
+        if let data = try? JSONEncoder().encode(savedPlaybackRecords) {
+            UserDefaults.standard.set(data, forKey: "auratube_playback_positions")
+            UserDefaults.standard.synchronize()
+        }
+    }
+    
+    public func getSavedPlaybackPosition(for videoId: String) -> Double? {
+        guard let record = savedPlaybackRecords[videoId] else { return nil }
+        if record.position > 3.0 {
+            if record.duration > 15.0 && (record.position >= record.duration - 8.0 || (record.position / record.duration) >= 0.95) {
+                return nil
+            }
+            return record.position
+        }
+        return nil
+    }
+    
+    public func watchProgressRatio(for videoId: String) -> Double? {
+        guard let record = savedPlaybackRecords[videoId], record.duration > 0 else { return nil }
+        let ratio = record.position / record.duration
+        if ratio >= 0.02 && ratio < 0.98 {
+            return ratio
+        }
+        return nil
+    }
+    
+    public func clearSavedPlaybackPosition(for videoId: String) {
+        savedPlaybackRecords.removeValue(forKey: videoId)
+        persistPlaybackPositionsDebounced(force: true)
     }
     
     // MARK: - Time Observation & SponsorBlock
@@ -1113,7 +1446,7 @@ public final class PlayerManager: ObservableObject {
             MPMediaItemPropertyArtist: video.uploader,
             MPNowPlayingInfoPropertyElapsedPlaybackTime: currentTime,
             MPMediaItemPropertyPlaybackDuration: duration > 0 ? duration : (video.duration ?? 0),
-            MPNowPlayingInfoPropertyPlaybackRate: isPlaying ? 1.0 : 0.0
+            MPNowPlayingInfoPropertyPlaybackRate: isPlaying ? playbackRate : 0.0
         ]
         
         MPNowPlayingInfoCenter.default().nowPlayingInfo = info

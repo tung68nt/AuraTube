@@ -97,6 +97,7 @@ public final class UpdateService: NSObject, ObservableObject, @preconcurrency UR
     
     private func fetchLatestVersionInfo() async -> AppUpdateInfo? {
         // 1. Check local version.json manifest if present in development environment
+        #if DEBUG
         let localPath = "/Users/tungnguyen/Code/Youtube/version.json"
         if let localData = try? Data(contentsOf: URL(fileURLWithPath: localPath)),
            let json = try? JSONSerialization.jsonObject(with: localData) as? [String: Any],
@@ -111,6 +112,7 @@ public final class UpdateService: NSObject, ObservableObject, @preconcurrency UR
                 fileSize: json["fileSize"] as? String
             )
         }
+        #endif
         
         // 2. Remote Attempt 1: Fetch custom version.json manifest from GitHub
         if let update = await fetchFromManifest(url: updateFeedUrl) {
@@ -323,9 +325,10 @@ public final class UpdateService: NSObject, ObservableObject, @preconcurrency UR
         
         let scriptContent = """
         #!/bin/bash
-        TARGET_APP="\(targetApp)"
-        ARCHIVE="\(zipUrl.path)"
-        PARENT_PID="\(currentPid)"
+        set -e
+        TARGET_APP="$1"
+        ARCHIVE="$2"
+        PARENT_PID="$3"
         WORK_DIR="/tmp/auratube_upgrade_$$"
         LOG_FILE="/tmp/auratube_update.log"
         
@@ -386,19 +389,20 @@ public final class UpdateService: NSObject, ObservableObject, @preconcurrency UR
         rm -rf "$WORK_DIR"
         """
         
-        let scriptPath = "/tmp/auratube_updater.sh"
+        // Secure isolated temporary directory with 0700 permissions
+        let secureDir = FileManager.default.temporaryDirectory.appendingPathComponent("updater_\(UUID().uuidString)")
         do {
-            try scriptContent.write(toFile: scriptPath, atomically: true, encoding: .utf8)
-            let chmod = Process()
-            chmod.executableURL = URL(fileURLWithPath: "/bin/chmod")
-            chmod.arguments = ["+x", scriptPath]
-            try chmod.run()
-            chmod.waitUntilExit()
+            try FileManager.default.createDirectory(at: secureDir, withIntermediateDirectories: true, attributes: [
+                .posixPermissions: 0o700
+            ])
+            let scriptUrl = secureDir.appendingPathComponent("updater.sh")
+            try scriptContent.write(to: scriptUrl, atomically: true, encoding: .utf8)
+            try FileManager.default.setAttributes([.posixPermissions: 0o700], ofItemAtPath: scriptUrl.path)
             
-            // Spawn detached installer script
+            // Spawn detached installer script with arguments
             let updater = Process()
             updater.executableURL = URL(fileURLWithPath: "/bin/bash")
-            updater.arguments = [scriptPath]
+            updater.arguments = [scriptUrl.path, targetApp, zipUrl.path, "\(currentPid)"]
             try updater.run()
             
             // Dismiss sheet and terminate process immediately

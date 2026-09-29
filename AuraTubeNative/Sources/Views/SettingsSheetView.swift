@@ -3,6 +3,7 @@ import AppKit
 
 public enum SettingsTab: String, CaseIterable, Identifiable {
     case appearance = "Giao diện"
+    case playback = "Chất lượng & Mạng"
     case pip = "Cửa sổ nổi PiP"
     case updates = "Cập nhật & Hệ thống"
     
@@ -11,6 +12,7 @@ public enum SettingsTab: String, CaseIterable, Identifiable {
     public var iconName: String {
         switch self {
         case .appearance: return "paintbrush.fill"
+        case .playback: return "speedometer"
         case .pip: return "pip.fill"
         case .updates: return "gearshape.2.fill"
         }
@@ -23,6 +25,7 @@ public struct SettingsSheetView: View {
     @ObservedObject private var themeManager = ThemeManager.shared
     @ObservedObject private var playerManager = PlayerManager.shared
     @ObservedObject private var updateService = UpdateService.shared
+    @ObservedObject private var speedService = NetworkSpeedService.shared
     
     @State private var selectedTab: SettingsTab
     
@@ -122,6 +125,8 @@ public struct SettingsSheetView: View {
                 switch selectedTab {
                 case .appearance:
                     appearanceTabContent
+                case .playback:
+                    playbackTabContent
                 case .pip:
                     pipTabContent
                 case .updates:
@@ -129,7 +134,7 @@ public struct SettingsSheetView: View {
                 }
             }
             .padding(.horizontal, 24)
-            .frame(height: 290, alignment: .top)
+            .frame(height: 310, alignment: .top)
             
             // MARK: - 4. Bottom Action Footer (Apple HIG: Right-aligned dismiss)
             HStack {
@@ -205,7 +210,7 @@ public struct SettingsSheetView: View {
             .padding(.top, 16)
             .padding(.bottom, 20)
         }
-        .frame(width: 560)
+        .frame(width: 640)
         .background(
             ZStack {
                 // 1. Hardware Optical Blur
@@ -283,6 +288,8 @@ public struct SettingsSheetView: View {
                     .font(.system(size: 11.5, weight: fontWeight))
                 Text(tab.rawValue)
                     .font(.system(size: 12, weight: fontWeight))
+                    .lineLimit(1)
+                    .fixedSize(horizontal: true, vertical: false)
             }
             .padding(.horizontal, 14)
             .padding(.vertical, 7)
@@ -709,6 +716,106 @@ public struct SettingsSheetView: View {
         }
     }
     
+    // MARK: - Playback & Network Tab Content
+    @ViewBuilder
+    private var playbackTabContent: some View {
+        VStack(spacing: 12) {
+            // Plate 1: Network Speed Status
+            recessedPlate(title: "Kiểm tra tốc độ mạng & Băng thông thực tế") {
+                HStack(spacing: 16) {
+                    VStack(alignment: .leading, spacing: 4) {
+                        HStack(spacing: 6) {
+                            Circle()
+                                .fill(speedService.isConnected ? Color.green : Color.red)
+                                .frame(width: 8, height: 8)
+                            Text(speedService.displaySpeed)
+                                .font(.system(size: 20, weight: .bold, design: .rounded))
+                                .foregroundColor(ThemeColor.textPrimary(for: colorScheme))
+                            
+                            Text("(\(speedService.connectionType))")
+                                .font(.system(size: 11))
+                                .foregroundColor(ThemeColor.textSecondary(for: colorScheme))
+                        }
+                        
+                        Text("Độ trễ: \(speedService.displayLatency) • \(speedService.statusSummary)")
+                            .font(.system(size: 11))
+                            .foregroundColor(ThemeColor.textSecondary(for: colorScheme))
+                    }
+                    
+                    Spacer()
+                    
+                    Button(action: {
+                        speedService.measureSpeed(force: true)
+                    }) {
+                        HStack(spacing: 6) {
+                            if speedService.isTesting {
+                                ProgressView()
+                                    .controlSize(.small)
+                            } else {
+                                Image(systemName: "arrow.clockwise")
+                                    .font(.system(size: 11, weight: .semibold))
+                            }
+                            Text(speedService.isTesting ? "Đang đo..." : "Đo tốc độ")
+                                .font(.system(size: 11.5, weight: .medium))
+                        }
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 5)
+                        .background(isDark ? Color.white.opacity(0.10) : Color.black.opacity(0.06))
+                        .cornerRadius(6)
+                    }
+                    .buttonStyle(.plain)
+                    .disabled(speedService.isTesting)
+                }
+            }
+            
+            // Plate 2: Quality & Escalation Policy
+            recessedPlate(title: "Tối ưu hóa độ phân giải video") {
+                VStack(spacing: 10) {
+                    Toggle(isOn: $playerManager.preferMaxQuality) {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Luôn ưu tiên độ phân giải cao nhất (Max 4K/2K)")
+                                .font(.system(size: 12, weight: .medium))
+                                .foregroundColor(ThemeColor.textPrimary(for: colorScheme))
+                            Text("Tự động ép YouTube mở 2160p (4K) hoặc 1440p (2K) khi mạng đáp ứng, triệt để loại bỏ tình trạng mờ 360p / 480p.")
+                                .font(.system(size: 10.5))
+                                .foregroundColor(ThemeColor.textSecondary(for: colorScheme))
+                        }
+                    }
+                    .toggleStyle(.switch)
+                    
+                    Divider()
+                        .opacity(0.5)
+                    
+                    HStack {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Chế độ phân giải mặc định:")
+                                .font(.system(size: 11.5, weight: .medium))
+                                .foregroundColor(ThemeColor.textPrimary(for: colorScheme))
+                            Text("Đang áp dụng: \(playerManager.selectedQuality == "auto" ? "Tự động (Auto: \(playerManager.resolvedOptimalQuality)p)" : "\(playerManager.selectedQuality)p")")
+                                .font(.system(size: 10.5))
+                                .foregroundColor(Color.accentColor)
+                        }
+                        
+                        Spacer()
+                        
+                        Picker("", selection: $playerManager.selectedQuality) {
+                            Text("Tự động theo mạng (Khuyên dùng)").tag("auto")
+                            Text("2160p (4K Ultra HD)").tag("2160")
+                            Text("1440p (2K Quad HD)").tag("1440")
+                            Text("1080p (Full HD)").tag("1080")
+                            Text("720p (HD)").tag("720")
+                        }
+                        .labelsHidden()
+                        .frame(width: 190)
+                        .onChange(of: playerManager.selectedQuality) { newQ in
+                            playerManager.setQuality(newQ)
+                        }
+                    }
+                }
+            }
+        }
+    }
+
     // MARK: - Recessed Frosted Plate Component (ALG-DS Section 3.3)
     @ViewBuilder
     private func recessedPlate<Content: View>(title: String, @ViewBuilder content: () -> Content) -> some View {

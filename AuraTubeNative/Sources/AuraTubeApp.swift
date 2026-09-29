@@ -1,8 +1,9 @@
 import SwiftUI
 import AppKit
 
-final class AppDelegate: NSObject, NSApplicationDelegate {
+final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     static private(set) var shared: AppDelegate?
+    public static var isTerminating: Bool = false
     
     override init() {
         super.init()
@@ -91,8 +92,68 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         return true
     }
     
+    func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
+        return true
+    }
+    
+    @MainActor
+    @objc func handleMainWindowClose(_ sender: Any?) {
+        terminateAppCompletely()
+    }
+    
+    @MainActor
+    func windowShouldClose(_ sender: NSWindow) -> Bool {
+        guard !(sender is NSPanel), !sender.isSheet, sender.styleMask.contains(.resizable) else {
+            return true
+        }
+        terminateAppCompletely()
+        return true
+    }
+    
+    @MainActor
+    func windowWillClose(_ notification: Notification) {
+        guard let window = notification.object as? NSWindow else { return }
+        guard !(window is NSPanel), !window.isSheet, window.styleMask.contains(.resizable) else { return }
+        terminateAppCompletely()
+    }
+    
+    @MainActor
+    public func terminateAppCompletely() {
+        guard !AppDelegate.isTerminating else { return }
+        AppDelegate.isTerminating = true
+        
+        // Save playback progress to persistent storage immediately
+        PlayerManager.shared.flushSavedPlaybackPositions()
+        
+        // Immediately pause and stop audio & video playback
+        PlayerManager.shared.pause()
+        PlayerManager.shared.isPictureInPictureActive = false
+        PiPWindowController.shared.close()
+        
+        // Terminate process immediately so no audio or background tasks continue running
+        DispatchQueue.main.async {
+            NSApp.terminate(nil)
+        }
+    }
+    
+    @MainActor
+    func applicationWillTerminate(_ notification: Notification) {
+        AppDelegate.isTerminating = true
+        PlayerManager.shared.flushSavedPlaybackPositions()
+        PlayerManager.shared.pause()
+        PiPWindowController.shared.close()
+    }
+    
     func applicationDidResignActive(_ notification: Notification) {
         Task { @MainActor in
+            guard !AppDelegate.isTerminating else { return }
+            
+            // Check if there is still a visible, non-minimized main window
+            let hasVisibleMainWindow = NSApp.windows.contains { win in
+                !(win is NSPanel) && !win.isSheet && win.styleMask.contains(.resizable) && win.isVisible && !win.isMiniaturized
+            }
+            guard hasVisibleMainWindow else { return }
+            
             let pm = PlayerManager.shared
             // When leaving AuraTube to another app:
             // If user has enabled auto PiP, video is playing, PiP is not already active, and not in fullscreen
@@ -191,11 +252,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         window.backgroundColor = bgColor
         
         // Ensure standard window buttons (traffic lights) are always visible and properly layered
-        for buttonType in [NSWindow.ButtonType.closeButton, .miniaturizeButton, .zoomButton] {
+        if let closeBtn = window.standardWindowButton(.closeButton) {
+            closeBtn.target = AppDelegate.shared
+            closeBtn.action = #selector(AppDelegate.handleMainWindowClose(_:))
+            closeBtn.isHidden = false
+        }
+        for buttonType in [NSWindow.ButtonType.miniaturizeButton, .zoomButton] {
             if let button = window.standardWindowButton(buttonType) {
                 button.isHidden = false
             }
         }
+        
+        window.delegate = AppDelegate.shared
         
         // Ensure the window's content view clips cleanly to smooth macOS rounded corners (16px)
         window.contentView?.wantsLayer = true

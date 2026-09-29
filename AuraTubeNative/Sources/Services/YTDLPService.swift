@@ -22,6 +22,9 @@ public final class YTDLPService: @unchecked Sendable {
     // MARK: - Direct Stream Extraction (AVPlayer)
     
     public func getStreamInfo(videoId: String, quality: String = "1080") async throws -> StreamInfo {
+        guard videoId.range(of: "^[a-zA-Z0-9_-]{11}$", options: .regularExpression) != nil else {
+            throw NSError(domain: "YTDLPService", code: 400, userInfo: [NSLocalizedDescriptionKey: "Invalid video ID format"])
+        }
         let ytdlp = binaryPath
         guard FileManager.default.fileExists(atPath: ytdlp) else {
             throw NSError(domain: "YTDLPService", code: 404, userInfo: [NSLocalizedDescriptionKey: "yt-dlp binary not found at \(ytdlp)"])
@@ -33,6 +36,8 @@ public final class YTDLPService: @unchecked Sendable {
             formatFilter = "bestaudio[protocol=https]/bestaudio/140/best"
         case "mini", "360":
             formatFilter = "best[height<=360][protocol=m3u8_native]/best[height<=360][protocol=m3u8]/bestvideo[height<=360]+bestaudio/best"
+        case "shorts":
+            formatFilter = "bestvideo[height<=1280][ext=mp4][vcodec^=avc1]+bestaudio[ext=m4a]/bestvideo[height<=1280][ext=mp4]+bestaudio[ext=m4a]/bestvideo[height<=1280]+bestaudio/best"
         case "720":
             formatFilter = "best[height<=720][protocol=m3u8_native]/best[height<=720][protocol=m3u8]/bestvideo[height<=720]+bestaudio/best"
         default: // 1080p
@@ -44,6 +49,7 @@ public final class YTDLPService: @unchecked Sendable {
             "-f", formatFilter,
             "--no-warnings",
             "--no-playlist",
+            "--",
             "https://www.youtube.com/watch?v=\(videoId)"
         ])
         
@@ -70,16 +76,46 @@ public final class YTDLPService: @unchecked Sendable {
         public let videos: [Video]
         public let shorts: [Video]
         public let continuationToken: String?
+        public let relatedSearches: [String]
+        public let contextualChips: [String]
         
-        public init(channel: ChannelInfo? = nil, videos: [Video], shorts: [Video] = [], continuationToken: String? = nil) {
+        public init(
+            channel: ChannelInfo? = nil,
+            videos: [Video],
+            shorts: [Video] = [],
+            continuationToken: String? = nil,
+            relatedSearches: [String] = [],
+            contextualChips: [String] = []
+        ) {
             self.channel = channel
             self.videos = videos
             self.shorts = shorts
             self.continuationToken = continuationToken
+            self.relatedSearches = relatedSearches
+            self.contextualChips = contextualChips
         }
         
         public var allItems: [Video] {
             return videos + shorts
+        }
+    }
+    
+    public struct ChannelDetailResult {
+        public let channel: ChannelInfo
+        public let bannerUrl: String?
+        public let videos: [Video]
+        public let continuationToken: String?
+        
+        public init(
+            channel: ChannelInfo,
+            bannerUrl: String? = nil,
+            videos: [Video] = [],
+            continuationToken: String? = nil
+        ) {
+            self.channel = channel
+            self.bannerUrl = bannerUrl
+            self.videos = videos
+            self.continuationToken = continuationToken
         }
     }
     
@@ -108,6 +144,24 @@ public final class YTDLPService: @unchecked Sendable {
         // 1. Try high-speed InnerTube API first
         if let result = await searchViaInnerTube(query: query, continuationToken: continuationToken, params: params),
            (!result.videos.isEmpty || !result.shorts.isEmpty || result.channel != nil) {
+            
+            // If this is initial search page (not continuation), enrich with related searches & taste re-ranking
+            if continuationToken == nil {
+                async let relatedTask = RecommendationService.shared.fetchRelatedSearchQueries(for: query)
+                async let chipsTask = RecommendationService.shared.fetchContextualSearchChips(for: query)
+                let (related, chips) = await (relatedTask, chipsTask)
+                let rankedVideos = await RecommendationService.shared.rankSearchResults(videos: result.videos, query: query)
+                
+                return SearchResultPage(
+                    channel: result.channel,
+                    videos: rankedVideos,
+                    shorts: result.shorts,
+                    continuationToken: result.continuationToken,
+                    relatedSearches: related,
+                    contextualChips: chips
+                )
+            }
+            
             return result
         }
         
@@ -123,7 +177,19 @@ public final class YTDLPService: @unchecked Sendable {
         
         // 2. Fallback to local yt-dlp flat-playlist CLI (initial query only)
         let fallback = await searchViaYtDlp(query: query, limit: limit)
-        return SearchResultPage(channel: nil, videos: fallback, shorts: [], continuationToken: nil)
+        let rankedFallback = await RecommendationService.shared.rankSearchResults(videos: fallback, query: query)
+        async let relatedTask = RecommendationService.shared.fetchRelatedSearchQueries(for: query)
+        async let chipsTask = RecommendationService.shared.fetchContextualSearchChips(for: query)
+        let (related, chips) = await (relatedTask, chipsTask)
+        
+        return SearchResultPage(
+            channel: nil,
+            videos: rankedFallback,
+            shorts: [],
+            continuationToken: nil,
+            relatedSearches: related,
+            contextualChips: chips
+        )
     }
     
     /// Fast YouTube search suggestions autocomplete (<50ms)
@@ -207,11 +273,64 @@ public final class YTDLPService: @unchecked Sendable {
         return SearchResultPage(channel: channel, videos: videos, shorts: shorts, continuationToken: nextContinuation)
     }
     
+    // MARK: - Official YouTube InnerTube Related Videos Endpoint
+    public func fetchRelatedVideosViaInnerTube(videoId: String) async -> [Video] {
+        guard !videoId.isEmpty, videoId.range(of: "^[a-zA-Z0-9_-]{11}$", options: .regularExpression) != nil,
+              let url = URL(string: "https://www.youtube.com/youtubei/v1/next") else {
+            return []
+        }
+        
+        let clientContext: [String: Any] = [
+            "context": [
+                "client": [
+                    "clientName": "WEB",
+                    "clientVersion": "2.20240101.00.00",
+                    "hl": "vi",
+                    "gl": "VN"
+                ]
+            ],
+            "videoId": videoId
+        ]
+        
+        var req = URLRequest(url: url)
+        req.httpMethod = "POST"
+        req.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        req.setValue("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/134.0.0.0 Safari/537.36", forHTTPHeaderField: "User-Agent")
+        req.setValue("vi,en;q=0.9", forHTTPHeaderField: "Accept-Language")
+        req.timeoutInterval = 4.5
+        req.httpBody = try? JSONSerialization.data(withJSONObject: clientContext)
+        
+        guard let (data, res) = try? await URLSession.shared.data(for: req),
+              let http = res as? HTTPURLResponse, http.statusCode == 200,
+              let root = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+            return []
+        }
+        
+        var videos: [Video] = []
+        if let contents = (root["contents"] as? [String: Any])?["twoColumnWatchNextResults"] as? [String: Any],
+           let secondary = contents["secondaryResults"] as? [String: Any] {
+            extractInnerTubeVideos(from: secondary, results: &videos)
+        } else {
+            extractInnerTubeVideos(from: root, results: &videos)
+        }
+        
+        return videos.filter { $0.id != videoId }
+    }
+    
     private func extractContinuationToken(from obj: Any) -> String? {
         if let dict = obj as? [String: Any] {
-            if let cir = dict["continuationItemRenderer"] as? [String: Any],
-               let endpoint = cir["continuationEndpoint"] as? [String: Any],
-               let cmd = endpoint["continuationCommand"] as? [String: Any],
+            if let cir = dict["continuationItemRenderer"] as? [String: Any] {
+                if let endpoint = cir["continuationEndpoint"] as? [String: Any],
+                   let cmd = endpoint["continuationCommand"] as? [String: Any],
+                   let token = cmd["token"] as? String, !token.isEmpty {
+                    return token
+                }
+                if let cmd = cir["continuationCommand"] as? [String: Any],
+                   let token = cmd["token"] as? String, !token.isEmpty {
+                    return token
+                }
+            }
+            if let cmd = dict["continuationCommand"] as? [String: Any],
                let token = cmd["token"] as? String, !token.isEmpty {
                 return token
             }
@@ -439,6 +558,116 @@ public final class YTDLPService: @unchecked Sendable {
     
     private func extractInnerTubeVideos(from obj: Any, results: inout [Video]) {
         if let dict = obj as? [String: Any] {
+            // 1. Modern lockupViewModel (YouTube Web standard for /next and search)
+            if let vm = dict["lockupViewModel"] as? [String: Any],
+               let cid = vm["contentId"] as? String, cid.count == 11,
+               !results.contains(where: { $0.id == cid }) {
+                let meta = vm["metadata"] as? [String: Any]
+                let lockupMeta = meta?["lockupMetadataViewModel"] as? [String: Any]
+                let title = (lockupMeta?["title"] as? [String: Any])?["content"] as? String ?? ""
+                let contentType = vm["contentType"] as? String ?? ""
+                
+                if !title.isEmpty && contentType != "LOCKUP_CONTENT_TYPE_PLAYLIST" {
+                    var uploader = "YouTube"
+                    var uploaderId: String? = nil
+                    var viewStr = ""
+                    var publishedStr: String? = nil
+                    var channelAvatar: String? = nil
+                    
+                    if let contentMeta = lockupMeta?["metadata"] as? [String: Any],
+                       let rows = (contentMeta["contentMetadataViewModel"] as? [String: Any])?["metadataRows"] as? [[String: Any]] {
+                        if let firstRow = rows.first,
+                           let parts0 = firstRow["metadataParts"] as? [[String: Any]],
+                           let firstPart = parts0.first,
+                           let textObj = firstPart["text"] as? [String: Any],
+                           let author = textObj["content"] as? String, !author.isEmpty {
+                            uploader = author
+                        }
+                        if rows.count > 1,
+                           let secondRow = rows[1]["metadataParts"] as? [[String: Any]] {
+                            if secondRow.indices.contains(0) {
+                                viewStr = (secondRow[0]["accessibilityLabel"] as? String)
+                                    ?? ((secondRow[0]["text"] as? [String: Any])?["content"] as? String)
+                                    ?? ""
+                            }
+                            if secondRow.indices.contains(1) {
+                                publishedStr = (secondRow[1]["text"] as? [String: Any])?["content"] as? String
+                            }
+                        }
+                    }
+                    
+                    if let metaImg = lockupMeta?["image"] as? [String: Any],
+                       let decAvatar = metaImg["decoratedAvatarViewModel"] as? [String: Any] {
+                        if let avm = decAvatar["avatar"] as? [String: Any],
+                           let innerAvm = avm["avatarViewModel"] as? [String: Any],
+                           let imgDict = innerAvm["image"] as? [String: Any],
+                           let sources = imgDict["sources"] as? [[String: Any]],
+                           let u = sources.first?["url"] as? String {
+                            channelAvatar = u.hasPrefix("//") ? "https:" + u : u
+                        }
+                        if let ctx = decAvatar["rendererContext"] as? [String: Any],
+                           let cmdCtx = ctx["commandContext"] as? [String: Any],
+                           let onTap = cmdCtx["onTap"] as? [String: Any],
+                           let innerCmd = onTap["innertubeCommand"] as? [String: Any],
+                           let bEnd = innerCmd["browseEndpoint"] as? [String: Any],
+                           let bId = bEnd["browseId"] as? String {
+                            uploaderId = bId
+                        }
+                    }
+                    
+                    var thumb = "https://i.ytimg.com/vi/\(cid)/hqdefault.jpg"
+                    var durationStr = "0:00"
+                    if let contentImg = vm["contentImage"] as? [String: Any],
+                       let thumbVM = contentImg["thumbnailViewModel"] as? [String: Any] {
+                        if let imgDict = thumbVM["image"] as? [String: Any],
+                           let sources = imgDict["sources"] as? [[String: Any]],
+                           let lastUrl = sources.last?["url"] as? String {
+                            thumb = lastUrl.hasPrefix("//") ? "https:" + lastUrl : lastUrl
+                        }
+                        if let overlays = thumbVM["overlays"] as? [[String: Any]] {
+                            for ov in overlays {
+                                if let bottom = ov["thumbnailBottomOverlayViewModel"] as? [String: Any],
+                                   let badges = bottom["badges"] as? [[String: Any]] {
+                                    for b in badges {
+                                        if let badgeVM = b["thumbnailBadgeViewModel"] as? [String: Any],
+                                           let txt = badgeVM["text"] as? String {
+                                            durationStr = txt
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    
+                    let parts = durationStr.split(separator: ":").compactMap { Double($0) }
+                    var parsedDuration: Double? = nil
+                    if parts.count == 2 {
+                        parsedDuration = parts[0] * 60 + parts[1]
+                    } else if parts.count == 3 {
+                        parsedDuration = parts[0] * 3600 + parts[1] * 60 + parts[2]
+                    }
+                    
+                    let isShort = (contentType == "LOCKUP_CONTENT_TYPE_SHORTS") || (durationStr == "Shorts")
+                    
+                    results.append(Video(
+                        id: cid,
+                        title: title,
+                        uploader: uploader,
+                        uploaderId: uploaderId,
+                        duration: parsedDuration,
+                        durationFormatted: durationStr,
+                        viewCount: nil,
+                        viewCountFormatted: viewStr,
+                        publishedTime: publishedStr,
+                        thumbnail: thumb,
+                        description: nil,
+                        isShort: isShort ? true : (parsedDuration != nil && parsedDuration! > 65 ? false : nil),
+                        channelAvatarUrl: channelAvatar
+                    ))
+                }
+            }
+            
+            // 2. Legacy videoRenderer / compactVideoRenderer
             if let videoId = dict["videoId"] as? String, videoId.count == 11,
                !results.contains(where: { $0.id == videoId }) {
                 
@@ -452,14 +681,25 @@ public final class YTDLPService: @unchecked Sendable {
                 }
                 
                 var uploader = "YouTube"
+                var uploaderId: String? = nil
                 if let ownerDict = dict["ownerText"] as? [String: Any],
                    let runs = ownerDict["runs"] as? [[String: Any]],
-                   let name = runs.first?["text"] as? String {
-                    uploader = name
+                   let firstRun = runs.first {
+                    uploader = firstRun["text"] as? String ?? "YouTube"
+                    if let nav = firstRun["navigationEndpoint"] as? [String: Any],
+                       let browse = nav["browseEndpoint"] as? [String: Any],
+                       let bId = browse["browseId"] as? String {
+                        uploaderId = bId
+                    }
                 } else if let bylineDict = dict["shortBylineText"] as? [String: Any],
                           let runs = bylineDict["runs"] as? [[String: Any]],
-                          let name = runs.first?["text"] as? String {
-                    uploader = name
+                          let firstRun = runs.first {
+                    uploader = firstRun["text"] as? String ?? "YouTube"
+                    if let nav = firstRun["navigationEndpoint"] as? [String: Any],
+                       let browse = nav["browseEndpoint"] as? [String: Any],
+                       let bId = browse["browseId"] as? String {
+                        uploaderId = bId
+                    }
                 }
                 
                 var durationStr = "0:00"
@@ -525,6 +765,7 @@ public final class YTDLPService: @unchecked Sendable {
                         id: videoId,
                         title: title,
                         uploader: uploader,
+                        uploaderId: uploaderId,
                         duration: parsedDuration,
                         durationFormatted: durationStr,
                         viewCount: nil,
@@ -538,7 +779,11 @@ public final class YTDLPService: @unchecked Sendable {
                 }
             }
             
-            for (_, value) in dict {
+            for (key, value) in dict {
+                // Skip reels / shorts shelves when extracting regular video results
+                if key == "reelShelfRenderer" || key == "reelItemRenderer" || key == "shortsLockupViewModel" {
+                    continue
+                }
                 extractInnerTubeVideos(from: value, results: &results)
             }
         } else if let array = obj as? [Any] {
@@ -546,6 +791,279 @@ public final class YTDLPService: @unchecked Sendable {
                 extractInnerTubeVideos(from: element, results: &results)
             }
         }
+    }
+    
+    // MARK: - Modern Channel Browse (InnerTube /youtubei/v1/browse)
+    
+    private func extractInnerTubeLockupVideos(from obj: Any, channelTitle: String = "", channelId: String? = nil, results: inout [Video]) {
+        if let dict = obj as? [String: Any] {
+            if let vm = dict["lockupViewModel"] as? [String: Any],
+               let cid = vm["contentId"] as? String, !cid.isEmpty {
+                let meta = vm["metadata"] as? [String: Any]
+                let lockupMeta = meta?["lockupMetadataViewModel"] as? [String: Any]
+                let title = (lockupMeta?["title"] as? [String: Any])?["content"] as? String ?? ""
+                
+                var viewStr = ""
+                var publishedStr: String? = nil
+                if let contentMeta = lockupMeta?["metadata"] as? [String: Any],
+                   let rows = (contentMeta["contentMetadataViewModel"] as? [String: Any])?["metadataRows"] as? [[String: Any]] {
+                    var parts: [String] = []
+                    for r in rows {
+                        if let pArray = r["metadataParts"] as? [[String: Any]] {
+                            for p in pArray {
+                                if let textDict = p["text"] as? [String: Any],
+                                   let c = textDict["content"] as? String {
+                                    parts.append(c)
+                                }
+                            }
+                        }
+                    }
+                    if !parts.isEmpty { viewStr = parts[0] }
+                    if parts.count > 1 { publishedStr = parts[1] }
+                }
+                
+                var thumb = "https://i.ytimg.com/vi/\(cid)/hqdefault.jpg"
+                var durationStr = "0:00"
+                if let contentImg = vm["contentImage"] as? [String: Any],
+                   let thumbVM = contentImg["thumbnailViewModel"] as? [String: Any] {
+                    if let imgDict = thumbVM["image"] as? [String: Any],
+                       let sources = imgDict["sources"] as? [[String: Any]],
+                       let lastUrl = sources.last?["url"] as? String {
+                        thumb = lastUrl
+                    }
+                    if let overlays = thumbVM["overlays"] as? [[String: Any]] {
+                        for ov in overlays {
+                            if let bottom = ov["thumbnailBottomOverlayViewModel"] as? [String: Any],
+                               let badges = bottom["badges"] as? [[String: Any]] {
+                                for b in badges {
+                                    if let badgeVM = b["thumbnailBadgeViewModel"] as? [String: Any],
+                                       let txt = badgeVM["text"] as? String {
+                                        durationStr = txt
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+                
+                let parts = durationStr.split(separator: ":").compactMap { Double($0) }
+                var parsedDuration: Double? = nil
+                if parts.count == 2 {
+                    parsedDuration = parts[0] * 60 + parts[1]
+                } else if parts.count == 3 {
+                    parsedDuration = parts[0] * 3600 + parts[1] * 60 + parts[2]
+                }
+                
+                if !title.isEmpty {
+                    results.append(Video(
+                        id: cid,
+                        title: title,
+                        uploader: channelTitle.isEmpty ? "YouTube" : channelTitle,
+                        uploaderId: channelId,
+                        duration: parsedDuration,
+                        durationFormatted: durationStr,
+                        viewCount: nil,
+                        viewCountFormatted: viewStr,
+                        publishedTime: publishedStr,
+                        thumbnail: thumb,
+                        description: nil,
+                        isShort: nil,
+                        channelAvatarUrl: nil
+                    ))
+                }
+            }
+            
+            for (_, value) in dict {
+                extractInnerTubeLockupVideos(from: value, channelTitle: channelTitle, channelId: channelId, results: &results)
+            }
+        } else if let array = obj as? [Any] {
+            for element in array {
+                extractInnerTubeLockupVideos(from: element, channelTitle: channelTitle, channelId: channelId, results: &results)
+            }
+        }
+    }
+    
+    public func fetchChannelDetails(channelIdOrQuery: String, fallbackInfo: ChannelInfo? = nil, continuationToken: String? = nil) async -> ChannelDetailResult? {
+        let clean = channelIdOrQuery.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !clean.isEmpty else { return nil }
+        
+        var targetChannelId = clean
+        var channelMeta = fallbackInfo
+        
+        // If not a standard UC... ID, search first to find the real channel ID
+        if !targetChannelId.hasPrefix("UC") || targetChannelId.count < 20 {
+            if let searchRes = await searchViaInnerTube(query: targetChannelId) {
+                if let foundChannel = searchRes.channel, foundChannel.id.hasPrefix("UC") {
+                    targetChannelId = foundChannel.id
+                    channelMeta = foundChannel
+                } else if !searchRes.videos.isEmpty {
+                    let resolvedChannel = channelMeta ?? ChannelInfo(
+                        id: clean,
+                        title: clean,
+                        handle: clean.hasPrefix("@") ? clean : nil,
+                        avatarUrl: searchRes.videos.first?.channelAvatarUrl ?? ""
+                    )
+                    return ChannelDetailResult(
+                        channel: resolvedChannel,
+                        bannerUrl: nil,
+                        videos: searchRes.videos,
+                        continuationToken: searchRes.continuationToken
+                    )
+                }
+            }
+        }
+        
+        // Request InnerTube Browse endpoint
+        guard let url = URL(string: "https://www.youtube.com/youtubei/v1/browse?prettyPrint=false") else { return nil }
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.setValue("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/134.0.0.0 Safari/537.36", forHTTPHeaderField: "User-Agent")
+        request.setValue("vi,en;q=0.9", forHTTPHeaderField: "Accept-Language")
+        request.timeoutInterval = 8.0
+        
+        var body: [String: Any] = [
+            "context": [
+                "client": [
+                    "clientName": "WEB",
+                    "clientVersion": "2.20240101.00.00",
+                    "hl": "vi",
+                    "gl": "VN"
+                ]
+            ]
+        ]
+        
+        if let cont = continuationToken, !cont.isEmpty {
+            body["continuation"] = cont
+        } else {
+            body["browseId"] = targetChannelId
+            body["params"] = "EgZ2aWRlb3PyBgQKAjoA"
+        }
+        
+        guard let httpBody = try? JSONSerialization.data(withJSONObject: body) else { return nil }
+        request.httpBody = httpBody
+        
+        guard let (data, response) = try? await URLSession.shared.data(for: request),
+              let http = response as? HTTPURLResponse, http.statusCode == 200,
+              let root = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+            if let meta = channelMeta {
+                let searchRes = await searchVideos(query: meta.title, limit: 25)
+                return ChannelDetailResult(channel: meta, bannerUrl: nil, videos: searchRes, continuationToken: nil)
+            }
+            return nil
+        }
+        
+        // Parse Header (pageHeaderRenderer / c4TabbedHeaderRenderer)
+        var parsedTitle = channelMeta?.title ?? ""
+        var parsedAvatar = channelMeta?.avatarUrl ?? ""
+        var parsedBanner: String? = nil
+        var parsedHandle = channelMeta?.handle
+        var parsedSubs = channelMeta?.subscriberCount
+        var parsedDesc = channelMeta?.description
+        
+        if let header = root["header"] as? [String: Any] {
+            if let ph = header["pageHeaderRenderer"] as? [String: Any],
+               let content = ph["content"] as? [String: Any],
+               let vm = content["pageHeaderViewModel"] as? [String: Any] {
+                if let titleObj = vm["title"] as? [String: Any],
+                   let dyn = titleObj["dynamicTextViewModel"] as? [String: Any],
+                   let tDict = dyn["text"] as? [String: Any],
+                   let t = tDict["content"] as? String, !t.isEmpty {
+                    parsedTitle = t
+                }
+                if let img = vm["image"] as? [String: Any],
+                   let dec = img["decoratedAvatarViewModel"] as? [String: Any],
+                   let av = dec["avatar"] as? [String: Any],
+                   let avVM = av["avatarViewModel"] as? [String: Any],
+                   let image = avVM["image"] as? [String: Any],
+                   let sources = image["sources"] as? [[String: Any]],
+                   let last = sources.last?["url"] as? String {
+                    parsedAvatar = last
+                }
+                if let bannerObj = vm["banner"] as? [String: Any],
+                   let imgBanner = bannerObj["imageBannerViewModel"] as? [String: Any],
+                   let image = imgBanner["image"] as? [String: Any],
+                   let sources = image["sources"] as? [[String: Any]],
+                   let last = sources.last?["url"] as? String {
+                    parsedBanner = last
+                }
+                if let metaObj = vm["metadata"] as? [String: Any],
+                   let cMeta = metaObj["contentMetadataViewModel"] as? [String: Any],
+                   let rows = cMeta["metadataRows"] as? [[String: Any]] {
+                    for r in rows {
+                        if let parts = r["metadataParts"] as? [[String: Any]] {
+                            for p in parts {
+                                if let textDict = p["text"] as? [String: Any],
+                                   let c = textDict["content"] as? String {
+                                    if c.hasPrefix("@") {
+                                        parsedHandle = c
+                                    } else if c.contains("người đăng ký") || c.contains("subscribers") {
+                                        parsedSubs = c
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+                if let descObj = vm["description"] as? [String: Any],
+                   let descVM = descObj["descriptionViewModel"] as? [String: Any],
+                   let descText = descVM["description"] as? [String: Any],
+                   let c = descText["content"] as? String {
+                    parsedDesc = c
+                }
+            } else if let c4 = header["c4TabbedHeaderRenderer"] as? [String: Any] {
+                if let t = c4["title"] as? String, !t.isEmpty {
+                    parsedTitle = t
+                }
+                if let avatarDict = c4["avatar"] as? [String: Any],
+                   let thumbs = avatarDict["thumbnails"] as? [[String: Any]],
+                   let last = thumbs.last?["url"] as? String {
+                    parsedAvatar = last
+                }
+                if let bannerDict = c4["banner"] as? [String: Any],
+                   let thumbs = bannerDict["thumbnails"] as? [[String: Any]],
+                   let last = thumbs.last?["url"] as? String {
+                    parsedBanner = last
+                }
+                if let subDict = c4["subscriberCountText"] as? [String: Any],
+                   let s = subDict["simpleText"] as? String {
+                    parsedSubs = s
+                }
+            }
+        }
+        
+        let finalChannel = ChannelInfo(
+            id: targetChannelId,
+            title: parsedTitle.isEmpty ? "YouTube Channel" : parsedTitle,
+            handle: parsedHandle,
+            subscriberCount: parsedSubs,
+            avatarUrl: parsedAvatar,
+            description: parsedDesc
+        )
+        
+        var videos: [Video] = []
+        extractInnerTubeLockupVideos(from: root, channelTitle: finalChannel.title, channelId: finalChannel.id, results: &videos)
+        
+        if videos.isEmpty {
+            extractInnerTubeVideos(from: root, results: &videos)
+        }
+        
+        var uniqueVideos: [Video] = []
+        var seen = Set<String>()
+        for v in videos {
+            if !seen.contains(v.id) {
+                seen.insert(v.id)
+                uniqueVideos.append(v)
+            }
+        }
+        
+        let nextContinuation = extractContinuationToken(from: root)
+        return ChannelDetailResult(
+            channel: finalChannel,
+            bannerUrl: parsedBanner,
+            videos: uniqueVideos,
+            continuationToken: nextContinuation
+        )
     }
     
     private func searchViaYtDlp(query: String, limit: Int = 18) async -> [Video] {

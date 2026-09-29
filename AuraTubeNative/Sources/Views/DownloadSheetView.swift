@@ -132,6 +132,7 @@ public struct DownloadSheetView: View {
                 HStack(spacing: 8) {
                     formatButton(
                         title: "Video MP4",
+                        subtitle: "H.264 & AAC",
                         icon: "video.fill",
                         iconColor: Color(red: 1.0, green: 0.28, blue: 0.35),
                         isSelected: !vm.isAudioOnly
@@ -143,6 +144,7 @@ public struct DownloadSheetView: View {
                     
                     formatButton(
                         title: "Âm thanh MP3",
+                        subtitle: "320 kbps",
                         icon: "waveform",
                         iconColor: Color(red: 0.08, green: 0.50, blue: 0.98),
                         isSelected: vm.isAudioOnly
@@ -155,15 +157,34 @@ public struct DownloadSheetView: View {
             }
             
             // Quality Selector
-            HStack(alignment: .center, spacing: 14) {
-                Text("Chất lượng")
-                    .font(.system(size: 12.5, weight: .medium))
-                    .foregroundColor(ThemeColor.textSecondary(for: colorScheme))
-                    .frame(width: 76, alignment: .leading)
-                
-                if !vm.isAudioOnly {
-                    videoQualityButtons
-                } else {
+            if !vm.isAudioOnly {
+                VStack(alignment: .leading, spacing: 8) {
+                    HStack(alignment: .center, spacing: 14) {
+                        Text("Chất lượng")
+                            .font(.system(size: 12.5, weight: .medium))
+                            .foregroundColor(ThemeColor.textSecondary(for: colorScheme))
+                            .frame(width: 76, alignment: .leading)
+                        
+                        videoQualityButtons
+                    }
+                    
+                    HStack(spacing: 5) {
+                        Image(systemName: "checkmark.seal.fill")
+                            .font(.system(size: 10))
+                            .foregroundColor(Color(red: 0.2, green: 0.78, blue: 0.45))
+                        Text("Chuẩn H.264 & AAC • Tương thích 100% QuickTime, iOS & macOS")
+                            .font(.system(size: 11))
+                            .foregroundColor(ThemeColor.textSecondary(for: colorScheme).opacity(0.85))
+                    }
+                    .padding(.leading, 90)
+                }
+            } else {
+                HStack(alignment: .center, spacing: 14) {
+                    Text("Chất lượng")
+                        .font(.system(size: 12.5, weight: .medium))
+                        .foregroundColor(ThemeColor.textSecondary(for: colorScheme))
+                        .frame(width: 76, alignment: .leading)
+                    
                     audioQualityBadge
                 }
             }
@@ -176,26 +197,26 @@ public struct DownloadSheetView: View {
     @ViewBuilder
     private var videoQualityButtons: some View {
         HStack(spacing: 6) {
-            ForEach(["1080", "720", "480", "360"], id: \.self) { q in
-                qualityButton(tier: q)
+            ForEach([("1080", "1080p FHD"), ("720", "720p HD"), ("480", "480p"), ("360", "360p")], id: \.0) { item in
+                qualityButton(tier: item.0, label: item.1)
             }
         }
     }
     
     @ViewBuilder
-    private func qualityButton(tier: String) -> some View {
+    private func qualityButton(tier: String, label: String) -> some View {
         let isSelected = vm.selectedTier == tier
         Button(action: {
             withAnimation(.spring(response: 0.22, dampingFraction: 0.78)) {
                 vm.selectedTier = tier
             }
         }) {
-            Text("\(tier)p")
-                .font(.system(size: 12, weight: isSelected ? .bold : .medium))
+            Text(label)
+                .font(.system(size: 11.5, weight: isSelected ? .bold : .medium))
                 .frame(maxWidth: .infinity)
-                .frame(height: 28)
+                .frame(height: 30)
                 .background(
-                    RoundedRectangle(cornerRadius: 6, style: .continuous)
+                    RoundedRectangle(cornerRadius: 7, style: .continuous)
                         .fill(
                             isSelected ?
                                 (isDark ?
@@ -212,10 +233,10 @@ public struct DownloadSheetView: View {
                         ThemeColor.textPrimary(for: colorScheme).opacity(0.85)
                 )
                 .overlay(
-                    RoundedRectangle(cornerRadius: 6, style: .continuous)
+                    RoundedRectangle(cornerRadius: 7, style: .continuous)
                         .stroke(
                             isSelected ?
-                                (isDark ? Color.white.opacity(0.3) : Color.black.opacity(0.2)) :
+                                (isDark ? Color.white.opacity(0.35) : Color.black.opacity(0.2)) :
                                 (isDark ? Color.white.opacity(0.08) : Color.black.opacity(0.06)),
                             lineWidth: 0.75
                         )
@@ -227,24 +248,25 @@ public struct DownloadSheetView: View {
     
     @ViewBuilder
     private var audioQualityBadge: some View {
-        HStack(spacing: 6) {
+        HStack(spacing: 7) {
             Image(systemName: "music.note")
-                .font(.system(size: 11.5, weight: .semibold))
+                .font(.system(size: 12, weight: .semibold))
                 .foregroundColor(Color(red: 0.08, green: 0.50, blue: 0.98))
-            Text("MP3 320 kbps (Chất lượng cao nhất)")
-                .font(.system(size: 12, weight: .medium))
+            Text("MP3 320 kbps • Chuẩn cao nhất, tương thích Apple Music")
+                .font(.system(size: 11.5, weight: .medium))
                 .foregroundColor(ThemeColor.textPrimary(for: colorScheme).opacity(0.9))
+                .lineLimit(1)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.horizontal, 10)
-        .frame(height: 28)
+        .frame(height: 30)
         .background(
-            RoundedRectangle(cornerRadius: 6, style: .continuous)
-                .fill(isDark ? Color.white.opacity(0.05) : Color.black.opacity(0.035))
+            RoundedRectangle(cornerRadius: 7, style: .continuous)
+                .fill(isDark ? Color.white.opacity(0.06) : Color.black.opacity(0.04))
         )
         .overlay(
-            RoundedRectangle(cornerRadius: 6, style: .continuous)
-                .stroke(isDark ? Color.white.opacity(0.08) : Color.black.opacity(0.06), lineWidth: 0.75)
+            RoundedRectangle(cornerRadius: 7, style: .continuous)
+                .stroke(isDark ? Color.white.opacity(0.10) : Color.black.opacity(0.08), lineWidth: 0.75)
         )
     }
     
@@ -254,7 +276,7 @@ public struct DownloadSheetView: View {
             HStack(spacing: 8) {
                 Image(systemName: "arrow.down.circle.fill")
                     .font(.system(size: 14, weight: .semibold))
-                Text(vm.isAudioOnly ? "Bắt đầu tải Âm thanh MP3" : "Bắt đầu tải Video MP4 (\(vm.selectedTier)p)")
+                Text(vm.isAudioOnly ? "Tải Âm thanh MP3 320k" : "Tải Video MP4 (\(vm.selectedTier)p H.264)")
                     .font(.system(size: 13.5, weight: .bold))
             }
             .foregroundColor(.white)
@@ -301,25 +323,25 @@ public struct DownloadSheetView: View {
         VStack(alignment: .leading, spacing: 14) {
             // Header: Status & Percentage
             HStack(alignment: .firstTextBaseline) {
-                HStack(spacing: 6) {
+                HStack(spacing: 7) {
                     if isComplete {
                         Image(systemName: "checkmark.circle.fill")
                             .foregroundColor(.green)
-                            .font(.system(size: 14, weight: .bold))
-                        Text("Tải về hoàn tất")
+                            .font(.system(size: 15, weight: .bold))
+                        Text("Tải về hoàn tất ✓")
                             .font(.system(size: 13.5, weight: .bold))
                             .foregroundColor(.green)
                     } else if isError {
                         Image(systemName: "exclamationmark.triangle.fill")
                             .foregroundColor(Color(red: 1.0, green: 0.35, blue: 0.35))
-                            .font(.system(size: 14, weight: .bold))
+                            .font(.system(size: 15, weight: .bold))
                         Text("Tải thất bại")
                             .font(.system(size: 13.5, weight: .bold))
                             .foregroundColor(Color(red: 1.0, green: 0.35, blue: 0.35))
                     } else {
-                        Image(systemName: "arrow.down.circle")
+                        Image(systemName: "arrow.down.circle.fill")
                             .foregroundColor(Color(red: 0.08, green: 0.50, blue: 0.98))
-                            .font(.system(size: 14, weight: .bold))
+                            .font(.system(size: 15, weight: .bold))
                         Text(item?.statusText.isEmpty == false ? item!.statusText : "Đang kết nối & tải...")
                             .font(.system(size: 13, weight: .medium))
                             .foregroundColor(ThemeColor.textPrimary(for: colorScheme))
@@ -412,14 +434,15 @@ public struct DownloadSheetView: View {
     private func completeActions(item: DownloadItem?) -> some View {
         Button(action: {
             if let item = item {
-                downloadManager.openFileInFinder(for: item)
+                downloadManager.openFile(for: item)
             }
         }) {
             HStack(spacing: 6) {
-                Image(systemName: "folder.fill")
-                Text("Mở tệp trong Finder")
+                Image(systemName: "play.fill")
+                    .font(.system(size: 11, weight: .bold))
+                Text("Phát ngay")
+                    .font(.system(size: 12.5, weight: .bold))
             }
-            .font(.system(size: 12.5, weight: .semibold))
             .foregroundColor(.white)
             .frame(maxWidth: .infinity)
             .frame(height: 34)
@@ -435,7 +458,32 @@ public struct DownloadSheetView: View {
         }
         .buttonStyle(.plain)
         
-        glassDismissButton(title: "Đóng", width: 80)
+        Button(action: {
+            if let item = item {
+                downloadManager.openFileInFinder(for: item)
+            }
+        }) {
+            HStack(spacing: 5) {
+                Image(systemName: "folder")
+                    .font(.system(size: 11, weight: .semibold))
+                Text("Finder")
+                    .font(.system(size: 12, weight: .medium))
+            }
+            .foregroundColor(ThemeColor.textPrimary(for: colorScheme))
+            .frame(width: 82)
+            .frame(height: 34)
+            .background(
+                RoundedRectangle(cornerRadius: 7, style: .continuous)
+                    .fill(isDark ? Color.white.opacity(0.10) : Color.black.opacity(0.06))
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 7, style: .continuous)
+                    .strokeBorder(isDark ? Color.white.opacity(0.14) : Color.black.opacity(0.10), lineWidth: 0.75)
+            )
+        }
+        .buttonStyle(.plain)
+        
+        glassDismissButton(title: "Đóng", width: 68)
     }
     
     @ViewBuilder
@@ -615,21 +663,28 @@ public struct DownloadSheetView: View {
     @ViewBuilder
     private func formatButton(
         title: String,
+        subtitle: String,
         icon: String,
         iconColor: Color,
         isSelected: Bool,
         action: @escaping () -> Void
     ) -> some View {
         Button(action: action) {
-            HStack(spacing: 7) {
+            HStack(spacing: 8) {
                 Image(systemName: icon)
-                    .font(.system(size: 12))
+                    .font(.system(size: 13, weight: .semibold))
                     .foregroundColor(isSelected ? iconColor : ThemeColor.textSecondary(for: colorScheme).opacity(0.7))
-                Text(title)
-                    .font(.system(size: 12, weight: isSelected ? .bold : .medium))
+                
+                VStack(alignment: .leading, spacing: 1) {
+                    Text(title)
+                        .font(.system(size: 12, weight: isSelected ? .bold : .medium))
+                    Text(subtitle)
+                        .font(.system(size: 9.5, weight: .medium))
+                        .foregroundColor(isSelected ? (isDark ? Color.white.opacity(0.8) : Color.black.opacity(0.7)) : ThemeColor.textSecondary(for: colorScheme).opacity(0.6))
+                }
             }
             .frame(maxWidth: .infinity)
-            .frame(height: 32)
+            .frame(height: 36)
             .background(
                 RoundedRectangle(cornerRadius: 8, style: .continuous)
                     .fill(

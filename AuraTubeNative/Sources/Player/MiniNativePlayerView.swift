@@ -13,12 +13,13 @@ public final class MiniPlayerEngine: NSObject, WKNavigationDelegate, WKScriptMes
     public private(set) var currentLoadedVideoId: String?
     public private(set) var isPopoverVisible: Bool = false
     private var pendingVideo: (video: Video, startPos: Double)? = nil
+    private var lastTimeSyncUptime: TimeInterval = 0
     
     public override init() {
         let config = WKWebViewConfiguration()
         config.mediaTypesRequiringUserActionForPlayback = []
         config.allowsAirPlayForMediaPlayback = false
-        config.preferences.setValue(true, forKey: "allowFileAccessFromFileURLs")
+        config.preferences.setValue(false, forKey: "allowFileAccessFromFileURLs")
         config.setValue(false, forKey: "requiresUserActionForAudioPlayback")
         config.setValue(false, forKey: "requiresUserActionForVideoPlayback")
         config.setValue(true, forKey: "mainContentUserGestureOverrideEnabled")
@@ -34,6 +35,9 @@ public final class MiniPlayerEngine: NSObject, WKNavigationDelegate, WKScriptMes
         
         let cleanScript = """
         (function() {
+            if (window.__auratube_mini_injected) return;
+            window.__auratube_mini_injected = true;
+
             function applyStyles() {
                 if (!document.getElementById('auratube-mini-clean-style')) {
                     var s = document.createElement('style');
@@ -196,7 +200,7 @@ public final class MiniPlayerEngine: NSObject, WKNavigationDelegate, WKScriptMes
             applyStyles();
             document.addEventListener('DOMContentLoaded', applyStyles);
             window.addEventListener('load', applyStyles);
-            setInterval(applyStyles, 3000);
+
             function enforceMute() {
                 try {
                     var media = document.querySelectorAll('video, audio');
@@ -207,7 +211,6 @@ public final class MiniPlayerEngine: NSObject, WKNavigationDelegate, WKScriptMes
                 } catch(e) {}
             }
             enforceMute();
-
 
             function enforceLowQuality() {
                 try {
@@ -275,18 +278,26 @@ public final class MiniPlayerEngine: NSObject, WKNavigationDelegate, WKScriptMes
                         v.pause();
                     }
                     
-                    if (typeof targetTime !== 'number' || targetTime < 0) return;
+                    var baseRate = (typeof data.rate === 'number' && data.rate > 0) ? data.rate : (window.__auratube_mini_rate || 1.0);
+                    window.__auratube_mini_rate = baseRate;
+                    
+                    if (typeof targetTime !== 'number' || targetTime < 0) {
+                        if (Math.abs(v.playbackRate - baseRate) > 0.01) {
+                            v.playbackRate = baseRate;
+                        }
+                        return;
+                    }
                     
                     var diff = targetTime - v.currentTime;
                     var absDiff = Math.abs(diff);
                     
                     // 2. Explicit force snap (User scrubbed slider, opened popover, or switched video)
                     if (forceSnap) {
-                        if (absDiff > 0.03 || v.paused) {
+                        if (absDiff > 0.05 || v.paused) {
                             isSeekingState = true;
                             lastSeekTimestamp = now;
                             v.currentTime = targetTime;
-                            v.playbackRate = 1.0;
+                            v.playbackRate = baseRate;
                             var p = document.getElementById('movie_player') || (window.yt && window.yt.player);
                             if (p && typeof p.seekTo === 'function') {
                                 p.seekTo(targetTime, true);
@@ -295,13 +306,13 @@ public final class MiniPlayerEngine: NSObject, WKNavigationDelegate, WKScriptMes
                         return;
                     }
                     
-                    // If video is paused, snap if offset is noticeable (> 30ms)
+                    // If video is paused, snap only if offset is noticeable (> 0.5s) and not in cooldown
                     if (!shouldPlay || v.paused) {
-                        if (absDiff > 0.03 && (now - lastSeekTimestamp > 180)) {
+                        if (absDiff > 0.5 && (now - lastSeekTimestamp > 600)) {
                             isSeekingState = true;
                             lastSeekTimestamp = now;
                             v.currentTime = targetTime;
-                            v.playbackRate = 1.0;
+                            v.playbackRate = baseRate;
                             var p = document.getElementById('movie_player') || (window.yt && window.yt.player);
                             if (p && typeof p.seekTo === 'function') {
                                 p.seekTo(targetTime, true);
@@ -311,16 +322,16 @@ public final class MiniPlayerEngine: NSObject, WKNavigationDelegate, WKScriptMes
                     }
                     
                     // 3. Active Playback Synchronization:
-                    if (isSeekingState && (now - lastSeekTimestamp < 300)) {
+                    if (isSeekingState && (now - lastSeekTimestamp < 500)) {
                         return;
                     }
                     
-                    // A. Fast Hard Snap if drift is noticeable (> 300ms)
-                    if (absDiff > 0.30 && (now - lastSeekTimestamp > 350)) {
+                    // A. Hard Snap ONLY if drift is huge (> 2.5s) to avoid disruptive seeking loops!
+                    if (absDiff > 2.5 && (now - lastSeekTimestamp > 1500)) {
                         isSeekingState = true;
                         lastSeekTimestamp = now;
                         v.currentTime = targetTime;
-                        v.playbackRate = 1.0;
+                        v.playbackRate = baseRate;
                         var p = document.getElementById('movie_player') || (window.yt && window.yt.player);
                         if (p && typeof p.seekTo === 'function') {
                             p.seekTo(targetTime, true);
@@ -328,19 +339,20 @@ public final class MiniPlayerEngine: NSObject, WKNavigationDelegate, WKScriptMes
                         return;
                     }
                     
-                    // B. Tight Lock Deadband: within 25ms (less than 1 frame at 50/60fps)
-                    if (absDiff <= 0.025) {
-                        if (v.playbackRate !== 1.0) {
-                            v.playbackRate = 1.0;
+                    // B. Tight Lock Deadband: within 50ms - perfect locked playback at baseRate
+                    if (absDiff <= 0.05) {
+                        if (Math.abs(v.playbackRate - baseRate) > 0.01) {
+                            v.playbackRate = baseRate;
                         }
                         return;
                     }
                     
-                    // C. Ultra-responsive Proportional rate steering for micro-drifts (25ms to 300ms):
-                    // Rate bounds: 0.75x to 1.35x. Catches up in fractions of a second with zero perceptible lag.
-                    var kP = 0.70;
-                    var correction = Math.max(-0.25, Math.min(0.35, diff * kP));
-                    v.playbackRate = 1.0 + correction;
+                    // C. Ultra-smooth Proportional Rate Steering (50ms to 2.5s):
+                    // Rate bounds: proportional to baseRate
+                    var kP = 0.25;
+                    var maxDelta = baseRate * 0.20;
+                    var correction = Math.max(-maxDelta, Math.min(maxDelta, diff * kP));
+                    v.playbackRate = baseRate + correction;
                 } catch(err) {}
             }
 
@@ -364,7 +376,7 @@ public final class MiniPlayerEngine: NSObject, WKNavigationDelegate, WKScriptMes
                     v.addEventListener('seeked', function() {
                         isSeekingState = false;
                         lastSeekTimestamp = performance.now();
-                        v.playbackRate = 1.0;
+                        v.playbackRate = window.__auratube_mini_rate || 1.0;
                     });
                     v.addEventListener('volumechange', function() {
                         if (!v.muted) v.muted = true;
@@ -377,7 +389,6 @@ public final class MiniPlayerEngine: NSObject, WKNavigationDelegate, WKScriptMes
                 } catch(e) {}
             }
             hookVideoSyncEvents();
-            setInterval(hookVideoSyncEvents, 800);
 
             window.addEventListener('keydown', function(e) {
                 if (e.code === 'Space' || e.keyCode === 32) {
@@ -402,16 +413,14 @@ public final class MiniPlayerEngine: NSObject, WKNavigationDelegate, WKScriptMes
             }, true);
         })();
         """
-        let userScriptStart = WKUserScript(source: cleanScript, injectionTime: .atDocumentStart, forMainFrameOnly: false)
-        let userScriptEnd = WKUserScript(source: cleanScript, injectionTime: .atDocumentEnd, forMainFrameOnly: false)
-        contentController.addUserScript(userScriptStart)
-        contentController.addUserScript(userScriptEnd)
+        let userScript = WKUserScript(source: cleanScript, injectionTime: .atDocumentEnd, forMainFrameOnly: false)
+        contentController.addUserScript(userScript)
         config.userContentController = contentController
         
         self.webView = WKWebView(frame: NSRect(x: 0, y: 0, width: 288, height: 162), configuration: config)
+        self.webView.setValue(false, forKey: "drawsBackground")
         
-        // Persistent standby window to keep WebKit media playback alive continuously in parallel.
-        // Intersects screen coordinates with 0.002 alpha so WindowServer & WebKit do NOT throttle video decoding/timers!
+        // Persistent standby window to keep WebKit media playback alive
         let offscreen = NSWindow(
             contentRect: NSRect(x: 0, y: 0, width: 288, height: 162),
             styleMask: [.borderless],
@@ -419,11 +428,9 @@ public final class MiniPlayerEngine: NSObject, WKNavigationDelegate, WKScriptMes
             defer: false
         )
         offscreen.isReleasedWhenClosed = false
-        offscreen.alphaValue = 0.002
+        offscreen.alphaValue = 0
         offscreen.ignoresMouseEvents = true
-        offscreen.collectionBehavior = [.canJoinAllSpaces, .stationary, .ignoresCycle]
         offscreen.contentView?.addSubview(self.webView)
-        offscreen.orderBack(nil)
         self.offscreenWindow = offscreen
         
         super.init()
@@ -438,9 +445,9 @@ public final class MiniPlayerEngine: NSObject, WKNavigationDelegate, WKScriptMes
     private func setupPlayerManagerBridge() {
         let pm = PlayerManager.shared
         
-        // 1. Play / Pause observer: instant simultaneous sync in parallel ALWAYS
+        // 1. Play / Pause observer: only sync when popover is open
         pm.registerPlayPauseObserver(id: observerId) { [weak self] shouldPlay in
-            guard let self = self else { return }
+            guard let self = self, self.isPopoverVisible else { return }
             let masterTime = PlayerManager.shared.currentTime
             let cmd = shouldPlay ? "playVideo" : "pauseVideo"
             let js = """
@@ -470,9 +477,9 @@ public final class MiniPlayerEngine: NSObject, WKNavigationDelegate, WKScriptMes
             self.webView.evaluateJavaScript(js, completionHandler: nil)
         }
         
-        // 2. Seek observer: always seek in parallel
+        // 2. Seek observer: only seek when popover is open
         pm.registerSeekObserver(id: observerId) { [weak self] targetSeconds in
-            guard let self = self else { return }
+            guard let self = self, self.isPopoverVisible else { return }
             let shouldPlay = PlayerManager.shared.isPlaying
             let js = """
             (function() {
@@ -505,9 +512,13 @@ public final class MiniPlayerEngine: NSObject, WKNavigationDelegate, WKScriptMes
             self.webView.evaluateJavaScript(js, completionHandler: nil)
         }
         
-        // 3. Time sync observer: always sync in parallel smoothly
+        // 3. Time sync observer: only sync when popover is open, throttled to 1 Hz
         pm.registerTimeSyncObserver(id: observerId) { [weak self] masterTime, isPlaying in
-            guard let self = self else { return }
+            guard let self = self, self.isPopoverVisible else { return }
+            let now = ProcessInfo.processInfo.systemUptime
+            guard now - self.lastTimeSyncUptime >= 0.8 else { return }
+            self.lastTimeSyncUptime = now
+            
             let js = """
             (function() {
                 var ifr = document.getElementById('miniYtPlayer');
@@ -519,6 +530,7 @@ public final class MiniPlayerEngine: NSObject, WKNavigationDelegate, WKScriptMes
                         event: 'auratube_sync',
                         masterTime: \(masterTime),
                         isPlaying: \(isPlaying),
+                        rate: \(PlayerManager.shared.playbackRate),
                         forceSnap: false
                     }), '*');
                 }
@@ -542,19 +554,44 @@ public final class MiniPlayerEngine: NSObject, WKNavigationDelegate, WKScriptMes
             self.webView.evaluateJavaScript(js, completionHandler: nil)
         }
         
-        // 5. Video change observer: ALWAYS loads immediately in parallel!
-        pm.registerVideoChangeObserver(id: observerId) { [weak self] newVideo, startTime in
-            guard let self = self else { return }
-            self.loadVideo(video: newVideo, startPos: startTime)
+        // 5. Playback rate observer: sync rate to mini player
+        pm.registerPlaybackRateObserver(id: observerId) { [weak self] rate in
+            guard let self = self, self.isPopoverVisible else { return }
+            let js = """
+            (function() {
+                var ifr = document.getElementById('miniYtPlayer');
+                if (ifr && ifr.contentWindow) {
+                    ifr.contentWindow.postMessage(JSON.stringify({
+                        event: 'auratube_sync',
+                        rate: \(rate),
+                        forceSnap: false
+                    }), '*');
+                    ifr.contentWindow.postMessage(JSON.stringify({event: "command", func: "setPlaybackRate", args: [\(rate)]}), '*');
+                }
+                var v = document.querySelector('video');
+                if (v) { v.playbackRate = \(rate); }
+            })();
+            """
+            self.webView.evaluateJavaScript(js, completionHandler: nil)
         }
         
-        // Initial video loading in parallel
-        if let current = pm.currentVideo {
+        // 6. Video change observer: only load immediately if popover is open
+        pm.registerVideoChangeObserver(id: observerId) { [weak self] newVideo, startTime in
+            guard let self = self else { return }
+            if self.isPopoverVisible {
+                self.loadVideo(video: newVideo, startPos: startTime)
+            } else {
+                self.currentLoadedVideoId = nil
+            }
+        }
+        
+        // Initial video loading in parallel ONLY if popover is open
+        if isPopoverVisible, let current = pm.currentVideo {
             loadVideo(video: current, startPos: pm.currentTime)
         }
         
         // Handle MenuBar popover notifications:
-        // Popover closed: move webView back to standby window, video KEEPS PLAYING silently in parallel!
+        // Popover closed: pause video to eliminate CPU/GPU/network drain (keep webView in container)!
         NotificationCenter.default.addObserver(
             forName: NSNotification.Name("AuraTubeMenuBarPopoverClosed"),
             object: nil,
@@ -563,11 +600,11 @@ public final class MiniPlayerEngine: NSObject, WKNavigationDelegate, WKScriptMes
             Task { @MainActor [weak self] in
                 guard let self = self else { return }
                 self.isPopoverVisible = false
-                self.detachToOffscreen()
+                self.pauseMiniPlayer()
             }
         }
         
-        // Popover opened: simply attach to container, the video is ALREADY PLAYING and synchronized!
+        // Popover opened: re-verify attachment to active container and sync immediately
         NotificationCenter.default.addObserver(
             forName: NSNotification.Name("AuraTubeMenuBarPopoverShown"),
             object: nil,
@@ -576,10 +613,17 @@ public final class MiniPlayerEngine: NSObject, WKNavigationDelegate, WKScriptMes
             Task { @MainActor [weak self] in
                 guard let self = self else { return }
                 self.isPopoverVisible = true
+                if let container = self.activeContainer {
+                    self.attach(to: container)
+                }
                 let pm = PlayerManager.shared
                 
-                if let current = pm.currentVideo, self.currentLoadedVideoId != current.id {
-                    self.loadVideo(video: current, startPos: pm.currentTime)
+                if let current = pm.currentVideo {
+                    if self.currentLoadedVideoId != current.id {
+                        self.loadVideo(video: current, startPos: pm.currentTime)
+                    } else {
+                        self.syncImmediate(masterTime: pm.currentTime, isPlaying: pm.isPlaying, forceSnap: true)
+                    }
                 }
             }
         }
@@ -618,18 +662,72 @@ public final class MiniPlayerEngine: NSObject, WKNavigationDelegate, WKScriptMes
         """
         webView.evaluateJavaScript(js, completionHandler: nil)
         webView.stopLoading()
-        webView.loadHTMLString("<!DOCTYPE html><html><body style='background:#000;'></body></html>", baseURL: nil)
+        webView.loadHTMLString("<!DOCTYPE html><html><body style='background:transparent;'></body></html>", baseURL: nil)
         detachToOffscreen()
     }
     
+    public func pauseMiniPlayer() {
+        let js = """
+        (function() {
+            var ifr = document.getElementById('miniYtPlayer');
+            if (ifr && ifr.contentWindow) {
+                ifr.contentWindow.postMessage(JSON.stringify({event: "command", func: "pauseVideo", args: []}), '*');
+            }
+            var v = document.querySelector('video');
+            if (v) v.pause();
+        })();
+        """
+        webView.evaluateJavaScript(js, completionHandler: nil)
+    }
+    
+    public func syncImmediate(masterTime: Double, isPlaying: Bool, forceSnap: Bool) {
+        let cmd = isPlaying ? "playVideo" : "pauseVideo"
+        let js = """
+        (function() {
+            var ifr = document.getElementById('miniYtPlayer');
+            if (ifr && ifr.contentWindow) {
+                if (\(forceSnap)) {
+                    ifr.contentWindow.postMessage(JSON.stringify({event: "command", func: "seekTo", args: [\(masterTime), true]}), '*');
+                }
+                ifr.contentWindow.postMessage(JSON.stringify({event: "command", func: "\(cmd)", args: []}), '*');
+                ifr.contentWindow.postMessage(JSON.stringify({
+                    event: 'auratube_sync',
+                    masterTime: \(masterTime),
+                    isPlaying: \(isPlaying),
+                    rate: \(PlayerManager.shared.playbackRate),
+                    forceSnap: \(forceSnap)
+                }), '*');
+            }
+            var v = document.querySelector('video');
+            if (v) {
+                if (\(forceSnap)) {
+                    v.currentTime = \(masterTime);
+                }
+                if (\(isPlaying)) {
+                    v.play().catch(function(){});
+                } else {
+                    v.pause();
+                }
+            }
+        })();
+        """
+        webView.evaluateJavaScript(js, completionHandler: nil)
+    }
+    
+    public private(set) weak var activeContainer: NSView?
+    
     public func attach(to container: NSView) {
+        self.activeContainer = container
         isPopoverVisible = true
         if webView.superview != container {
             webView.removeFromSuperview()
             container.addSubview(webView)
         }
-        webView.frame = container.bounds
+        if container.bounds.width > 0 && container.bounds.height > 0 {
+            webView.frame = container.bounds
+        }
         webView.autoresizingMask = [.width, .height]
+        webView.needsLayout = true
     }
     
     public func detachToOffscreen() {
@@ -638,7 +736,6 @@ public final class MiniPlayerEngine: NSObject, WKNavigationDelegate, WKScriptMes
             webView.removeFromSuperview()
             offscreenWindow.contentView?.addSubview(webView)
             webView.frame = NSRect(x: 0, y: 0, width: 288, height: 162)
-            offscreenWindow.orderBack(nil)
         }
     }
     
@@ -651,8 +748,8 @@ public final class MiniPlayerEngine: NSObject, WKNavigationDelegate, WKScriptMes
         <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
         <meta name="referrer" content="origin">
         <style>
-          * { margin: 0; padding: 0; box-sizing: border-box; background: #000; overflow: hidden; pointer-events: none !important; }
-          html, body { width: 100%; height: 100%; background: #000; overflow: hidden; pointer-events: none !important; }
+          * { margin: 0; padding: 0; box-sizing: border-box; overflow: hidden; pointer-events: none !important; }
+          html, body { width: 100%; height: 100%; background: transparent !important; overflow: hidden; pointer-events: none !important; }
           iframe { 
             position: absolute; 
             top: 0; 
@@ -661,7 +758,8 @@ public final class MiniPlayerEngine: NSObject, WKNavigationDelegate, WKScriptMes
             height: 100%; 
             border: none; 
             display: block; 
-            pointer-events: none !important;
+            pointer-events: none !important; 
+            background: transparent !important;
           }
           .ytp-cued-thumbnail-overlay, .ytp-cued-thumbnail-overlay-image, .ytp-large-play-button, .ytp-large-play-button-bg, [class*="cued-thumbnail"], [class*="large-play-button"], .ytp-suggested-action-badge, .ytp-popup, .ytp-ai-info-dialog, [class*="ai-disclosure"], .ytp-spinner, .ytp-spinner-container, .ytp-bezel { display: none !important; opacity: 0 !important; visibility: hidden !important; pointer-events: none !important; }
         </style>
@@ -830,6 +928,35 @@ public final class MiniPlayerEngine: NSObject, WKNavigationDelegate, WKScriptMes
             }
         }
     }
+    
+    public func webView(_ webView: WKWebView, decidePolicyFor navigationAction: WKNavigationAction, decisionHandler: @escaping (WKNavigationActionPolicy) -> Void) {
+        guard let url = navigationAction.request.url else {
+            decisionHandler(.cancel)
+            return
+        }
+        let host = url.host?.lowercased() ?? ""
+        let scheme = url.scheme?.lowercased() ?? ""
+        
+        if scheme == "about" || scheme == "blob" || scheme == "data" {
+            decisionHandler(.allow)
+            return
+        }
+        
+        let isAllowed = host == "auratube.app" ||
+                        host.hasSuffix(".youtube.com") || host == "youtube.com" ||
+                        host.hasSuffix(".youtube-nocookie.com") || host == "youtube-nocookie.com" ||
+                        host.hasSuffix(".googlevideo.com") || host == "googlevideo.com" ||
+                        host.hasSuffix(".ytimg.com") || host == "ytimg.com"
+                        
+        if isAllowed {
+            decisionHandler(.allow)
+        } else {
+            if navigationAction.navigationType == .linkActivated {
+                NSWorkspace.shared.open(url)
+            }
+            decisionHandler(.cancel)
+        }
+    }
 }
 
 // MARK: - MiniPlayerContainerView: Auto-resizing view ensuring webView fills bounds exactly
@@ -839,24 +966,32 @@ final class MiniPlayerContainerView: NSView {
         return nil
     }
     
+    override func viewDidMoveToWindow() {
+        super.viewDidMoveToWindow()
+        if window != nil {
+            MiniPlayerEngine.shared.attach(to: self)
+            needsLayout = true
+        }
+    }
+    
     override func layout() {
         super.layout()
         if let webView = subviews.first as? WKWebView {
-            webView.frame = bounds
+            if bounds.width > 0 && bounds.height > 0 {
+                webView.frame = bounds
+            }
         }
     }
 }
 
 // MARK: - MiniNativePlayerView: SwiftUI View Representable hosting MiniPlayerEngine
 public struct MiniNativePlayerView: NSViewRepresentable {
-    @ObservedObject var playerManager: PlayerManager = .shared
-    
     public init() {}
     
     public func makeNSView(context: Context) -> NSView {
         let container = MiniPlayerContainerView()
         container.wantsLayer = true
-        container.layer?.backgroundColor = NSColor.black.cgColor
+        container.layer?.backgroundColor = NSColor.clear.cgColor
         
         MiniPlayerEngine.shared.attach(to: container)
         
@@ -865,9 +1000,5 @@ public struct MiniNativePlayerView: NSViewRepresentable {
     
     public func updateNSView(_ nsView: NSView, context: Context) {
         MiniPlayerEngine.shared.attach(to: nsView)
-        
-        if let video = playerManager.currentVideo {
-            MiniPlayerEngine.shared.loadVideo(video: video, startPos: playerManager.currentTime)
-        }
     }
 }

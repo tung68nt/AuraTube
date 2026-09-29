@@ -1083,6 +1083,9 @@ class ShortsFeedController {
     this.lastWheelTime = 0;
     this.touchStartY = 0;
     this.observer = null;
+    this.playDebounceTimer = null;
+    this.streamCache = new Map();
+    this.streamPromises = new Map();
     this.likes = new Set();
     this.dislikes = new Set();
     this.subscribers = new Set();
@@ -1110,9 +1113,9 @@ class ShortsFeedController {
     if (this.reel) {
       this.reel.addEventListener('wheel', (e) => {
         if (!this.isOpen) return;
-        if (Math.abs(e.deltaY) < 25) return;
+        if (Math.abs(e.deltaY) < 28) return;
         const now = Date.now();
-        if (now - this.lastWheelTime < 380) {
+        if (now - this.lastWheelTime < 350) {
           e.preventDefault();
           return;
         }
@@ -1184,7 +1187,7 @@ class ShortsFeedController {
           if (!isNaN(idx) && idx !== this.currentIndex) {
             this.currentIndex = idx;
             this.updateNavButtons();
-            this.playActiveShort();
+            this.schedulePlayActive();
             this.checkInfiniteLoad();
           }
         }
@@ -1206,7 +1209,9 @@ class ShortsFeedController {
 
   close() {
     this.isOpen = false;
+    clearTimeout(this.playDebounceTimer);
     this.pauseAll();
+    this.cleanupDistantMedia(true);
   }
 
   async loadInitialShorts() {
@@ -1228,7 +1233,7 @@ class ShortsFeedController {
         this.updateNavButtons();
         setTimeout(() => {
           this.goToIndex(0, false);
-        }, 60);
+        }, 50);
       } else {
         throw new Error('Không có video Shorts nào từ hệ thống');
       }
@@ -1295,8 +1300,8 @@ class ShortsFeedController {
     item.innerHTML = `
       <div class="short-main-wrapper">
         <div class="short-player-card">
-          <video class="short-video" playsinline loop preload="none"></video>
-          <audio class="short-audio" loop></audio>
+          <video class="short-video" playsinline preload="auto"></video>
+          <audio class="short-audio" preload="auto"></audio>
           <img src="${v.thumbnail}" alt="${this.escapeHtml(v.title)}" class="short-poster-img" loading="lazy" />
           <div class="short-spinner"></div>
           <div class="short-play-indicator">
@@ -1383,23 +1388,61 @@ class ShortsFeedController {
     const moreBtn = item.querySelector('.more-btn');
     const indicator = item.querySelector('.short-play-indicator');
     const progressBar = item.querySelector('.short-progress-bar');
+    const progressWrap = item.querySelector('.short-progress-wrap');
     const spinner = item.querySelector('.short-spinner');
     const poster = item.querySelector('.short-poster-img');
 
+    // Interactive timeline scrubbing for shorts
+    if (progressWrap) {
+      const seekOnBar = (e) => {
+        if (!video.duration) return;
+        const rect = progressWrap.getBoundingClientRect();
+        const pos = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+        video.currentTime = pos * video.duration;
+        if (item.dataset.hasSeparateAudio === 'true' && audio.src) {
+          audio.currentTime = video.currentTime;
+        }
+      };
+      let isSeeking = false;
+      progressWrap.addEventListener('mousedown', (e) => {
+        e.stopPropagation();
+        isSeeking = true;
+        seekOnBar(e);
+        const onMouseMove = (moveEvt) => {
+          if (isSeeking) {
+            moveEvt.stopPropagation();
+            seekOnBar(moveEvt);
+          }
+        };
+        const onMouseUp = () => {
+          isSeeking = false;
+          window.removeEventListener('mousemove', onMouseMove);
+          window.removeEventListener('mouseup', onMouseUp);
+        };
+        window.addEventListener('mousemove', onMouseMove);
+        window.addEventListener('mouseup', onMouseUp);
+      });
+    }
+
     // Click on video toggles play/pause
     card.addEventListener('click', (e) => {
-      if (e.target.closest('.short-top-bar') || e.target.closest('.short-bottom-overlay')) return;
+      if (e.target.closest('.short-top-bar') || e.target.closest('.short-bottom-overlay') || e.target.closest('.short-progress-wrap')) return;
       if (!video.src) {
         this.playCard(item, v);
         return;
       }
       if (video.paused) {
         video.play().catch(() => {});
-        if (item.dataset.hasSeparateAudio === 'true' && audio.src) audio.play().catch(() => {});
+        if (item.dataset.hasSeparateAudio === 'true' && audio.src && audio.paused) {
+          audio.currentTime = video.currentTime;
+          audio.play().catch(() => {});
+        }
         this.showPlayIndicator(indicator, true);
       } else {
         video.pause();
-        if (item.dataset.hasSeparateAudio === 'true' && audio.src) audio.pause();
+        if (item.dataset.hasSeparateAudio === 'true' && audio.src && !audio.paused) {
+          audio.pause();
+        }
         this.showPlayIndicator(indicator, false);
       }
     });
@@ -1482,28 +1525,75 @@ class ShortsFeedController {
       this.app.openWatchView(v);
     });
 
-    // Video events
+    // --- Media Events with Real-Time Audio-Video Synchronization ---
     video.addEventListener('timeupdate', () => {
       if (video.duration) {
         const pct = (video.currentTime / video.duration) * 100;
         progressBar.style.width = `${pct}%`;
       }
+      // Clock drift guard: keep audio strictly synced to video timestamp
+      if (item.dataset.hasSeparateAudio === 'true' && audio.src && !video.paused && !audio.paused) {
+        const diff = Math.abs(video.currentTime - audio.currentTime);
+        if (diff > 0.12) {
+          audio.currentTime = video.currentTime;
+        }
+      }
     });
 
     video.addEventListener('waiting', () => {
       spinner.classList.add('active');
+      // Pause audio immediately when video buffers so they do not drift apart
+      if (item.dataset.hasSeparateAudio === 'true' && audio.src && !audio.paused) {
+        audio.pause();
+      }
     });
 
     video.addEventListener('playing', () => {
       spinner.classList.remove('active');
       poster.classList.add('hidden');
+      // Resume and sync audio when video is playing
+      if (item.dataset.hasSeparateAudio === 'true' && audio.src && !video.paused) {
+        if (Math.abs(video.currentTime - audio.currentTime) > 0.08) {
+          audio.currentTime = video.currentTime;
+        }
+        if (audio.paused) {
+          audio.play().catch(() => {});
+        }
+      }
     });
 
+    video.addEventListener('pause', () => {
+      if (item.dataset.hasSeparateAudio === 'true' && audio.src && !audio.paused) {
+        audio.pause();
+      }
+    });
+
+    video.addEventListener('seeking', () => {
+      if (item.dataset.hasSeparateAudio === 'true' && audio.src) {
+        audio.currentTime = video.currentTime;
+      }
+    });
+
+    video.addEventListener('seeked', () => {
+      if (item.dataset.hasSeparateAudio === 'true' && audio.src) {
+        audio.currentTime = video.currentTime;
+      }
+    });
+
+    video.addEventListener('ratechange', () => {
+      if (item.dataset.hasSeparateAudio === 'true' && audio.src) {
+        audio.playbackRate = video.playbackRate;
+      }
+    });
+
+    // Loop synchronously
     video.addEventListener('ended', () => {
       video.currentTime = 0;
-      video.play().catch(() => {});
       if (item.dataset.hasSeparateAudio === 'true' && audio.src) {
         audio.currentTime = 0;
+      }
+      video.play().catch(() => {});
+      if (item.dataset.hasSeparateAudio === 'true' && audio.src) {
         audio.play().catch(() => {});
       }
     });
@@ -1531,9 +1621,16 @@ class ShortsFeedController {
         behavior: smooth ? 'smooth' : 'instant',
         block: 'center'
       });
-      this.playActiveShort();
+      this.schedulePlayActive();
       this.checkInfiniteLoad();
     }
+  }
+
+  schedulePlayActive() {
+    clearTimeout(this.playDebounceTimer);
+    this.playDebounceTimer = setTimeout(() => {
+      this.playActiveShort();
+    }, 70);
   }
 
   updateNavButtons() {
@@ -1546,6 +1643,32 @@ class ShortsFeedController {
       this.nextBtn.disabled = isEnd;
       this.nextBtn.classList.toggle('disabled', isEnd);
     }
+  }
+
+  async getStreamData(videoId) {
+    if (this.streamCache.has(videoId)) {
+      return this.streamCache.get(videoId);
+    }
+    if (this.streamPromises.has(videoId)) {
+      return this.streamPromises.get(videoId);
+    }
+
+    const promise = (async () => {
+      try {
+        const res = await fetch(`/api/stream?v=${videoId}&quality=shorts`);
+        const data = await res.json();
+        if (data && data.success) {
+          this.streamCache.set(videoId, data);
+          return data;
+        }
+        throw new Error(data?.error || 'Không tải được stream Short');
+      } finally {
+        this.streamPromises.delete(videoId);
+      }
+    })();
+
+    this.streamPromises.set(videoId, promise);
+    return promise;
   }
 
   playActiveShort() {
@@ -1566,41 +1689,50 @@ class ShortsFeedController {
     const videoData = this.shorts[this.currentIndex];
     this.playCard(currentItem, videoData);
 
-    // Preload next short in background
-    if (this.currentIndex + 1 < this.shorts.length) {
-      const nextId = this.shorts[this.currentIndex + 1].id;
-      fetch(`/api/stream?v=${nextId}&quality=720`).catch(() => {});
-    }
+    // Free memory/hardware decoders and preload adjacent short
+    this.cleanupDistantMedia();
+    this.preloadAdjacentShorts();
   }
 
   async playCard(card, videoData) {
     const video = card.querySelector('.short-video');
     const audio = card.querySelector('.short-audio');
     const spinner = card.querySelector('.short-spinner');
+    const poster = card.querySelector('.short-poster-img');
 
     video.muted = this.isMuted;
     audio.muted = this.isMuted;
 
+    // If stream is already loaded (from background preload)
     if (video.src && video.src !== window.location.href) {
-      video.play().catch(() => {});
-      if (card.dataset.hasSeparateAudio === 'true' && audio.src) {
-        audio.currentTime = video.currentTime;
-        audio.play().catch(() => {});
+      if (spinner) spinner.classList.remove('active');
+      const p = video.play();
+      if (p !== undefined) {
+        p.then(() => {
+          if (poster) poster.classList.add('hidden');
+          if (card.dataset.hasSeparateAudio === 'true' && audio.src) {
+            audio.currentTime = video.currentTime;
+            audio.play().catch(() => {});
+          }
+        }).catch(err => {
+          console.warn('Short play resume notice:', err.message);
+        });
       }
       return;
     }
 
-    spinner.classList.add('active');
+    if (spinner) spinner.classList.add('active');
     try {
-      const res = await fetch(`/api/stream?v=${videoData.id}&quality=720`);
-      const stream = await res.json();
+      const stream = await this.getStreamData(videoData.id);
       if (!this.isOpen || parseInt(card.dataset.index, 10) !== this.currentIndex) return;
 
-      const videoUrl = stream.proxyVideoUrl || `/api/proxy-stream?v=${videoData.id}&quality=720&type=video`;
+      const videoUrl = stream.proxyVideoUrl || `/api/proxy-stream?v=${videoData.id}&quality=shorts&type=video`;
+      video.preload = 'auto';
       video.src = videoUrl;
 
       if (stream.hasSeparateAudio && stream.proxyAudioUrl) {
         card.dataset.hasSeparateAudio = 'true';
+        audio.preload = 'auto';
         audio.src = stream.proxyAudioUrl;
         audio.muted = this.isMuted;
       } else {
@@ -1608,20 +1740,85 @@ class ShortsFeedController {
       }
 
       video.load();
+      if (card.dataset.hasSeparateAudio === 'true') {
+        audio.load();
+      }
+
       video.play().then(() => {
-        spinner.classList.remove('active');
-        if (card.dataset.hasSeparateAudio === 'true') {
+        if (spinner) spinner.classList.remove('active');
+        if (poster) poster.classList.add('hidden');
+        if (card.dataset.hasSeparateAudio === 'true' && audio.src) {
           audio.currentTime = video.currentTime;
           audio.play().catch(() => {});
         }
       }).catch(err => {
-        spinner.classList.remove('active');
+        if (spinner) spinner.classList.remove('active');
         console.warn('Playback notice:', err.message);
       });
     } catch (err) {
-      spinner.classList.remove('active');
+      if (spinner) spinner.classList.remove('active');
       console.error('Error loading short stream:', err);
     }
+  }
+
+  preloadAdjacentShorts() {
+    // Proactively preload the NEXT short into DOM so swiping down is instantaneous
+    if (this.currentIndex + 1 < this.shorts.length) {
+      const nextShort = this.shorts[this.currentIndex + 1];
+      const nextCard = this.reel.children[this.currentIndex + 1];
+      this.getStreamData(nextShort.id).then(stream => {
+        if (!this.isOpen || !nextCard) return;
+        const v = nextCard.querySelector('.short-video');
+        const a = nextCard.querySelector('.short-audio');
+        if (v && !v.src) {
+          const videoUrl = stream.proxyVideoUrl || `/api/proxy-stream?v=${nextShort.id}&quality=shorts&type=video`;
+          v.preload = 'auto';
+          v.src = videoUrl;
+          if (stream.hasSeparateAudio && stream.proxyAudioUrl) {
+            nextCard.dataset.hasSeparateAudio = 'true';
+            a.preload = 'auto';
+            a.src = stream.proxyAudioUrl;
+            a.muted = this.isMuted;
+          } else {
+            nextCard.dataset.hasSeparateAudio = 'false';
+          }
+        }
+      }).catch(() => {});
+    }
+
+    // Prefetch stream metadata for currentIndex + 2 in advance
+    if (this.currentIndex + 2 < this.shorts.length) {
+      this.getStreamData(this.shorts[this.currentIndex + 2].id).catch(() => {});
+    }
+  }
+
+  cleanupDistantMedia(all = false) {
+    if (!this.reel) return;
+    Array.from(this.reel.children).forEach((item, idx) => {
+      const distance = Math.abs(idx - this.currentIndex);
+      const v = item.querySelector('.short-video');
+      const a = item.querySelector('.short-audio');
+      const poster = item.querySelector('.short-poster-img');
+
+      if (all || distance > 1) {
+        // Free hardware video/audio decoders and memory buffers
+        if (v && v.src) {
+          v.pause();
+          v.removeAttribute('src');
+          v.load();
+        }
+        if (a && a.src) {
+          a.pause();
+          a.removeAttribute('src');
+          a.load();
+        }
+        if (poster) poster.classList.remove('hidden');
+      } else if (distance === 1) {
+        // Keep next/prev paused
+        if (v && !v.paused) v.pause();
+        if (a && !a.paused) a.pause();
+      }
+    });
   }
 
   pauseAll() {
@@ -1644,11 +1841,16 @@ class ShortsFeedController {
 
     if (video.paused) {
       video.play().catch(() => {});
-      if (currentItem.dataset.hasSeparateAudio === 'true' && audio.src) audio.play().catch(() => {});
+      if (currentItem.dataset.hasSeparateAudio === 'true' && audio.src && audio.paused) {
+        audio.currentTime = video.currentTime;
+        audio.play().catch(() => {});
+      }
       this.showPlayIndicator(indicator, true);
     } else {
       video.pause();
-      if (currentItem.dataset.hasSeparateAudio === 'true' && audio.src) audio.pause();
+      if (currentItem.dataset.hasSeparateAudio === 'true' && audio.src && !audio.paused) {
+        audio.pause();
+      }
       this.showPlayIndicator(indicator, false);
     }
   }

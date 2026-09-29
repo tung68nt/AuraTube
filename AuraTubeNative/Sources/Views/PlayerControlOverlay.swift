@@ -24,6 +24,7 @@ final class PlayerControlViewModel: ObservableObject {
 public struct PlayerControlOverlay: View {
     @ObservedObject private var playerManager = PlayerManager.shared
     @ObservedObject private var clock = PlaybackClock.shared
+    @ObservedObject private var speedService = NetworkSpeedService.shared
     @StateObject private var vm = PlayerControlViewModel()
     
     public init() {}
@@ -323,16 +324,19 @@ public struct PlayerControlOverlay: View {
             .help("Tắt/Bật tiếng (M)")
             
             // Current Time / Total Duration + Chapter Title (ALWAYS PRESENT)
-            HStack(spacing: isCompact ? 2 : 4) {
+            HStack(spacing: isCompact ? 2.5 : 4) {
                 Text(formatTime(effectiveTime))
-                    .font(.system(size: isCompact ? 10.5 : 12, weight: .medium))
+                    .font(.system(size: isCompact ? 10.5 : 12, weight: .medium).monospacedDigit())
                     .foregroundColor(.white)
+                    .lineLimit(1)
                 Text("/")
                     .font(.system(size: isCompact ? 9.5 : 11, weight: .regular))
                     .foregroundColor(Color(white: 0.5))
+                    .lineLimit(1)
                 Text(formatTime(playerManager.duration))
-                    .font(.system(size: isCompact ? 10.5 : 12, weight: .medium))
+                    .font(.system(size: isCompact ? 10.5 : 12, weight: .medium).monospacedDigit())
                     .foregroundColor(Color(white: 0.7))
+                    .lineLimit(1)
                 
                 // Display Current Chapter Title next to time (like YouTube)
                 if !isCompact && !playerManager.isCurrentVideoVertical, let ch = playerManager.currentChapter {
@@ -340,6 +344,7 @@ public struct PlayerControlOverlay: View {
                         .font(.system(size: 11, weight: .regular))
                         .foregroundColor(Color(white: 0.4))
                         .padding(.horizontal, 3)
+                        .lineLimit(1)
                     Text(ch.title)
                         .font(.system(size: 12, weight: .semibold))
                         .foregroundColor(Color(white: 0.92))
@@ -348,16 +353,54 @@ public struct PlayerControlOverlay: View {
                         .frame(maxWidth: 240, alignment: .leading)
                 }
             }
+            .lineLimit(1)
+            .fixedSize(horizontal: true, vertical: false)
             .padding(.leading, isCompact ? 0 : 2)
             
             Spacer(minLength: 4)
             
             // Quality Dropdown Menu (Độ phân giải) (ALWAYS PRESENT)
             Menu {
+                // Network Speed Status Header
+                VStack(alignment: .leading, spacing: 3) {
+                    HStack(spacing: 4) {
+                        Image(systemName: "bolt.fill")
+                            .foregroundColor(.yellow)
+                        Text("Tốc độ mạng: \(speedService.displaySpeed)")
+                            .font(.system(size: 11, weight: .bold))
+                    }
+                    Text("Độ trễ: \(speedService.displayLatency) • \(speedService.statusSummary)")
+                        .font(.system(size: 10))
+                        .foregroundColor(.secondary)
+                }
+                
+                Button(action: {
+                    speedService.measureSpeed(force: true)
+                }) {
+                    Label(speedService.isTesting ? "Đang đo tốc độ..." : "Kiểm tra lại tốc độ mạng", systemImage: "arrow.clockwise")
+                }
+                
+                Divider()
+                
+                // Smart Auto Quality Option
                 Button(action: { playerManager.setQuality("auto") }) {
                     HStack {
-                        Text("Tự động (Auto)")
+                        let opt = playerManager.resolvedOptimalQuality
+                        let optLabel = (opt == "2160") ? "4K" : ((opt == "1440") ? "2K" : "\(opt)p")
+                        Text("Tự động (Tối ưu theo mạng -> \(optLabel))")
                         if playerManager.selectedQuality == "auto" {
+                            Image(systemName: "checkmark")
+                        }
+                    }
+                }
+                
+                // Max Resolution Priority Toggle
+                Button(action: {
+                    playerManager.preferMaxQuality.toggle()
+                }) {
+                    HStack {
+                        Text("Ưu tiên chất lượng tối đa (Max 4K/2K)")
+                        if playerManager.preferMaxQuality {
                             Image(systemName: "checkmark")
                         }
                     }
@@ -369,7 +412,7 @@ public struct PlayerControlOverlay: View {
                     if !playerManager.availableQualities.isEmpty {
                         return playerManager.availableQualities.map { "\($0)" }
                     } else {
-                        return ["1080", "720", "480", "360"]
+                        return ["2160", "1440", "1080", "720", "480", "360"]
                     }
                 }()
                 
@@ -401,6 +444,36 @@ public struct PlayerControlOverlay: View {
             .fixedSize()
             .help("Chọn độ phân giải video")
             
+            // Speed Dropdown Menu (Tốc độ phát) (ALWAYS PRESENT)
+            Menu {
+                ForEach(PlayerManager.availablePlaybackRates, id: \.self) { rate in
+                    Button(action: { playerManager.setPlaybackRate(rate) }) {
+                        HStack {
+                            Text(speedMenuLabel(rate))
+                            if abs(playerManager.playbackRate - rate) < 0.01 {
+                                Image(systemName: "checkmark")
+                            }
+                        }
+                    }
+                }
+            } label: {
+                HStack(spacing: isCompact ? 2 : 3) {
+                    Text(displaySpeedBadge)
+                        .font(.system(size: isCompact ? 10 : 11, weight: .bold))
+                        .foregroundColor(.white)
+                    Image(systemName: "chevron.up.chevron.down")
+                        .font(.system(size: isCompact ? 6 : 7, weight: .semibold))
+                        .foregroundColor(Color(white: 0.7))
+                }
+                .padding(.horizontal, isCompact ? 5 : 7)
+                .padding(.vertical, isCompact ? 3 : 3.5)
+                .background(Color.white.opacity(0.18))
+                .cornerRadius(4)
+            }
+            .menuStyle(.borderlessButton)
+            .fixedSize()
+            .help("Tốc độ phát video (Shift + < / >)")
+            
             if !isCompact {
                 // Autoplay Next Video Toggle (YouTube Style)
                 Button(action: {
@@ -426,6 +499,20 @@ public struct PlayerControlOverlay: View {
                 .buttonStyle(.plain)
                 .help(playerManager.isAutoplayEnabled ? "Tự động phát: Đang BẬT" : "Tự động phát: Đang TẮT")
             }
+            
+            // Reload / Refresh Video Stream Button (Tải lại video khi bị lag / đứng hình)
+            Button(action: {
+                playerManager.reloadCurrentVideo()
+            }) {
+                Image(systemName: "arrow.clockwise")
+                    .font(.system(size: isCompact ? 10.5 : 12, weight: .semibold))
+                    .foregroundColor(.white)
+                    .frame(width: isCompact ? 24 : 28, height: isCompact ? 24 : 28)
+                    .background(Color.white.opacity(0.12))
+                    .clipShape(Circle())
+            }
+            .buttonStyle(.plain)
+            .help("Tải lại video khi bị lag / đứng hình (R)")
             
             // Picture-in-Picture Button (PiP) (ALWAYS PRESENT)
             Button(action: {
@@ -461,12 +548,50 @@ public struct PlayerControlOverlay: View {
     }
     
     private func displayQualityBadge(isCompact: Bool = false) -> String {
-        if playerManager.selectedQuality != "auto" {
-            return "\(playerManager.selectedQuality)p"
-        } else if !playerManager.currentQuality.isEmpty && playerManager.currentQuality != "auto" && playerManager.currentQuality != "default" {
-            return isCompact ? "\(playerManager.currentQuality)p" : "Auto • \(playerManager.currentQuality)p"
+        let qToDisplay: String = {
+            if playerManager.selectedQuality != "auto" {
+                return playerManager.selectedQuality
+            }
+            if !playerManager.currentQuality.isEmpty && playerManager.currentQuality != "auto" && playerManager.currentQuality != "default" {
+                return playerManager.currentQuality
+            }
+            return playerManager.resolvedOptimalQuality
+        }()
+        
+        let label: String
+        switch qToDisplay {
+        case "4320": label = "8K"
+        case "2880": label = "5K"
+        case "2160": label = "4K"
+        case "1440": label = "2K"
+        case "1080": label = "1080p"
+        case "720": label = "720p"
+        default: label = "\(qToDisplay)p"
+        }
+        
+        if playerManager.selectedQuality == "auto" {
+            return isCompact ? label : "Auto • \(label)"
         } else {
-            return "Auto"
+            return label
+        }
+    }
+    
+    private var displaySpeedBadge: String {
+        let r = playerManager.playbackRate
+        if abs(r - 1.0) < 0.01 {
+            return "1.0x"
+        } else if r == Double(Int(r)) {
+            return "\(Int(r))x"
+        } else {
+            return String(format: "%gx", r)
+        }
+    }
+    
+    private func speedMenuLabel(_ rate: Double) -> String {
+        if abs(rate - 1.0) < 0.01 {
+            return "1.0x (Chuẩn)"
+        } else {
+            return String(format: "%gx", rate)
         }
     }
     

@@ -1327,6 +1327,9 @@ body {
 .time-display {
   font-size: 13px;
   color: #ddd;
+  white-space: nowrap;
+  flex-shrink: 0;
+  font-variant-numeric: tabular-nums;
 }
 
 .quality-select, .speed-select {
@@ -2528,16 +2531,22 @@ body {
   bottom: 0;
   left: 0;
   right: 0;
-  height: 3.5px;
+  height: 4px;
   background: rgba(255, 255, 255, 0.25);
-  z-index: 12;
+  z-index: 15;
+  cursor: pointer;
+  transition: height 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.short-progress-wrap:hover {
+  height: 8px;
 }
 
 .short-progress-bar {
   height: 100%;
   width: 0%;
   background: #ff0033;
-  transition: width 0.1s linear;
+  transition: width 0.08s linear;
 }
 
 /* Floating Actions Bar on the Right */

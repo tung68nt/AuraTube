@@ -14,8 +14,8 @@ final class MenuBarViewModel: ObservableObject {
 public struct MenuBarView: View {
     @Environment(\.colorScheme) private var colorScheme
     @ObservedObject private var playerManager = PlayerManager.shared
-    @ObservedObject private var clock = PlaybackClock.shared
     @ObservedObject private var themeManager = ThemeManager.shared
+    @ObservedObject private var pipController = PiPWindowController.shared
     
     @StateObject private var vm = MenuBarViewModel()
     
@@ -41,15 +41,12 @@ public struct MenuBarView: View {
         isDark ? Color(red: 0.55, green: 0.57, blue: 0.62) : Color(red: 0.50, green: 0.52, blue: 0.58)
     }
     
-    private var effectiveDuration: Double {
-        clock.duration > 0 ? clock.duration : playerManager.duration
-    }
-    
-    private var effectiveCurrentTime: Double {
-        if vm.isScrubbing {
-            return vm.scrubTime
+    private func speedMenuLabel(_ rate: Double) -> String {
+        if abs(rate - 1.0) < 0.01 {
+            return "1.0x (Chuẩn)"
+        } else {
+            return String(format: "%gx", rate)
         }
-        return clock.currentTime > 0 ? clock.currentTime : playerManager.currentTime
     }
     
     private func triggerTogglePlayPause() {
@@ -84,36 +81,18 @@ public struct MenuBarView: View {
                 
                 Spacer()
                 
-                // Quick Theme Toggle Button (Cycles System -> Light -> Dark)
-                Button(action: {
-                    withAnimation(.easeInOut(duration: 0.2)) {
-                        themeManager.cycleTheme()
-                    }
-                }) {
-                    Image(systemName: themeManager.currentTheme.iconName)
-                        .font(.system(size: 11.5, weight: .semibold))
-                        .foregroundColor(textPrimary.opacity(0.88))
-                        .frame(width: 26, height: 26)
-                        .background(
-                            Circle()
-                                .fill(isDark ? Color.white.opacity(0.10) : Color.black.opacity(0.06))
-                        )
-                        .overlay(
-                            Circle()
-                                .strokeBorder(isDark ? Color.white.opacity(0.14) : Color.black.opacity(0.08), lineWidth: 0.75)
-                        )
-                }
-                .buttonStyle(.plain)
-                .help("Giao diện: \(themeManager.currentTheme.title) (Bấm để đổi)")
-                
                 // Picture-in-Picture Button
                 Button(action: {
-                    playerManager.togglePictureInPicture()
+                    if pipController.isPiPHiddenKeepAudio {
+                        pipController.unhidePiP()
+                    } else {
+                        playerManager.togglePictureInPicture()
+                    }
                 }) {
                     HStack(spacing: 4) {
-                        Image(systemName: playerManager.isPictureInPictureActive ? "pip.exit" : "pip.enter")
+                        Image(systemName: pipController.isPiPHiddenKeepAudio ? "headphones" : (playerManager.isPictureInPictureActive ? "pip.exit" : "pip.enter"))
                             .font(.system(size: 10.5, weight: .bold))
-                        Text("PiP")
+                        Text(pipController.isPiPHiddenKeepAudio ? "Ẩn" : "PiP")
                             .font(.system(size: 11, weight: .semibold))
                     }
                     .padding(.horizontal, 8)
@@ -122,23 +101,27 @@ public struct MenuBarView: View {
                     .background(
                         Capsule()
                             .fill(
-                                playerManager.isPictureInPictureActive ?
+                                pipController.isPiPHiddenKeepAudio ?
+                                Color(red: 0.2, green: 0.5, blue: 0.95) :
+                                (playerManager.isPictureInPictureActive ?
                                 Color(red: 0.95, green: 0.15, blue: 0.15) :
-                                (isDark ? Color.white.opacity(0.10) : Color.black.opacity(0.06))
+                                (isDark ? Color.white.opacity(0.10) : Color.black.opacity(0.06)))
                             )
                     )
                     .overlay(
                         Capsule()
                             .strokeBorder(
-                                playerManager.isPictureInPictureActive ?
+                                pipController.isPiPHiddenKeepAudio ?
+                                Color.blue.opacity(0.4) :
+                                (playerManager.isPictureInPictureActive ?
                                 Color.red.opacity(0.4) :
-                                (isDark ? Color.white.opacity(0.14) : Color.black.opacity(0.08)),
+                                (isDark ? Color.white.opacity(0.14) : Color.black.opacity(0.08))),
                                 lineWidth: 0.75
                             )
                     )
                 }
                 .buttonStyle(.plain)
-                .help("Bật / Tắt Picture-in-Picture (P / ⌥⌘P)")
+                .help(pipController.isPiPHiddenKeepAudio ? "PiP đang ẩn (chỉ nghe nhạc) - Bấm để hiện lại" : "Bật / Tắt Picture-in-Picture (P / ⌥⌘P)")
                 
                 // Expand to Main Window Button
                 Button(action: onOpenMainWindow) {
@@ -172,6 +155,14 @@ public struct MenuBarView: View {
                         triggerTogglePlayPause()
                     }) {
                         ZStack(alignment: .center) {
+                            // Backing thumbnail: shows high-res video preview instantly to prevent black flash
+                            CachedAsyncThumbnail(url: video.thumbnail, maxPixelSize: 640)
+                                .aspectRatio(contentMode: .fill)
+                                .frame(height: playerManager.isCurrentVideoVertical ? 310 : 162)
+                                .frame(maxWidth: .infinity)
+                                .clipped()
+                                .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                            
                             MiniNativePlayerView()
                                 .allowsHitTesting(false)
                                 .frame(height: playerManager.isCurrentVideoVertical ? 310 : 162)
@@ -252,14 +243,33 @@ public struct MenuBarView: View {
                     // 3. High-Contrast Interactive Timeline Scrubber
                     timelineScrubber
                     
-                    // 4. Playback Controls Row: Rewind 10, Play/Pause, Forward 10, Volume/Mute
-                    HStack(spacing: 14) {
+                    // 4. Playback Controls Row: Prev, Rewind 10, Play/Pause, Forward 10, Next, Volume/Mute
+                    HStack(spacing: 8) {
+                        // Previous Video
+                        Button(action: { playerManager.playPreviousVideo() }) {
+                            Image(systemName: "backward.end.fill")
+                                .font(.system(size: 11, weight: .semibold))
+                                .foregroundColor(playerManager.canPlayPrevious ? textPrimary : textSecondary.opacity(0.35))
+                                .frame(width: 28, height: 28)
+                                .background(
+                                    Circle()
+                                        .fill(isDark ? Color.white.opacity(0.08) : Color.black.opacity(0.05))
+                                )
+                                .overlay(
+                                    Circle()
+                                        .strokeBorder(isDark ? Color.white.opacity(0.12) : Color.black.opacity(0.06), lineWidth: 0.75)
+                                )
+                        }
+                        .buttonStyle(.plain)
+                        .disabled(!playerManager.canPlayPrevious)
+                        .help("Video trước đó (Shift + P)")
+                        
                         // Rewind 10s
                         Button(action: { playerManager.seekRelative(-10) }) {
                             Image(systemName: "gobackward.10")
-                                .font(.system(size: 13, weight: .semibold))
+                                .font(.system(size: 12, weight: .semibold))
                                 .foregroundColor(textPrimary)
-                                .frame(width: 30, height: 30)
+                                .frame(width: 28, height: 28)
                                 .background(
                                     Circle()
                                         .fill(isDark ? Color.white.opacity(0.08) : Color.black.opacity(0.05))
@@ -282,11 +292,11 @@ public struct MenuBarView: View {
                                         Color(red: 0.12, green: 0.12, blue: 0.14)
                                     )
                                 Image(systemName: playerManager.isPlaying ? "pause.fill" : "play.fill")
-                                    .font(.system(size: 15, weight: .bold))
+                                    .font(.system(size: 14, weight: .bold))
                                     .foregroundColor(isDark ? Color.black : Color.white)
                                     .offset(x: playerManager.isPlaying ? 0 : 1)
                             }
-                            .frame(width: 36, height: 36)
+                            .frame(width: 34, height: 34)
                             .shadow(color: Color.black.opacity(isDark ? 0.35 : 0.18), radius: 4, x: 0, y: 2)
                         }
                         .buttonStyle(.plain)
@@ -295,9 +305,9 @@ public struct MenuBarView: View {
                         // Forward 10s
                         Button(action: { playerManager.seekRelative(10) }) {
                             Image(systemName: "goforward.10")
-                                .font(.system(size: 13, weight: .semibold))
+                                .font(.system(size: 12, weight: .semibold))
                                 .foregroundColor(textPrimary)
-                                .frame(width: 30, height: 30)
+                                .frame(width: 28, height: 28)
                                 .background(
                                     Circle()
                                         .fill(isDark ? Color.white.opacity(0.08) : Color.black.opacity(0.05))
@@ -310,14 +320,63 @@ public struct MenuBarView: View {
                         .buttonStyle(.plain)
                         .help("Tua tới 10 giây (→)")
                         
+                        // Next Video
+                        Button(action: { playerManager.playNextVideo() }) {
+                            Image(systemName: "forward.end.fill")
+                                .font(.system(size: 11, weight: .semibold))
+                                .foregroundColor(textPrimary)
+                                .frame(width: 28, height: 28)
+                                .background(
+                                    Circle()
+                                        .fill(isDark ? Color.white.opacity(0.08) : Color.black.opacity(0.05))
+                                )
+                                .overlay(
+                                    Circle()
+                                        .strokeBorder(isDark ? Color.white.opacity(0.12) : Color.black.opacity(0.06), lineWidth: 0.75)
+                                )
+                        }
+                        .buttonStyle(.plain)
+                        .help("Video tiếp theo (N / Shift + N)")
+                        
                         Spacer()
+                        
+                        // Playback Speed Menu Button
+                        Menu {
+                            ForEach(PlayerManager.availablePlaybackRates, id: \.self) { rate in
+                                Button(action: { playerManager.setPlaybackRate(rate) }) {
+                                    HStack {
+                                        Text(speedMenuLabel(rate))
+                                        if abs(playerManager.playbackRate - rate) < 0.01 {
+                                            Image(systemName: "checkmark")
+                                        }
+                                    }
+                                }
+                            }
+                        } label: {
+                            Text(playerManager.displayPlaybackRate)
+                                .font(.system(size: 10.5, weight: .bold))
+                                .foregroundColor(textPrimary)
+                                .padding(.horizontal, 6)
+                                .frame(height: 26)
+                                .background(
+                                    Capsule()
+                                        .fill(isDark ? Color.white.opacity(0.08) : Color.black.opacity(0.05))
+                                )
+                                .overlay(
+                                    Capsule()
+                                        .strokeBorder(isDark ? Color.white.opacity(0.12) : Color.black.opacity(0.06), lineWidth: 0.75)
+                                )
+                        }
+                        .menuStyle(.borderlessButton)
+                        .fixedSize()
+                        .help("Tốc độ phát: \(playerManager.displayPlaybackRate) (Bấm để đổi)")
                         
                         // Volume / Mute Button
                         Button(action: { playerManager.toggleMute() }) {
                             Image(systemName: playerManager.isMuted ? "speaker.slash.fill" : (playerManager.volume > 0.5 ? "speaker.wave.2.fill" : "speaker.wave.1.fill"))
                                 .font(.system(size: 12.5, weight: .semibold))
                                 .foregroundColor(playerManager.isMuted ? Color.red : textPrimary)
-                                .frame(width: 30, height: 30)
+                                .frame(width: 28, height: 28)
                                 .background(
                                     Circle()
                                         .fill(isDark ? Color.white.opacity(0.08) : Color.black.opacity(0.05))
@@ -410,6 +469,35 @@ public struct MenuBarView: View {
     
     // MARK: - Interactive Custom Timeline Scrubber
     private var timelineScrubber: some View {
+        MenuBarTimelineView(
+            vm: vm,
+            isDark: isDark,
+            textTertiary: textTertiary
+        )
+    }
+}
+
+// MARK: - Isolated MenuBarTimelineView: Subscribes to PlaybackClock so only the 12pt bar repaints!
+struct MenuBarTimelineView: View {
+    @ObservedObject private var clock = PlaybackClock.shared
+    @ObservedObject private var playerManager = PlayerManager.shared
+    @ObservedObject var vm: MenuBarViewModel
+    
+    let isDark: Bool
+    let textTertiary: Color
+    
+    private var effectiveDuration: Double {
+        clock.duration > 0 ? clock.duration : playerManager.duration
+    }
+    
+    private var effectiveCurrentTime: Double {
+        if vm.isScrubbing {
+            return vm.scrubTime
+        }
+        return clock.currentTime > 0 ? clock.currentTime : playerManager.currentTime
+    }
+    
+    var body: some View {
         VStack(spacing: 4) {
             GeometryReader { geo in
                 let total = max(1.0, effectiveDuration)
