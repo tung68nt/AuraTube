@@ -904,6 +904,7 @@ final class WatchPlayerViewModel: ObservableObject {
                 return nil
                 
             case 15: // R: Reload Current Video (when buffering/lagging)
+                pm.dropResolutionForSmoothness(reason: "Bấm tải lại video")
                 pm.reloadCurrentVideo()
                 Task { @MainActor in
                     self.wakeControls()
@@ -1451,6 +1452,7 @@ struct WatchPlayerContainerView: View {
                         .colorScheme(.dark)
                     
                     Button(action: {
+                        playerManager.dropResolutionForSmoothness(reason: "Bấm tải lại video")
                         playerManager.reloadCurrentVideo()
                     }) {
                         HStack(spacing: 5) {

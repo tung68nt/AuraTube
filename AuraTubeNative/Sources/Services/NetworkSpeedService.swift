@@ -218,51 +218,67 @@ public final class NetworkSpeedService: ObservableObject {
     }
     
     // MARK: - Quality Resolution Engine
-    /// Determines the best resolution (height: 2160, 1440, 1080, 720, etc.) supported by the network and video
+    /// Determines the best resolution (height: 2160, 1440, 1080, 720, etc.) supported by the network and video.
+    /// Prioritizes flawless smoothness (1080p max by default, only 2K/4K if user explicitly toggled preferMaxQuality).
     public func recommendedQuality(from availableQualities: [Int], preferMax: Bool = false) -> String {
         let sorted = availableQualities.sorted(by: >)
         
         // If available qualities not yet loaded from yt-dlp or iframe, return crisp 1080p target
         if sorted.isEmpty {
-            if currentSpeedMbps >= 35.0 && preferMax {
+            if preferMax && currentSpeedMbps >= 40.0 {
                 return "2160"
-            } else if currentSpeedMbps >= 20.0 && preferMax {
+            } else if preferMax && currentSpeedMbps >= 25.0 {
                 return "1440"
             } else {
                 return "1080"
             }
         }
         
-        // 1. Check for 4K (2160p) - Only if speed genuinely supports it without stuttering
-        if sorted.contains(where: { $0 >= 2160 }) {
-            if currentSpeedMbps >= 35.0 || (preferMax && currentSpeedMbps >= 25.0) {
+        // 1. Check for 4K (2160p) - ONLY when user explicitly toggled preferMax AND speed is very high
+        if preferMax && sorted.contains(where: { $0 >= 2160 }) {
+            if currentSpeedMbps >= 40.0 {
                 return "2160"
             }
         }
         
-        // 2. Check for 2K (1440p)
-        if sorted.contains(where: { $0 >= 1440 }) {
-            if currentSpeedMbps >= 18.0 || (preferMax && currentSpeedMbps >= 14.0) {
+        // 2. Check for 2K (1440p) - ONLY when user explicitly toggled preferMax AND speed is high
+        if preferMax && sorted.contains(where: { $0 >= 1440 }) {
+            if currentSpeedMbps >= 25.0 {
                 return "1440"
             }
         }
         
-        // 3. Check for 1080p (Full HD) - Pristine quality and instant streaming
-        if sorted.contains(where: { $0 >= 1080 }) {
+        // 3. Check for 1080p (Full HD) - The golden default standard for desktop streaming (crisp, hardware-accelerated, zero-buffering)
+        if sorted.contains(where: { $0 >= 1080 }) && currentSpeedMbps >= 5.0 {
             return "1080"
         }
         
-        // 4. Check for 720p (HD)
-        if sorted.contains(where: { $0 >= 720 }) {
+        // 4. Check for 720p (HD) - Smooth streaming for medium connections
+        if sorted.contains(where: { $0 >= 720 }) && currentSpeedMbps >= 2.5 {
             return "720"
         }
         
-        // 5. Fallback to highest available resolution in the list
+        // 5. Fallback for slower networks (480p / 360p)
+        if sorted.contains(where: { $0 >= 480 }) {
+            return "480"
+        }
+        
         if let highest = sorted.first {
             return "\(highest)"
         }
         
         return "1080"
+    }
+    
+    public func penalizeForStall(targetResolution: Int) {
+        let penaltySpeed: Double
+        switch targetResolution {
+        case 1080: penaltySpeed = 10.0
+        case 720:  penaltySpeed = 4.0
+        case 480:  penaltySpeed = 2.0
+        default:   penaltySpeed = 1.5
+        }
+        self.currentSpeedMbps = min(self.currentSpeedMbps, penaltySpeed)
     }
     
     // MARK: - Formatting Helpers

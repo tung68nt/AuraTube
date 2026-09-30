@@ -1323,6 +1323,54 @@ public struct NativePlayerView: NSViewRepresentable {
                     } catch(e) {}
                 }
                 
+                var waitingTimer = null;
+                var waitingCount = 0;
+                var lastWaitingReport = 0;
+
+                function onWaitingOrStalled() {
+                    try {
+                        if (v.paused || v.ended) return;
+                        
+                        if (window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.playerBridge) {
+                            window.webkit.messageHandlers.playerBridge.postMessage({ type: 'buffering', isBuffering: true });
+                        }
+                        
+                        var now = Date.now();
+                        if (now - lastWaitingReport > 10000) {
+                            waitingCount = 1;
+                        } else {
+                            waitingCount++;
+                        }
+                        lastWaitingReport = now;
+                        
+                        // If stalled repeatedly (>= 2 times in 10s), report lag stall immediately to drop resolution
+                        if (waitingCount >= 2) {
+                            if (window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.playerBridge) {
+                                window.webkit.messageHandlers.playerBridge.postMessage({
+                                    type: 'lagStallDetected',
+                                    reason: 'Phát hiện lặp lại sự cố chờ tải'
+                                });
+                            }
+                        }
+                        
+                        if (waitingTimer) clearTimeout(waitingTimer);
+                        // If video continues waiting for > 1.6s, report lag stall
+                        waitingTimer = setTimeout(function() {
+                            if (!v.paused && !v.ended && (v.readyState < 3 || v.seeking)) {
+                                if (window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.playerBridge) {
+                                    window.webkit.messageHandlers.playerBridge.postMessage({
+                                        type: 'lagStallDetected',
+                                        reason: 'Video bị đứng hình do mạng chậm'
+                                    });
+                                }
+                            }
+                        }, 1600);
+                    } catch(e) {}
+                }
+
+                v.addEventListener('waiting', onWaitingOrStalled);
+                v.addEventListener('stalled', onWaitingOrStalled);
+
                 v.addEventListener('timeupdate', function() { emitDirectSync(false); });
                 v.addEventListener('play', function() {
                     emitDirectSync(true);
@@ -1334,12 +1382,16 @@ public struct NativePlayerView: NSViewRepresentable {
                 });
                 v.addEventListener('pause', function() { emitDirectSync(true); });
                 v.addEventListener('playing', function() {
+                    if (waitingTimer) { clearTimeout(waitingTimer); waitingTimer = null; }
                     emitDirectSync(true);
                     if (window.__auratube_playback_rate && Math.abs(v.playbackRate - window.__auratube_playback_rate) > 0.01) {
                         v.playbackRate = window.__auratube_playback_rate;
                     }
                     autoPlayDone = true;
                     if (autoPlayInterval) { clearInterval(autoPlayInterval); autoPlayInterval = null; }
+                    if (window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.playerBridge) {
+                        window.webkit.messageHandlers.playerBridge.postMessage({ type: 'buffering', isBuffering: false });
+                    }
                 });
                 v.addEventListener('ended', function() {
                     emitDirectSync(true);
@@ -1423,6 +1475,7 @@ public struct NativePlayerView: NSViewRepresentable {
         // Quality reporting & active high-resolution control
         var isManualQualityLocked = false;
         var lastAutoPromotionTime = 0;
+        var qualityCap = 1080;
 
         function autoPromoteResolution() {
             if (isManualQualityLocked) return;
@@ -1435,10 +1488,24 @@ public struct NativePlayerView: NSViewRepresentable {
                 var levels = (typeof p.getAvailableQualityLevels === 'function') ? p.getAvailableQualityLevels() : [];
                 if (!levels || levels.length === 0) return;
 
+                // Candidate pool strictly capped to prioritize smoothness over unnecessary 2K/4K
+                var maxCap = qualityCap || 1080;
+                var candidates = [];
+                if (window.__auratube_prefer_max && maxCap >= 2160) {
+                    candidates.push('highres', 'hd2880', 'hd2160');
+                }
+                if (window.__auratube_prefer_max && maxCap >= 1440) {
+                    candidates.push('hd1440');
+                }
+                if (maxCap >= 1080) {
+                    candidates.push('hd1080');
+                }
+                if (maxCap >= 720) {
+                    candidates.push('hd720');
+                }
+
                 // If YouTube is playing in low SD resolution (medium = 360p, large = 480p, tiny = 144p, small = 240p)
                 if (cur === 'medium' || cur === 'large' || cur === 'small' || cur === 'tiny' || cur === 'auto' || cur === 'default') {
-                    // Check if HD / 2K / 4K streams exist in available qualities
-                    var candidates = ['highres', 'hd2880', 'hd2160', 'hd1440', 'hd1080', 'hd720'];
                     var bestCandidate = null;
                     for (var i = 0; i < candidates.length; i++) {
                         if (levels.indexOf(candidates[i]) !== -1) {
@@ -1536,6 +1603,11 @@ public struct NativePlayerView: NSViewRepresentable {
                 var effectiveQ = targetQuality;
                 if (effectiveQ === 'auto') {
                     effectiveQ = optimalQuality || '1080';
+                }
+                
+                var hNum = parseInt(effectiveQ, 10);
+                if (!isNaN(hNum) && hNum > 0) {
+                    qualityCap = hNum;
                 }
 
                 var ytQuality = ytQualityHint;
@@ -1692,6 +1764,12 @@ public struct NativePlayerView: NSViewRepresentable {
                 var data = typeof e.data === 'string' ? JSON.parse(e.data) : e.data;
                 if (!data) return;
                 if (data.type === 'forceQuality') {
+                    if (data.optimalQuality) {
+                        var hNum = parseInt(data.optimalQuality, 10);
+                        if (!isNaN(hNum) && hNum > 0) {
+                            qualityCap = hNum;
+                        }
+                    }
                     forceQualityChange(data.quality, data.optimalQuality, data.ytQuality);
                 }
                 if (data.type === 'togglePiP') {
@@ -1843,7 +1921,13 @@ public struct NativePlayerView: NSViewRepresentable {
                 }
                 
                 if let type = body["type"] as? String, type == "buffering", let isBuff = body["isBuffering"] as? Bool {
-                    PlayerManager.shared.isBuffering = isBuff
+                    PlayerManager.shared.handleBufferingChange(isBuffering: isBuff)
+                    return
+                }
+                
+                if let type = body["type"] as? String, type == "lagStallDetected" {
+                    let reason = (body["reason"] as? String) ?? "Ưu tiên độ mượt mà"
+                    PlayerManager.shared.dropResolutionForSmoothness(reason: reason)
                     return
                 }
                 

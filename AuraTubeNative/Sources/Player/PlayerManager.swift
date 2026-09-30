@@ -47,13 +47,100 @@ public final class PlayerManager: ObservableObject {
         }
     }
     
+    // MARK: - Adaptive Resolution & Auto-Degradation on Lag / Buffering
+    public var maxQualityCapForCurrentVideo: Int = 1080
+    private var bufferingTimer: Timer? = nil
+    private var bufferingStartTime: TimeInterval = 0
+    private var recentStallCount: Int = 0
+    private var lastStallTime: TimeInterval = 0
+    private var lastQualityDropTimestamp: TimeInterval = 0
+    
     public var resolvedOptimalQuality: String {
-        NetworkSpeedService.shared.recommendedQuality(from: availableQualities, preferMax: preferMaxQuality)
+        let recommended = NetworkSpeedService.shared.recommendedQuality(from: availableQualities, preferMax: preferMaxQuality)
+        if let recH = Int(recommended), recH > maxQualityCapForCurrentVideo {
+            return "\(maxQualityCapForCurrentVideo)"
+        }
+        return recommended
     }
     
     public func reevaluateAndApplyOptimalQuality() {
         guard selectedQuality == "auto" else { return }
         onQualityChange?("auto")
+    }
+    
+    public func handleBufferingChange(isBuffering: Bool) {
+        self.isBuffering = isBuffering
+        
+        if isBuffering {
+            let now = ProcessInfo.processInfo.systemUptime
+            // If the user just sought within the last 1.8s, don't count seek delay as network lag
+            if now - lastSeekTimestamp < 1.8 {
+                return
+            }
+            bufferingStartTime = now
+            if now - lastStallTime < 12.0 {
+                recentStallCount += 1
+            } else {
+                recentStallCount = 1
+            }
+            lastStallTime = now
+            
+            // If stalled repeatedly within 12s, drop resolution quickly
+            if recentStallCount >= 2 && now - lastQualityDropTimestamp > 3.0 {
+                dropResolutionForSmoothness(reason: "Mạng chập chờn")
+                return
+            }
+            
+            bufferingTimer?.invalidate()
+            bufferingTimer = Timer.scheduledTimer(withTimeInterval: 1.6, repeats: false) { [weak self] _ in
+                DispatchQueue.main.async {
+                    guard let self = self, self.isBuffering else { return }
+                    self.dropResolutionForSmoothness(reason: "Khắc phục lag khi phát")
+                }
+            }
+        } else {
+            bufferingTimer?.invalidate()
+            bufferingTimer = nil
+        }
+    }
+    
+    public func dropResolutionForSmoothness(reason: String = "Ưu tiên độ mượt mà") {
+        let now = ProcessInfo.processInfo.systemUptime
+        guard now - lastQualityDropTimestamp > 2.5 else { return }
+        
+        let curH = Int(currentQuality) ?? 1080
+        
+        let newTargetH: Int
+        if curH >= 2160 {
+            newTargetH = 1080
+        } else if curH >= 1440 {
+            newTargetH = 1080
+        } else if curH >= 1080 {
+            newTargetH = 720
+        } else if curH >= 720 {
+            newTargetH = 480
+        } else {
+            newTargetH = 360
+        }
+        
+        guard newTargetH < curH else { return }
+        
+        lastQualityDropTimestamp = now
+        maxQualityCapForCurrentVideo = newTargetH
+        self.selectedQuality = "auto"
+        
+        let newQualityStr = "\(newTargetH)"
+        self.currentQuality = newQualityStr
+        
+        NetworkSpeedService.shared.penalizeForStall(targetResolution: newTargetH)
+        
+        onQualityChange?(newQualityStr)
+        for observer in qualityObservers.values {
+            observer(newQualityStr)
+        }
+        
+        let badge = (newTargetH >= 1080) ? "\(newTargetH)p" : "\(newTargetH)p"
+        flashHUD(icon: "bolt.badge.automatic.fill", text: "Tự động hạ xuống \(badge) để video mượt mà ⚡️")
     }
     
     // MARK: - Playback Rate / Speed (0.25x - 2.0x)
@@ -570,6 +657,11 @@ public final class PlayerManager: ObservableObject {
         }()
         self.isCurrentVideoVertical = isShortVideo
         self.currentVideoAspectRatio = isShortVideo ? (9.0 / 16.0) : (16.0 / 9.0)
+        self.maxQualityCapForCurrentVideo = preferMaxQuality ? 2160 : 1080
+        self.recentStallCount = 0
+        self.lastStallTime = 0
+        self.bufferingTimer?.invalidate()
+        self.bufferingTimer = nil
         self.selectedQuality = "auto"
         self.currentQuality = self.resolvedOptimalQuality
         self.availableQualities = []
@@ -821,6 +913,9 @@ public final class PlayerManager: ObservableObject {
         self.selectedQuality = quality
         if quality != "auto" {
             self.currentQuality = quality
+            if let h = Int(quality) {
+                self.maxQualityCapForCurrentVideo = max(self.maxQualityCapForCurrentVideo, h)
+            }
         } else {
             self.currentQuality = resolvedOptimalQuality
         }
