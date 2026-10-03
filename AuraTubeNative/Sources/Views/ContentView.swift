@@ -2401,7 +2401,6 @@ struct MiniPlayerPiPOverlay: View {
             case 49, 40: // Space or K: Toggle Play/Pause
                 if event.isARepeat { return nil }
                 pm.togglePlayPause()
-                flashHUD(icon: pm.isPlaying ? "play.fill" : "pause.fill", text: pm.isPlaying ? "Đang phát" : "Tạm dừng")
                 return nil
             case 123, 38: // Left Arrow or J: Seek -10s
                 pm.seekRelative(-10)

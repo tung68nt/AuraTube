@@ -739,13 +739,13 @@ final class WatchPlayerViewModel: ObservableObject {
     func flashFeedback(icon: String, text: String) {
         hudTimer?.invalidate()
         hudIcon = icon
-        hudText = text
-        withAnimation(.easeOut(duration: 0.12)) {
+        hudText = (icon == "speedometer") ? text : "" // icon-only bezel, YouTube style — text only where the value matters
+        withAnimation(.easeOut(duration: 0.1)) {
             isHudVisible = true
         }
-        hudTimer = Timer.scheduledTimer(withTimeInterval: 0.85, repeats: false) { [weak self] _ in
+        hudTimer = Timer.scheduledTimer(withTimeInterval: 0.5, repeats: false) { [weak self] _ in
             Task { @MainActor in
-                withAnimation(.easeIn(duration: 0.2)) {
+                withAnimation(.easeIn(duration: 0.18)) {
                     self?.isHudVisible = false
                 }
             }
@@ -837,16 +837,9 @@ final class WatchPlayerViewModel: ObservableObject {
             }
             
             switch event.keyCode {
-            case 49, 40: // Space (49) or K (40): Toggle Play / Pause
+            case 49, 40: // Space (49) or K (40): Toggle Play / Pause — silent, no toast
                 if event.isARepeat { return nil }
                 pm.togglePlayPause()
-                Task { @MainActor in
-                    self.wakeControls()
-                    self.flashFeedback(
-                        icon: pm.isPlaying ? "play.fill" : "pause.fill",
-                        text: pm.isPlaying ? "Đang phát" : "Tạm dừng"
-                    )
-                }
                 return nil
                 
             case 123, 38: // Left Arrow (123) or J (38): Seek -5s
@@ -906,10 +899,6 @@ final class WatchPlayerViewModel: ObservableObject {
                 
             case 15: // R: Reload Current Video (when buffering/lagging)
                 pm.reloadCurrentVideo()
-                Task { @MainActor in
-                    self.wakeControls()
-                    self.flashFeedback(icon: "arrow.clockwise", text: "Đang tải lại video...")
-                }
                 return nil
                 
             case 47: // Period (.): If Shift is held ('>'), increase playback speed
@@ -1374,12 +1363,14 @@ struct WatchPlayerContainerView: View {
     // MARK: - Center Play / Pause & Buffering Recovery Indicator
     private var centerPlayPauseOverlay: some View {
         Group {
-            if playerManager.isBuffering {
+            if playerManager.showBufferingIndicator {
                 VStack(spacing: 10) {
                     ProgressView()
                         .controlSize(.regular)
                         .colorScheme(.dark)
+                        .shadow(color: .black.opacity(0.5), radius: 6)
                     
+                    if playerManager.showReloadHint {
                     Button(action: {
                         playerManager.reloadCurrentVideo()
                     }) {
@@ -1400,12 +1391,10 @@ struct WatchPlayerContainerView: View {
                     }
                     .buttonStyle(.plain)
                     .help("Bấm để làm mới luồng video khi mạng chập chờn (R)")
+                    .transition(.opacity)
+                    }
                 }
-                .padding(14)
-                .background(
-                    RoundedRectangle(cornerRadius: 14, style: .continuous)
-                        .fill(Color.black.opacity(0.55))
-                )
+                .allowsHitTesting(playerManager.showReloadHint)
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
                 .transition(.opacity)
             } else if !playerManager.isPlaying {

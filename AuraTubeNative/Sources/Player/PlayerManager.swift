@@ -25,7 +25,15 @@ public final class PlayerManager: ObservableObject {
     public let player: AVPlayer = AVPlayer()
     
     @Published public var currentVideo: Video?
-    @Published public var isPlaying: Bool = false
+    @Published public var isPlaying: Bool = false {
+        didSet {
+            if isPlaying {
+                PlaybackActivityManager.shared.ensurePlaybackActivity(reason: "AuraTube Video Playback")
+            } else if !isPictureInPictureActive {
+                PlaybackActivityManager.shared.endPlaybackActivity()
+            }
+        }
+    }
     public var currentTime: Double = 0
     @Published public var duration: Double = 0
     @Published public var volume: Double = 1.0 {
@@ -60,8 +68,34 @@ public final class PlayerManager: ObservableObject {
         onQualityChange?("auto")
     }
     
+    /// Debounced UI flags: short ABR/seek stalls must NOT flash a spinner over the video.
+    @Published public var showBufferingIndicator: Bool = false
+    @Published public var showReloadHint: Bool = false
+    private var bufferingIndicatorWork: DispatchWorkItem?
+    private var reloadHintWork: DispatchWorkItem?
+    
     public func handleBufferingChange(isBuffering: Bool) {
+        guard self.isBuffering != isBuffering else { return }
         self.isBuffering = isBuffering
+        bufferingIndicatorWork?.cancel()
+        reloadHintWork?.cancel()
+        if isBuffering {
+            let showSpinner = DispatchWorkItem { [weak self] in
+                guard let self = self, self.isBuffering else { return }
+                self.showBufferingIndicator = true
+            }
+            let showReload = DispatchWorkItem { [weak self] in
+                guard let self = self, self.isBuffering else { return }
+                self.showReloadHint = true
+            }
+            bufferingIndicatorWork = showSpinner
+            reloadHintWork = showReload
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1.2, execute: showSpinner)
+            DispatchQueue.main.asyncAfter(deadline: .now() + 8.0, execute: showReload)
+        } else {
+            if showBufferingIndicator { showBufferingIndicator = false }
+            if showReloadHint { showReloadHint = false }
+        }
     }
     
     public func dropResolutionForSmoothness(reason: String = "Ưu tiên độ mượt mà") {
@@ -96,7 +130,7 @@ public final class PlayerManager: ObservableObject {
             observer(newQualityStr)
         }
         
-        flashHUD(icon: "bolt.badge.automatic.fill", text: "Chuyển sang \(newTargetH)p để video mượt mà ⚡️")
+        // Silent: never toast quality changes over the video
     }
     
     // MARK: - Playback Rate / Speed (0.25x - 2.0x)
@@ -121,7 +155,15 @@ public final class PlayerManager: ObservableObject {
     @Published public var isBuffering: Bool = false
     @Published public var errorMessage: String?
     @Published public var isVideoFullscreen: Bool = false
-    @Published public var isPictureInPictureActive: Bool = false
+    @Published public var isPictureInPictureActive: Bool = false {
+        didSet {
+            if isPictureInPictureActive {
+                PlaybackActivityManager.shared.ensurePlaybackActivity(reason: "AuraTube PiP Media Playback")
+            } else if !isPlaying {
+                PlaybackActivityManager.shared.endPlaybackActivity()
+            }
+        }
+    }
     @Published public var isCurrentVideoVertical: Bool = false
     @Published public var currentVideoAspectRatio: Double = 16.0 / 9.0
     @Published public var isSearchFocused: Bool = false
@@ -640,15 +682,7 @@ public final class PlayerManager: ObservableObject {
             observer(video, effectiveStartTime)
         }
         
-        if effectiveStartTime > 3.0 {
-            let m = Int(effectiveStartTime) / 60
-            let s = Int(effectiveStartTime) % 60
-            let timeStr = String(format: "%d:%02d", m, s)
-            PiPOverlayState.shared.triggerHUD(
-                icon: "clock.arrow.circlepath",
-                text: "Tiếp tục xem từ \(timeStr)"
-            )
-        }
+        // Resume silently (YouTube-style) — no toast over the video
         
         // Start streaming all viewer comments in background
         self.startLoadingComments(for: video.id)
@@ -830,12 +864,7 @@ public final class PlayerManager: ObservableObject {
         let q = self.selectedQuality
         let rate = self.playbackRate
         
-        PiPOverlayState.shared.triggerHUD(
-            icon: "arrow.clockwise",
-            text: "Đang tải lại luồng video..."
-        )
-        
-        self.isBuffering = true
+        handleBufferingChange(isBuffering: true)
         
         // 1. Direct JS call to reloadPlayer if webView is active
         if let webView = MainWebPlayerPool.shared.webView {

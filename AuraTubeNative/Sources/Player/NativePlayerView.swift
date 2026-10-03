@@ -223,12 +223,16 @@ public struct NativePlayerView: NSViewRepresentable {
         config.setValue(false, forKey: "requiresUserActionForVideoPlayback")
         config.setValue(true, forKey: "mainContentUserGestureOverrideEnabled")
         config.setValue(false, forKey: "invisibleAutoplayNotPermitted")
+        config.setValue(false, forKey: "pageVisibilityBasedProcessSuppressionEnabled")
+        config.setValue(false, forKey: "backgroundFetchAndProcessTimerThrottlingEnabled")
         
         let pref = config.preferences
         pref.setValue(false, forKey: "requiresUserGestureForAudioPlayback")
         pref.setValue(false, forKey: "requiresUserGestureForVideoPlayback")
         pref.setValue(true, forKey: "mainContentUserGestureOverrideEnabled")
         pref.setValue(false, forKey: "invisibleMediaAutoplayNotPermitted")
+        pref.setValue(false, forKey: "pageVisibilityBasedProcessSuppressionEnabled")
+        pref.setValue(false, forKey: "backgroundFetchAndProcessTimerThrottlingEnabled")
         
         let contentController = WKUserContentController()
         contentController.add(context.coordinator, contentWorld: .page, name: "playerBridge")
@@ -363,16 +367,18 @@ public struct NativePlayerView: NSViewRepresentable {
                         optimalQuality: '\(effectiveQ)',
                         ytQuality: '\(ytQuality)'
                     }), '*');
-                    ifr.contentWindow.postMessage(JSON.stringify({
-                        event: "command",
-                        func: "setPlaybackQualityRange",
-                        args: ['\(ytQuality)', '\(ytQuality)']
-                    }), '*');
-                    ifr.contentWindow.postMessage(JSON.stringify({
-                        event: "command",
-                        func: "setPlaybackQuality",
-                        args: ['\(ytQuality)']
-                    }), '*');
+                    if ('\(quality)' !== 'auto') {
+                        ifr.contentWindow.postMessage(JSON.stringify({
+                            event: "command",
+                            func: "setPlaybackQualityRange",
+                            args: ['\(ytQuality)', '\(ytQuality)']
+                        }), '*');
+                        ifr.contentWindow.postMessage(JSON.stringify({
+                            event: "command",
+                            func: "setPlaybackQuality",
+                            args: ['\(ytQuality)']
+                        }), '*');
+                    }
                 }
             })();
             """
@@ -858,6 +864,21 @@ public struct NativePlayerView: NSViewRepresentable {
         
         try {
             Object.defineProperty(window, 'devicePixelRatio', { get: function() { return 2.0; } });
+        } catch(e) {}
+
+        // Prevent YouTube player from throttling/dropping frame rate when switching to other apps or in PiP
+        try {
+            Object.defineProperty(document, 'hidden', {
+                get: function() { return false; },
+                configurable: true
+            });
+            Object.defineProperty(document, 'visibilityState', {
+                get: function() { return 'visible'; },
+                configurable: true
+            });
+            document.addEventListener('visibilitychange', function(e) {
+                e.stopImmediatePropagation();
+            }, true);
         } catch(e) {}
 
         function applyStyles() {
@@ -1534,20 +1555,30 @@ public struct NativePlayerView: NSViewRepresentable {
                     }
                 }
 
-                // 1. Save quality in localStorage so YouTube remembers high resolution
+                // AUTO MODE = YouTube native ABR (Adaptive Bitrate), same as youtube.com.
+                // Only set an upper cap so the player can step down/up seamlessly per segment
+                // WITHOUT flushing the buffer. Never pin min==max in auto mode.
+                if (targetQuality === 'auto') {
+                    try {
+                        localStorage.removeItem('yt-player-quality');
+                        localStorage.removeItem('yt-player-av-quality');
+                    } catch(e) {}
+                    if (typeof p.setPlaybackQualityRange === 'function') {
+                        p.setPlaybackQualityRange('tiny', ytQuality);
+                    }
+                    setTimeout(checkAndReportQualities, 400);
+                    return;
+                }
+
+                // MANUAL MODE: user explicitly chose a resolution → lock it.
                 try {
                     localStorage.setItem('yt-player-quality', JSON.stringify({
                         data: ytQuality,
                         creation: Date.now(),
                         expiration: Date.now() + 864000000
                     }));
-                    localStorage.setItem('yt-player-av-quality', JSON.stringify({
-                        data: ytQuality,
-                        creation: Date.now()
-                    }));
                 } catch(e) {}
 
-                // 2. Direct player methods with exact matched quality from getAvailableQualityData or Levels
                 var targetFormatQuality = ytQuality;
                 if (typeof p.getAvailableQualityData === 'function') {
                     var qData = p.getAvailableQualityData() || [];

@@ -177,7 +177,9 @@ public final class PiPWindowController: NSObject, ObservableObject, NSWindowDele
         )
         panel.setFrame(startFrame, display: false)
         panel.level = .floating
-        panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
+        panel.hidesOnDeactivate = false
+        panel.becomesKeyOnlyIfNeeded = true
+        panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .stationary, .ignoresCycle]
         panel.isMovableByWindowBackground = true
         panel.acceptsMouseMovedEvents = true
         panel.titleVisibility = .hidden
@@ -223,13 +225,33 @@ public final class PiPWindowController: NSObject, ObservableObject, NSWindowDele
             return event
         }
         
-        ScrollForwardingWKWebView.isTransitioning = true
-        panel.alphaValue = 1.0
-        panel.makeKeyAndOrderFront(nil)
+        let isAutoTriggered = PlayerManager.shared.wasAutoPiPTriggered
         
-        if startFrame != targetFrame {
+        if isAutoTriggered || startFrame == targetFrame {
+            // When automatically triggered on app switch, position directly at targetFrame
+            // Use orderFrontRegardless so it never steals key focus from the newly active app
+            panel.setFrame(targetFrame, display: true)
+            panel.alphaValue = 0.0
+            panel.orderFrontRegardless()
+            ScrollForwardingWKWebView.isTransitioning = false
+            if let swv = MainWebPlayerPool.shared.webView as? ScrollForwardingWKWebView {
+                swv.triggerRelayout()
+            }
             NSAnimationContext.runAnimationGroup({ context in
-                context.duration = 0.36
+                context.duration = 0.20
+                context.timingFunction = CAMediaTimingFunction(controlPoints: 0.16, 1.0, 0.3, 1.0)
+                panel.animator().alphaValue = 1.0
+            }, completionHandler: {
+                panel.invalidateShadow()
+            })
+        } else {
+            // Explicit user click inside app: smooth fluid animation from main player geometry
+            ScrollForwardingWKWebView.isTransitioning = true
+            panel.alphaValue = 1.0
+            panel.orderFrontRegardless()
+            
+            NSAnimationContext.runAnimationGroup({ context in
+                context.duration = 0.28
                 context.timingFunction = CAMediaTimingFunction(controlPoints: 0.16, 1.0, 0.3, 1.0)
                 context.allowsImplicitAnimation = true
                 panel.animator().setFrame(targetFrame, display: true)
@@ -242,11 +264,6 @@ public final class PiPWindowController: NSObject, ObservableObject, NSWindowDele
                     }
                 }
             })
-        } else {
-            ScrollForwardingWKWebView.isTransitioning = false
-            if let swv = MainWebPlayerPool.shared.webView as? ScrollForwardingWKWebView {
-                swv.triggerRelayout()
-            }
         }
     }
     
@@ -447,6 +464,32 @@ public final class PiPWindowController: NSObject, ObservableObject, NSWindowDele
         if let panel = pipWindow, !isPanelVertical {
             defaultWidth = panel.frame.width
             UserDefaults.standard.set(Double(panel.frame.width), forKey: Self.pipWidthKey)
+        }
+    }
+    
+    public func windowDidChangeScreen(_ notification: Notification) {
+        if let panel = pipWindow {
+            let scale = panel.backingScaleFactor
+            panel.contentView?.layer?.contentsScale = scale
+            if let wv = MainWebPlayerPool.shared.webView {
+                wv.layer?.contentsScale = scale
+                for sub in wv.subviews {
+                    sub.layer?.contentsScale = scale
+                }
+            }
+        }
+    }
+    
+    public func windowDidChangeBackingProperties(_ notification: Notification) {
+        if let panel = pipWindow {
+            let scale = panel.backingScaleFactor
+            panel.contentView?.layer?.contentsScale = scale
+            if let wv = MainWebPlayerPool.shared.webView {
+                wv.layer?.contentsScale = scale
+                for sub in wv.subviews {
+                    sub.layer?.contentsScale = scale
+                }
+            }
         }
     }
     

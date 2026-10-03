@@ -324,22 +324,87 @@ public final class RecommendationService: ObservableObject {
         refreshProfileMetrics()
         
         let history = PlayerManager.shared.historyVideos
-        let watchedIds = Set(history.prefix(20).map { $0.id })
+        let watchedIds = Set(history.prefix(200).map { $0.id })
         
+        let raw: [Video]
         if hasPersonalizedProfile {
-            return await fetchPersonalizedMultiStreamFeed(watchedIds: watchedIds)
+            raw = await fetchPersonalizedMultiStreamFeed(watchedIds: watchedIds)
         } else {
-            return await fetchDiverseColdStartFeed()
+            raw = await fetchDiverseColdStartFeed()
         }
+        let ranked = diversifyAndRank(raw)
+        recordImpressions(ranked.prefix(24))
+        return ranked
+    }
+    
+    // MARK: - Impression Discounting (YouTube: "shown but not clicked" = negative signal)
+    private var impressionCounts: [String: Int] = [:]
+    
+    private func recordImpressions<S: Sequence>(_ videos: S) where S.Element == Video {
+        for v in videos { impressionCounts[v.id, default: 0] += 1 }
+        if impressionCounts.count > 3000 {
+            impressionCounts = impressionCounts.filter { $0.value >= 2 }
         }
+    }
+    
+    /// Ranking stage, modeled on YouTube's two-stage recommender:
+    /// 1. Demote items already shown ≥2 times without a click (stale impressions).
+    /// 2. Channel diversity: max 2 per channel in the visible feed, never back-to-back same channel.
+    /// 3. Shorts are kept out of the main long-form grid (they have their own shelf).
+    private func diversifyAndRank(_ input: [Video]) -> [Video] {
+        var seen = Set<String>()
+        let unique = input.filter { seen.insert($0.id).inserted }
+        
+        let fresh = unique.filter { (impressionCounts[$0.id] ?? 0) < 2 }
+        let stale = unique.filter { (impressionCounts[$0.id] ?? 0) >= 2 }
+        let longForm = fresh.filter { !$0.isShort }
+        let shorts = fresh.filter { $0.isShort }
+        
+        var result: [Video] = []
+        var perChannel: [String: Int] = [:]
+        var overflow: [Video] = []
+        var pool = longForm
+        
+        while !pool.isEmpty {
+            var pickedIndex: Int? = nil
+            for (idx, v) in pool.enumerated() {
+                let ch = v.uploader.lowercased()
+                let lastCh = result.last?.uploader.lowercased()
+                if (perChannel[ch] ?? 0) < 2 && ch != lastCh {
+                    pickedIndex = idx
+                    break
+                }
+            }
+            guard let idx = pickedIndex else {
+                overflow.append(contentsOf: pool)
+                break
+            }
+            let v = pool.remove(at: idx)
+            perChannel[v.uploader.lowercased(), default: 0] += 1
+            result.append(v)
+        }
+        
+        return result + overflow + shorts + stale
+    }
+    
+    /// Weighted random pick from a ranked interest list (exploit top interests, still explore the tail).
+    private func sampleInterests(_ items: [String], count: Int) -> [String] {
+        let pool = Array(items.prefix(8))
+        guard pool.count > count else { return pool }
+        var weighted: [(String, Double)] = pool.enumerated().map { (i, s) in
+            (s, Double.random(in: 0..<1) * (1.0 / Double(i + 1)).squareRoot())
+        }
+        weighted.sort { $0.1 > $1.1 }
+        return weighted.prefix(count).map { $0.0 }
+    }
     
     /// Multi-stream personalized recommendation engine
     private func fetchPersonalizedMultiStreamFeed(watchedIds: Set<String>) async -> [Video] {
         // Stream 1: Channel Loyalty & Peer Creators (30% weight)
         var stream1Queries: [String] = []
         
-        // Favorite watched channels
-        for ch in topChannels.prefix(2) {
+        // Favorite watched channels — sampled (not always the same top 2) for feed variety
+        for ch in sampleInterests(topChannels, count: 2) {
             stream1Queries.append("\(ch) mới nhất")
             // Peer creators in the same niche
             if let peers = PeerCreatorGraph.findPeers(for: ch) {
@@ -361,10 +426,10 @@ public final class RecommendationService: ObservableObject {
         // Stream 2: Direct Search & Topic Intent (25% weight)
         var stream2Queries: [String] = []
         if let latestSearch = recentSearches.first {
-            stream2Queries.append("\(latestSearch) review đánh giá mới nhất")
+            stream2Queries.append(latestSearch)
         }
-        if let topKw = topKeywords.first {
-            stream2Queries.append("\(topKw) mới nhất")
+        if let topKw = sampleInterests(topKeywords, count: 1).first {
+            stream2Queries.append(topKw)
         }
         if stream2Queries.isEmpty && recentSearches.count > 1 {
             stream2Queries.append(recentSearches[1])
@@ -411,20 +476,43 @@ public final class RecommendationService: ObservableObject {
         let s3 = Array(stream3Queries.prefix(2))
         let s4 = Array(stream4Queries.prefix(2))
         
+        // Stream 0: Item-to-item "Watch Next" graph — YouTube's strongest candidate source.
+        // Pull YouTube's own related-video graph for a random sample of recently watched videos.
+        let recentWatched = Array(PlayerManager.shared.historyVideos.filter { !$0.isShort }.prefix(8))
+        let seedVideos = Array(recentWatched.shuffled().prefix(3))
+        async let fetchGraph: [Video] = withTaskGroup(of: [Video].self) { group in
+            for seed in seedVideos {
+                group.addTask {
+                    let rel = await YTDLPService.shared.fetchRelatedVideosViaInnerTube(videoId: seed.id)
+                    return Array(rel.filter { !$0.isShort }.prefix(10))
+                }
+            }
+            var all: [[Video]] = []
+            for await r in group { all.append(r) }
+            // Round-robin across seeds so one seed doesn't dominate
+            var merged: [Video] = []
+            var idx = 0
+            while all.contains(where: { idx < $0.count }) {
+                for list in all where idx < list.count { merged.append(list[idx]) }
+                idx += 1
+            }
+            return merged
+        }
+        
         // Concurrent multi-stream execution
         async let fetchStream1 = fetchBatch(queries: s1, limitPerQuery: 8)
         async let fetchStream2 = fetchBatch(queries: s2, limitPerQuery: 8)
         async let fetchStream3 = fetchBatch(queries: s3, limitPerQuery: 8)
         async let fetchStream4 = fetchBatch(queries: s4, limitPerQuery: 6)
         
-        let (v1, v2, v3, v4) = await (fetchStream1, fetchStream2, fetchStream3, fetchStream4)
+        let (v0, v1, v2, v3, v4) = await (fetchGraph, fetchStream1, fetchStream2, fetchStream3, fetchStream4)
         
         // Weighted Interleaving: 2 from S1, 2 from S2, 2 from S3, 1 from S4
         var combined: [Video] = []
         var seenIds = Set<String>()
         
-        var i1 = 0, i2 = 0, i3 = 0, i4 = 0
-        let totalCount = v1.count + v2.count + v3.count + v4.count
+        var i0 = 0, i1 = 0, i2 = 0, i3 = 0, i4 = 0
+        let totalCount = v0.count + v1.count + v2.count + v3.count + v4.count
         
         func appendIfValid(_ video: Video) {
             if !seenIds.contains(video.id) && !watchedIds.contains(video.id) {
@@ -433,7 +521,11 @@ public final class RecommendationService: ObservableObject {
             }
         }
         
-        while combined.count < totalCount && (i1 < v1.count || i2 < v2.count || i3 < v3.count || i4 < v4.count) {
+        while combined.count < totalCount && (i0 < v0.count || i1 < v1.count || i2 < v2.count || i3 < v3.count || i4 < v4.count) {
+            // Pick from Stream 0 (Watch-next graph) — highest weight, like YouTube home
+            for _ in 0..<3 {
+                if i0 < v0.count { appendIfValid(v0[i0]); i0 += 1 }
+            }
             // Pick from Stream 1 (Channel loyalty)
             for _ in 0..<2 {
                 if i1 < v1.count { appendIfValid(v1[i1]); i1 += 1 }
@@ -443,14 +535,12 @@ public final class RecommendationService: ObservableObject {
                 if i2 < v2.count { appendIfValid(v2[i2]); i2 += 1 }
             }
             // Pick from Stream 3 (Vietnam Market Trending)
-            for _ in 0..<2 {
-                if i3 < v3.count { appendIfValid(v3[i3]); i3 += 1 }
-            }
+            if i3 < v3.count { appendIfValid(v3[i3]); i3 += 1 }
             // Pick from Stream 4 (Ecosystem & Discovery)
             if i4 < v4.count { appendIfValid(v4[i4]); i4 += 1 }
             
             // Safety break if no advancement
-            if i1 >= v1.count && i2 >= v2.count && i3 >= v3.count && i4 >= v4.count {
+            if i0 >= v0.count && i1 >= v1.count && i2 >= v2.count && i3 >= v3.count && i4 >= v4.count {
                 break
             }
         }
@@ -499,26 +589,20 @@ public final class RecommendationService: ObservableObject {
             let userChannels = Set(topChannels.map { $0.lowercased() })
             let userKws = Set(topKeywords.map { $0.lowercased() })
             
-            related.sort { v1, v2 in
-                var score1 = 0
-                var score2 = 0
-                
-                let up1 = v1.uploader.lowercased()
-                let up2 = v2.uploader.lowercased()
-                if userChannels.contains(up1) { score1 += 4 }
-                if userChannels.contains(up2) { score2 += 4 }
-                if up1 == video.uploader.lowercased() { score1 += 2 }
-                if up2 == video.uploader.lowercased() { score2 += 2 }
-                
-                let title1 = v1.title.lowercased()
-                let title2 = v2.title.lowercased()
-                for kw in userKws {
-                    if title1.contains(kw) { score1 += 1 }
-                    if title2.contains(kw) { score2 += 1 }
-                }
-                
-                return score1 > score2
+            // YouTube's own position is the primary signal; personal affinity is a light boost.
+            // Stable: ties keep YouTube's original order.
+            let scored: [(Video, Double)] = related.enumerated().map { (idx, v) in
+                var s = -Double(idx) * 0.35
+                let up = v.uploader.lowercased()
+                if userChannels.contains(up) { s += 2.0 }
+                let t = v.title.lowercased()
+                var kwHits = 0
+                for kw in userKws where t.contains(kw) { kwHits += 1 }
+                s += Double(min(kwHits, 2)) * 0.8
+                if (impressionCounts[v.id] ?? 0) >= 3 { s -= 3.0 }
+                return (v, s)
             }
+            related = scored.sorted { $0.1 > $1.1 }.map { $0.0 }
         }
         
         // 4. Format-Aware Separation & Prioritization (Long Video vs Shorts)

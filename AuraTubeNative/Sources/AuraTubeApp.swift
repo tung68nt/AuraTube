@@ -170,21 +170,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     func applicationDidBecomeActive(_ notification: Notification) {
         Task { @MainActor in
             let pm = PlayerManager.shared
-            guard pm.isPictureInPictureActive else { return }
-            
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.08) {
-                let elapsed = Date().timeIntervalSinceReferenceDate - pm.lastPiPEnterTimestamp
-                guard elapsed > 0.4 else { return }
-                
-                // If the user focused the floating PiP window itself, keep it in PiP!
-                if let keyWindow = NSApp.keyWindow, PiPWindowController.shared.isPipWindow(keyWindow) {
-                    return
-                }
-                
-                // If returning to the main window and auto return is enabled
-                if pm.autoReturnPiPOnAppFocus || pm.wasAutoPiPTriggered {
-                    pm.exitPictureInPicture()
-                }
+            if pm.isPlaying || pm.isPictureInPictureActive {
+                PlaybackActivityManager.shared.ensurePlaybackActivity()
             }
         }
     }
