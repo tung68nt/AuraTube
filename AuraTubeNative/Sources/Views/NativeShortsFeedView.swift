@@ -393,7 +393,8 @@ final class NativeShortsViewModel: ObservableObject {
                     return nil
                 }
                 // Space (49) or 'k' / 'K' (40) -> Play / Pause
-                if key == 49 || key == 40 {
+                if (key == 49 || key == 40) {
+                    if event.isARepeat { return nil }
                     PlayerManager.shared.togglePlayPause()
                     return nil
                 }

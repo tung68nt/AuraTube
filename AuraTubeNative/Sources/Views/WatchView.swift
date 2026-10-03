@@ -838,6 +838,7 @@ final class WatchPlayerViewModel: ObservableObject {
             
             switch event.keyCode {
             case 49, 40: // Space (49) or K (40): Toggle Play / Pause
+                if event.isARepeat { return nil }
                 pm.togglePlayPause()
                 Task { @MainActor in
                     self.wakeControls()
@@ -904,7 +905,6 @@ final class WatchPlayerViewModel: ObservableObject {
                 return nil
                 
             case 15: // R: Reload Current Video (when buffering/lagging)
-                pm.dropResolutionForSmoothness(reason: "Bấm tải lại video")
                 pm.reloadCurrentVideo()
                 Task { @MainActor in
                     self.wakeControls()
@@ -1321,9 +1321,6 @@ struct WatchPlayerContainerView: View {
                     }
                 )
             
-            // Top Channel & Video Info Header (Positioned properly with safe margins)
-            topChannelHeaderOverlay
-            
             // Center Play/Pause Indicator (Synchronized with Timeline)
             centerPlayPauseOverlay
             
@@ -1374,74 +1371,6 @@ struct WatchPlayerContainerView: View {
         .shadow(color: .black.opacity(0.35), radius: 16, y: 6)
     }
     
-    // MARK: - Top Channel Header Overlay (Clean Apple-Style Capsule)
-    private var topChannelHeaderOverlay: some View {
-        VStack {
-            HStack(alignment: .center, spacing: 10) {
-                // Channel Avatar
-                if let avatarUrl = displayVideo.channelAvatarUrl, !avatarUrl.isEmpty {
-                    AsyncImage(url: URL(string: avatarUrl)) { phase in
-                        if let img = phase.image {
-                            img.resizable().scaledToFill()
-                        } else {
-                            Circle().fill(Color.white.opacity(0.15))
-                        }
-                    }
-                    .frame(width: 32, height: 32)
-                    .clipShape(Circle())
-                    .overlay(Circle().stroke(Color.white.opacity(0.3), lineWidth: 1))
-                } else {
-                    Circle()
-                        .fill(Color.white.opacity(0.15))
-                        .frame(width: 32, height: 32)
-                        .overlay(
-                            Image(systemName: "play.tv.fill")
-                                .font(.system(size: 13))
-                                .foregroundColor(.white.opacity(0.8))
-                        )
-                }
-                
-                VStack(alignment: .leading, spacing: 1.5) {
-                    Text(displayVideo.uploader)
-                        .font(.system(size: 13, weight: .bold))
-                        .foregroundColor(.white)
-                        .lineLimit(1)
-                        .shadow(color: .black.opacity(0.8), radius: 3, x: 0, y: 1)
-                    
-                    if !displayVideo.title.isEmpty {
-                        Text(displayVideo.title)
-                            .font(.system(size: 11, weight: .medium))
-                            .foregroundColor(Color.white.opacity(0.82))
-                            .lineLimit(1)
-                            .shadow(color: .black.opacity(0.8), radius: 3, x: 0, y: 1)
-                    }
-                }
-                .frame(maxWidth: 320, alignment: .leading)
-            }
-            .padding(.leading, 6)
-            .padding(.trailing, 14)
-            .padding(.vertical, 6)
-            .background(
-                ZStack {
-                    Capsule()
-                        .fill(Color.black.opacity(0.65))
-                    Capsule()
-                        .strokeBorder(Color.white.opacity(0.18), lineWidth: 0.8)
-                }
-            )
-            .shadow(color: .black.opacity(0.4), radius: 8, x: 0, y: 3)
-            .padding(.leading, 16)
-            .padding(.top, 14)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            
-            Spacer()
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .opacity(vm.isControlsVisible ? 1.0 : 0.0)
-        .animation(.easeInOut(duration: 0.18), value: vm.isControlsVisible)
-        .allowsHitTesting(false)
-    }
-    
     // MARK: - Center Play / Pause & Buffering Recovery Indicator
     private var centerPlayPauseOverlay: some View {
         Group {
@@ -1452,7 +1381,6 @@ struct WatchPlayerContainerView: View {
                         .colorScheme(.dark)
                     
                     Button(action: {
-                        playerManager.dropResolutionForSmoothness(reason: "Bấm tải lại video")
                         playerManager.reloadCurrentVideo()
                     }) {
                         HStack(spacing: 5) {

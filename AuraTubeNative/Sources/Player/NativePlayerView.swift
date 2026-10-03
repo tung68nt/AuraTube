@@ -1323,48 +1323,12 @@ public struct NativePlayerView: NSViewRepresentable {
                     } catch(e) {}
                 }
                 
-                var waitingTimer = null;
-                var waitingCount = 0;
-                var lastWaitingReport = 0;
-
                 function onWaitingOrStalled() {
                     try {
                         if (v.paused || v.ended) return;
-                        
                         if (window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.playerBridge) {
                             window.webkit.messageHandlers.playerBridge.postMessage({ type: 'buffering', isBuffering: true });
                         }
-                        
-                        var now = Date.now();
-                        if (now - lastWaitingReport > 10000) {
-                            waitingCount = 1;
-                        } else {
-                            waitingCount++;
-                        }
-                        lastWaitingReport = now;
-                        
-                        // If stalled repeatedly (>= 2 times in 10s), report lag stall immediately to drop resolution
-                        if (waitingCount >= 2) {
-                            if (window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.playerBridge) {
-                                window.webkit.messageHandlers.playerBridge.postMessage({
-                                    type: 'lagStallDetected',
-                                    reason: 'Phát hiện lặp lại sự cố chờ tải'
-                                });
-                            }
-                        }
-                        
-                        if (waitingTimer) clearTimeout(waitingTimer);
-                        // If video continues waiting for > 1.6s, report lag stall
-                        waitingTimer = setTimeout(function() {
-                            if (!v.paused && !v.ended && (v.readyState < 3 || v.seeking)) {
-                                if (window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.playerBridge) {
-                                    window.webkit.messageHandlers.playerBridge.postMessage({
-                                        type: 'lagStallDetected',
-                                        reason: 'Video bị đứng hình do mạng chậm'
-                                    });
-                                }
-                            }
-                        }, 1600);
                     } catch(e) {}
                 }
 
@@ -1474,57 +1438,7 @@ public struct NativePlayerView: NSViewRepresentable {
 
         // Quality reporting & active high-resolution control
         var isManualQualityLocked = false;
-        var lastAutoPromotionTime = 0;
         var qualityCap = 1080;
-
-        function autoPromoteResolution() {
-            if (isManualQualityLocked) return;
-            var now = Date.now();
-            if (now - lastAutoPromotionTime < 2500) return;
-            try {
-                var p = document.getElementById('movie_player') || document.querySelector('.html5-video-player');
-                if (!p) return;
-                var cur = (typeof p.getPlaybackQuality === 'function') ? p.getPlaybackQuality() : '';
-                var levels = (typeof p.getAvailableQualityLevels === 'function') ? p.getAvailableQualityLevels() : [];
-                if (!levels || levels.length === 0) return;
-
-                // Candidate pool strictly capped to prioritize smoothness over unnecessary 2K/4K
-                var maxCap = qualityCap || 1080;
-                var candidates = [];
-                if (window.__auratube_prefer_max && maxCap >= 2160) {
-                    candidates.push('highres', 'hd2880', 'hd2160');
-                }
-                if (window.__auratube_prefer_max && maxCap >= 1440) {
-                    candidates.push('hd1440');
-                }
-                if (maxCap >= 1080) {
-                    candidates.push('hd1080');
-                }
-                if (maxCap >= 720) {
-                    candidates.push('hd720');
-                }
-
-                // If YouTube is playing in low SD resolution (medium = 360p, large = 480p, tiny = 144p, small = 240p)
-                if (cur === 'medium' || cur === 'large' || cur === 'small' || cur === 'tiny' || cur === 'auto' || cur === 'default') {
-                    var bestCandidate = null;
-                    for (var i = 0; i < candidates.length; i++) {
-                        if (levels.indexOf(candidates[i]) !== -1) {
-                            bestCandidate = candidates[i];
-                            break;
-                        }
-                    }
-                    if (bestCandidate) {
-                        lastAutoPromotionTime = now;
-                        var targetH = '1080';
-                        if (bestCandidate === 'highres' || bestCandidate === 'hd2160') targetH = '2160';
-                        else if (bestCandidate === 'hd1440') targetH = '1440';
-                        else if (bestCandidate === 'hd720') targetH = '720';
-                        
-                        forceQualityChange('auto', targetH, bestCandidate, 0);
-                    }
-                }
-            } catch(e) {}
-        }
 
         function checkAndReportQualities() {
             try {
@@ -1546,10 +1460,9 @@ public struct NativePlayerView: NSViewRepresentable {
                         }
                     } catch(e) {}
                 }
-                autoPromoteResolution();
             } catch(e) {}
         }
-        setInterval(checkAndReportQualities, 1500);
+        setInterval(checkAndReportQualities, 3000);
         setTimeout(checkAndReportQualities, 800);
 
         function reportVideoDimensions() {
@@ -1570,18 +1483,12 @@ public struct NativePlayerView: NSViewRepresentable {
                 }
             } catch(e) {}
         }
-        document.addEventListener('loadedmetadata', function() { reportVideoDimensions(); autoPromoteResolution(); }, true);
-        document.addEventListener('loadeddata', function() { reportVideoDimensions(); autoPromoteResolution(); }, true);
-        document.addEventListener('playing', function() { reportVideoDimensions(); autoPromoteResolution(); }, true);
-        document.addEventListener('timeupdate', function() {
-            reportVideoDimensions();
-            var v = document.querySelector('video');
-            if (v && v.currentTime > 0.1 && v.currentTime < 6.0) {
-                autoPromoteResolution();
-            }
-        }, true);
+        document.addEventListener('loadedmetadata', reportVideoDimensions, true);
+        document.addEventListener('loadeddata', reportVideoDimensions, true);
+        document.addEventListener('playing', reportVideoDimensions, true);
+        document.addEventListener('timeupdate', reportVideoDimensions, true);
         document.addEventListener('resize', reportVideoDimensions, true);
-        setInterval(reportVideoDimensions, 1200);
+        setInterval(reportVideoDimensions, 1500);
 
         function forceQualityChange(targetQuality, optimalQuality, ytQualityHint, retries) {
             retries = retries || 0;
@@ -1664,98 +1571,7 @@ public struct NativePlayerView: NSViewRepresentable {
                     p.setPreferredQuality(targetFormatQuality);
                 }
 
-                // 3. Fallback settings menu click if present
-                var settingsBtn = p.querySelector('.ytp-settings-button');
-                if (settingsBtn) {
-                    var stealth = document.getElementById('auratube-stealth-style');
-                    if (!stealth) {
-                        stealth = document.createElement('style');
-                        stealth.id = 'auratube-stealth-style';
-                        stealth.innerHTML = '.ytp-settings-menu, .ytp-panel-popup { opacity: 0 !important; pointer-events: none !important; }';
-                        (document.head || document.documentElement).appendChild(stealth);
-                    }
-
-                    settingsBtn.click();
-                    setTimeout(function() {
-                        var items = p.querySelectorAll('.ytp-menuitem');
-                        var qMenu = null;
-                        for (var i = 0; i < items.length; i++) {
-                            var t = (items[i].textContent || '').toLowerCase();
-                            if (t.includes('chất lượng') || t.includes('quality') || 
-                                t.includes('1080') || t.includes('720') || t.includes('480') ||
-                                t.includes('360') || t.includes('2160') || t.includes('1440') ||
-                                t.includes('tự động') || t.includes('auto')) {
-                                qMenu = items[i];
-                                break;
-                            }
-                        }
-                        if (qMenu) {
-                            qMenu.click();
-                            setTimeout(function() {
-                                var subItems = p.querySelectorAll('.ytp-menuitem');
-                                
-                                // Check if there is an "Advanced" / "Nâng cao" item
-                                var advItem = null;
-                                for (var k = 0; k < subItems.length; k++) {
-                                    var txt = (subItems[k].textContent || '').toLowerCase();
-                                    if (txt.includes('nâng cao') || txt.includes('advanced')) {
-                                        advItem = subItems[k];
-                                        break;
-                                    }
-                                }
-                                
-                                function selectFromSubItems(candidateList) {
-                                    var matched = null;
-                                    for (var j = 0; j < candidateList.length; j++) {
-                                        var text = (candidateList[j].textContent || '').toLowerCase();
-                                        if (text.includes(effectiveQ + 'p') || text.startsWith(effectiveQ) || text.includes(effectiveQ)) {
-                                            matched = candidateList[j];
-                                            break;
-                                        }
-                                    }
-                                    // If not matched yet, pick highest resolution item
-                                    if (!matched && candidateList.length > 0) {
-                                        for (var j = 0; j < candidateList.length; j++) {
-                                            var text = (candidateList[j].textContent || '').toLowerCase();
-                                            if (!text.includes('tự động') && !text.includes('auto') && !text.includes('nâng cao') && !text.includes('advanced')) {
-                                                matched = candidateList[j];
-                                                break;
-                                            }
-                                        }
-                                    }
-                                    if (matched) {
-                                        matched.click();
-                                    }
-                                    settingsBtn.click();
-                                    setTimeout(function() {
-                                        if (stealth && stealth.parentNode) {
-                                            stealth.parentNode.removeChild(stealth);
-                                        }
-                                        checkAndReportQualities();
-                                    }, 50);
-                                }
-                                
-                                if (advItem) {
-                                    advItem.click();
-                                    setTimeout(function() {
-                                        var advancedSubItems = p.querySelectorAll('.ytp-menuitem');
-                                        selectFromSubItems(advancedSubItems);
-                                    }, 50);
-                                } else {
-                                    selectFromSubItems(subItems);
-                                }
-                            }, 50);
-                        } else {
-                            settingsBtn.click();
-                            if (stealth && stealth.parentNode) {
-                                stealth.parentNode.removeChild(stealth);
-                            }
-                        }
-                    }, 50);
-                }
-
-                setTimeout(checkAndReportQualities, 350);
-                setTimeout(checkAndReportQualities, 1200);
+                setTimeout(checkAndReportQualities, 400);
             } catch(e) {}
         }
 
@@ -1801,15 +1617,30 @@ public struct NativePlayerView: NSViewRepresentable {
                 }
                 if (data.type === 'playVideo' || (data.event === 'command' && data.func === 'playVideo')) {
                     var v = document.querySelector('video');
-                    if (v) { v.play().catch(function(){}); }
+                    if (v && v.paused) { v.play().catch(function(){}); }
                     var player = document.getElementById('movie_player') || document.querySelector('.html5-video-player');
                     if (player && typeof player.playVideo === 'function') { player.playVideo(); }
                 }
                 if (data.type === 'pauseVideo' || (data.event === 'command' && data.func === 'pauseVideo')) {
                     var v = document.querySelector('video');
-                    if (v) { v.pause(); }
+                    if (v && !v.paused) { v.pause(); }
                     var player = document.getElementById('movie_player') || document.querySelector('.html5-video-player');
                     if (player && typeof player.pauseVideo === 'function') { player.pauseVideo(); }
+                }
+                if (data.type === 'togglePlayPause' || (data.event === 'command' && data.func === 'togglePlayPause')) {
+                    var v = document.querySelector('video');
+                    if (v) {
+                        if (v.paused) { v.play().catch(function(){}); } else { v.pause(); }
+                    }
+                    var player = document.getElementById('movie_player') || document.querySelector('.html5-video-player');
+                    if (player && typeof player.getPlayerState === 'function') {
+                        var st = player.getPlayerState();
+                        if (st === 1) {
+                            if (typeof player.pauseVideo === 'function') player.pauseVideo();
+                        } else {
+                            if (typeof player.playVideo === 'function') player.playVideo();
+                        }
+                    }
                 }
                 if (data.type === 'setPlaybackRate' || (data.event === 'command' && data.func === 'setPlaybackRate')) {
                     var rate = typeof data.rate === 'number' ? data.rate : (data.args && typeof data.args[0] === 'number' ? data.args[0] : parseFloat(data.args ? data.args[0] : (data.rate || 1.0)));
@@ -1828,6 +1659,20 @@ public struct NativePlayerView: NSViewRepresentable {
                 }
             } catch(err) {}
         });
+
+        // Intercept Space and K inside the iframe to prevent unwanted browser scrolling or duplicate handling
+        window.addEventListener('keydown', function(e) {
+            if (e.code === 'Space' || e.keyCode === 32 || e.code === 'KeyK' || e.keyCode === 75) {
+                e.preventDefault();
+                e.stopPropagation();
+                e.stopImmediatePropagation();
+                try {
+                    if (window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.playerBridge) {
+                        window.webkit.messageHandlers.playerBridge.postMessage({ type: 'togglePlayPause' });
+                    }
+                } catch(err) {}
+            }
+        }, true);
     })();
     """
     
@@ -1922,12 +1767,6 @@ public struct NativePlayerView: NSViewRepresentable {
                 
                 if let type = body["type"] as? String, type == "buffering", let isBuff = body["isBuffering"] as? Bool {
                     PlayerManager.shared.handleBufferingChange(isBuffering: isBuff)
-                    return
-                }
-                
-                if let type = body["type"] as? String, type == "lagStallDetected" {
-                    let reason = (body["reason"] as? String) ?? "Ưu tiên độ mượt mà"
-                    PlayerManager.shared.dropResolutionForSmoothness(reason: reason)
                     return
                 }
                 

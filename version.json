@@ -1,10 +1,10 @@
 {
-  "version": "2.0.98",
-  "build": 99,
-  "title": "AuraTube v2.0.98 (Tự động hạ độ phân giải khi lag để ưu tiên độ mượt mà, Bổ sung timeline tua Shorts & Tối ưu luồng phát)",
-  "releaseNotes": "• Tự động hạ độ phân giải khi lag để ưu tiên độ mượt mà: Chuẩn hóa chế độ Auto tối đa 1080p Full HD (được cache nội địa VNPT/Viettel/FPT cực kỳ ổn định), tích hợp bộ giám sát (watchdog) tự động phát hiện đứng hình/xoay vòng >1.6s hoặc khựng giật lặp lại để hạ ngay 1 nấc độ phân giải (2K/1080p -> 720p -> 480p) và khóa trần chất lượng cho video đó, ngăn tình trạng nhảy giật lại chất lượng cao.\n• Nút 'Tải lại video' & phím tắt R thông minh: Tự động hạ chất lượng xuống mức nhẹ hơn trước khi kết nối lại luồng stream khi mạng chập chờn.\n• Bổ sung thanh Timeline trực quan để tua cho Shorts: Kéo thả mượt mà trên toàn thanh, tự động phóng to khi hover/drag, hiển thị tooltip thời gian nổi và hỗ trợ phím tắt bàn phím (Trái/Phải để tua ±5s, Lên/Xuống chuyển Short, Space/K tạm dừng, M bật/tắt tiếng).\n• Khắc phục triệt để lỗi đề xuất toàn Shorts khi xem video dài: Nâng cấp bóc tách lockupViewModel mới nhất từ YouTube, ưu tiên 100% video dài liên quan chính thức.\n• Khắc phục hoàn toàn tình trạng khựng/giật lag video Shorts: Triệt tiêu vòng lặp tự động Play/Pause trong trình phát native và chuyển đổi stream Shorts sang codec phần cứng H.264 mượt mà.",
-  "downloadUrl": "https://github.com/tung68nt/AuraTube/releases/download/v2.0.98/AuraTube-v2.0.98.dmg",
-  "publishedAt": "2026-09-30",
+  "version": "2.0.99",
+  "build": 100,
+  "title": "AuraTube v2.0.99 (Khắc phục giật lag phím Space, ổn định độ phân giải & triệt tiêu xoay vòng vô tận)",
+  "releaseNotes": "• Phản hồi phím Space/K tức thì & mượt mà: Loại bỏ hoàn toàn độ trễ khi tạm dừng/tiếp tục phát, chặn triệt để hiện tượng lặp phím macOS (isARepeat) gây loạn trạng thái (toggle race) và bổ sung debounce 120ms chuẩn xác.\n• Giải phóng Main Thread khi bấm Pause: Chuyển toàn bộ tác vụ mã hóa lịch sử phát và đồng bộ tiến trình sang luồng phụ ngầm (Utility background queue), giữ vững tốc độ khung hình 60fps không một tích tắc khựng giao diện.\n• Xóa bỏ triệt để lỗi tự động tụt độ phân giải và xoay vòng buffering vô tận: Gỡ bỏ cơ chế watchdog giáng cấp nhầm lẫn khi video đệm tự nhiên; loại bỏ hoàn toàn các script click chuột ảo menu cài đặt gây ngắt quãng luồng stream liên tục.\n• Triệt tiêu xung đột giữa tự động hạ cấp và nâng cấp độ phân giải: Giữ nguyên độ phân giải chuẩn người dùng đã chọn (1080p, 1440p, 4K) thông qua API YouTube Player chính thống.\n• Tối ưu tốc độ tải và đường truyền mạng: Loại bỏ hàm phạt tốc độ đo lường (penalizeForStall), đảm bảo băng thông luôn tối đa để tải video nhanh nhất.\n• Tối ưu trải nghiệm cuộn ngang trang chủ: Tích hợp SmartHorizontalScrollView loại bỏ hoàn toàn hiện tượng kẹt con trỏ cuộn chuột khi lướt xem hàng Shorts và danh sách kênh đã theo dõi.",
+  "downloadUrl": "https://github.com/tung68nt/AuraTube/releases/download/v2.0.99/AuraTube-v2.0.99.dmg",
+  "publishedAt": "2026-10-03",
   "minOSVersion": "13.0",
-  "fileSize": "5.5 MB"
+  "fileSize": "6.0 MB"
 }

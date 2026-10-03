@@ -4,7 +4,7 @@ import AVKit
 import MediaPlayer
 import Combine
 
-public struct SavedPlaybackRecord: Codable {
+public struct SavedPlaybackRecord: Codable, Sendable {
     public let videoId: String
     public var position: Double
     public var duration: Double
@@ -47,20 +47,12 @@ public final class PlayerManager: ObservableObject {
         }
     }
     
-    // MARK: - Adaptive Resolution & Auto-Degradation on Lag / Buffering
+    // MARK: - Adaptive Resolution & Quality Engine
     public var maxQualityCapForCurrentVideo: Int = 1080
-    private var bufferingTimer: Timer? = nil
-    private var bufferingStartTime: TimeInterval = 0
-    private var recentStallCount: Int = 0
-    private var lastStallTime: TimeInterval = 0
     private var lastQualityDropTimestamp: TimeInterval = 0
     
     public var resolvedOptimalQuality: String {
-        let recommended = NetworkSpeedService.shared.recommendedQuality(from: availableQualities, preferMax: preferMaxQuality)
-        if let recH = Int(recommended), recH > maxQualityCapForCurrentVideo {
-            return "\(maxQualityCapForCurrentVideo)"
-        }
-        return recommended
+        NetworkSpeedService.shared.recommendedQuality(from: availableQualities, preferMax: preferMaxQuality)
     }
     
     public func reevaluateAndApplyOptimalQuality() {
@@ -70,38 +62,6 @@ public final class PlayerManager: ObservableObject {
     
     public func handleBufferingChange(isBuffering: Bool) {
         self.isBuffering = isBuffering
-        
-        if isBuffering {
-            let now = ProcessInfo.processInfo.systemUptime
-            // If the user just sought within the last 1.8s, don't count seek delay as network lag
-            if now - lastSeekTimestamp < 1.8 {
-                return
-            }
-            bufferingStartTime = now
-            if now - lastStallTime < 12.0 {
-                recentStallCount += 1
-            } else {
-                recentStallCount = 1
-            }
-            lastStallTime = now
-            
-            // If stalled repeatedly within 12s, drop resolution quickly
-            if recentStallCount >= 2 && now - lastQualityDropTimestamp > 3.0 {
-                dropResolutionForSmoothness(reason: "Mạng chập chờn")
-                return
-            }
-            
-            bufferingTimer?.invalidate()
-            bufferingTimer = Timer.scheduledTimer(withTimeInterval: 1.6, repeats: false) { [weak self] _ in
-                DispatchQueue.main.async {
-                    guard let self = self, self.isBuffering else { return }
-                    self.dropResolutionForSmoothness(reason: "Khắc phục lag khi phát")
-                }
-            }
-        } else {
-            bufferingTimer?.invalidate()
-            bufferingTimer = nil
-        }
     }
     
     public func dropResolutionForSmoothness(reason: String = "Ưu tiên độ mượt mà") {
@@ -126,21 +86,17 @@ public final class PlayerManager: ObservableObject {
         guard newTargetH < curH else { return }
         
         lastQualityDropTimestamp = now
-        maxQualityCapForCurrentVideo = newTargetH
         self.selectedQuality = "auto"
         
         let newQualityStr = "\(newTargetH)"
         self.currentQuality = newQualityStr
-        
-        NetworkSpeedService.shared.penalizeForStall(targetResolution: newTargetH)
         
         onQualityChange?(newQualityStr)
         for observer in qualityObservers.values {
             observer(newQualityStr)
         }
         
-        let badge = (newTargetH >= 1080) ? "\(newTargetH)p" : "\(newTargetH)p"
-        flashHUD(icon: "bolt.badge.automatic.fill", text: "Tự động hạ xuống \(badge) để video mượt mà ⚡️")
+        flashHUD(icon: "bolt.badge.automatic.fill", text: "Chuyển sang \(newTargetH)p để video mượt mà ⚡️")
     }
     
     // MARK: - Playback Rate / Speed (0.25x - 2.0x)
@@ -657,11 +613,6 @@ public final class PlayerManager: ObservableObject {
         }()
         self.isCurrentVideoVertical = isShortVideo
         self.currentVideoAspectRatio = isShortVideo ? (9.0 / 16.0) : (16.0 / 9.0)
-        self.maxQualityCapForCurrentVideo = preferMaxQuality ? 2160 : 1080
-        self.recentStallCount = 0
-        self.lastStallTime = 0
-        self.bufferingTimer?.invalidate()
-        self.bufferingTimer = nil
         self.selectedQuality = "auto"
         self.currentQuality = self.resolvedOptimalQuality
         self.availableQualities = []
@@ -993,7 +944,13 @@ public final class PlayerManager: ObservableObject {
         flushSavedPlaybackPositions()
     }
     
+    private var lastTogglePlayPauseTimestamp: TimeInterval = 0
+    
     public func togglePlayPause() {
+        let now = ProcessInfo.processInfo.systemUptime
+        guard now - lastTogglePlayPauseTimestamp > 0.12 else { return }
+        lastTogglePlayPauseTimestamp = now
+        
         isPlaying.toggle()
         onPlayPause?(isPlaying)
         for observer in playPauseObservers.values {
@@ -1002,10 +959,23 @@ public final class PlayerManager: ObservableObject {
         
         let cmd = isPlaying ? "playVideo" : "pauseVideo"
         let js = """
-        var ifr = document.getElementById('ytPlayer');
-        if (ifr && ifr.contentWindow) {
-            ifr.contentWindow.postMessage(JSON.stringify({event: "command", func: "\(cmd)", args: []}), '*');
-        }
+        (function() {
+            try {
+                var ifr = document.getElementById('ytPlayer');
+                if (ifr && ifr.contentWindow) {
+                    ifr.contentWindow.postMessage(JSON.stringify({event: "command", func: "\(cmd)", args: []}), '*');
+                    ifr.contentWindow.postMessage(JSON.stringify({type: "\(cmd)"}), '*');
+                }
+                var v = document.querySelector('video');
+                if (v) {
+                    if (\(isPlaying ? "true" : "false")) {
+                        v.play().catch(function(){});
+                    } else {
+                        v.pause();
+                    }
+                }
+            } catch(e) {}
+        })();
         """
         MainWebPlayerPool.shared.webView?.evaluateJavaScript(js, completionHandler: nil)
         
@@ -1424,9 +1394,11 @@ public final class PlayerManager: ObservableObject {
             savedPlaybackRecords = Dictionary(uniqueKeysWithValues: kept.map { ($0.videoId, $0) })
         }
         
-        if let data = try? JSONEncoder().encode(savedPlaybackRecords) {
-            UserDefaults.standard.set(data, forKey: "auratube_playback_positions")
-            UserDefaults.standard.synchronize()
+        let snapshot = savedPlaybackRecords
+        DispatchQueue.global(qos: .utility).async {
+            if let data = try? JSONEncoder().encode(snapshot) {
+                UserDefaults.standard.set(data, forKey: "auratube_playback_positions")
+            }
         }
     }
     

@@ -270,17 +270,6 @@ public final class NetworkSpeedService: ObservableObject {
         return "1080"
     }
     
-    public func penalizeForStall(targetResolution: Int) {
-        let penaltySpeed: Double
-        switch targetResolution {
-        case 1080: penaltySpeed = 10.0
-        case 720:  penaltySpeed = 4.0
-        case 480:  penaltySpeed = 2.0
-        default:   penaltySpeed = 1.5
-        }
-        self.currentSpeedMbps = min(self.currentSpeedMbps, penaltySpeed)
-    }
-    
     // MARK: - Formatting Helpers
     public var displaySpeed: String {
         if currentSpeedMbps >= 100 {

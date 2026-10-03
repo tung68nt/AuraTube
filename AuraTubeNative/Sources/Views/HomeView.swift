@@ -153,7 +153,7 @@ public struct HomeView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 20) {
                 // 1. Tag Chips Bar with macOS HIG Styling
-                ScrollView(.horizontal, showsIndicators: false) {
+                SmartHorizontalScrollView(showsIndicators: false) {
                     HStack(spacing: 7) {
                         ForEach(allTags, id: \.self) { tag in
                             let isFollowedTag = (tag == followingTag)
@@ -240,7 +240,7 @@ public struct HomeView: View {
                         .padding(.horizontal, 24)
                         
                         // Horizontal Subscribed Channels Scroll
-                        ScrollView(.horizontal, showsIndicators: false) {
+                        SmartHorizontalScrollView(showsIndicators: false) {
                             HStack(spacing: 14) {
                                 // "All channels" chip (when in Following view)
                                 if vm.selectedTag == followingTag {
@@ -352,7 +352,7 @@ public struct HomeView: View {
                         }
                         .padding(.horizontal, 24)
                         
-                        ScrollView(.horizontal, showsIndicators: false) {
+                        SmartHorizontalScrollView(showsIndicators: false) {
                             HStack(spacing: 14) {
                                 ForEach(topChannelsToShow, id: \.self) { ch in
                                     FrequentChannelItem(
@@ -964,6 +964,8 @@ public struct VideoCardView: View {
 // MARK: - Home Shorts Shelf Header & View
 struct HomeShortsShelfHeader: View {
     @Environment(\.colorScheme) private var colorScheme
+    var onScrollLeft: (() -> Void)? = nil
+    var onScrollRight: (() -> Void)? = nil
     
     var body: some View {
         HStack(spacing: 9) {
@@ -985,6 +987,34 @@ struct HomeShortsShelfHeader: View {
                 .foregroundColor(ThemeColor.textSecondary(for: colorScheme))
             
             Spacer()
+            
+            if let onLeft = onScrollLeft, let onRight = onScrollRight {
+                HStack(spacing: 6) {
+                    Button(action: onLeft) {
+                        Image(systemName: "chevron.left")
+                            .font(.system(size: 11, weight: .bold))
+                            .foregroundColor(ThemeColor.textPrimary(for: colorScheme))
+                            .frame(width: 28, height: 28)
+                            .background(ThemeColor.cardBackground(for: colorScheme))
+                            .clipShape(Circle())
+                            .overlay(Circle().strokeBorder(ThemeColor.cardBorder(for: colorScheme), lineWidth: 0.8))
+                    }
+                    .buttonStyle(.plain)
+                    .help("Cuộn xem Shorts trước")
+                    
+                    Button(action: onRight) {
+                        Image(systemName: "chevron.right")
+                            .font(.system(size: 11, weight: .bold))
+                            .foregroundColor(ThemeColor.textPrimary(for: colorScheme))
+                            .frame(width: 28, height: 28)
+                            .background(ThemeColor.cardBackground(for: colorScheme))
+                            .clipShape(Circle())
+                            .overlay(Circle().strokeBorder(ThemeColor.cardBorder(for: colorScheme), lineWidth: 0.8))
+                    }
+                    .buttonStyle(.plain)
+                    .help("Cuộn xem Shorts kế tiếp")
+                }
+            }
         }
     }
 }
@@ -993,37 +1023,54 @@ struct HomeShortsShelfView: View {
     @Environment(\.colorScheme) private var colorScheme
     let shorts: [Video]
     let onSelectShort: (Video) -> Void
+    @State private var currentShortIndex: Int = 0
     
     var body: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            // Subtle top divider
-            Divider()
-                .background(ThemeColor.divider(for: colorScheme))
-                .padding(.horizontal, 24)
-                .padding(.bottom, 2)
-            
-            // Header
-            HomeShortsShelfHeader()
-                .padding(.horizontal, 24)
-            
-            // Horizontal scrollable Shorts cards
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 16) {
-                    ForEach(shorts) { short in
-                        SearchShortCardView(video: short) {
-                            onSelectShort(short)
+        ScrollViewReader { proxy in
+            VStack(alignment: .leading, spacing: 14) {
+                // Subtle top divider
+                Divider()
+                    .background(ThemeColor.divider(for: colorScheme))
+                    .padding(.horizontal, 24)
+                    .padding(.bottom, 2)
+                
+                // Header with navigation arrows
+                HomeShortsShelfHeader(
+                    onScrollLeft: {
+                        withAnimation(.easeInOut(duration: 0.28)) {
+                            currentShortIndex = max(0, currentShortIndex - 3)
+                            proxy.scrollTo(currentShortIndex, anchor: .leading)
+                        }
+                    },
+                    onScrollRight: {
+                        withAnimation(.easeInOut(duration: 0.28)) {
+                            currentShortIndex = min(max(0, shorts.count - 1), currentShortIndex + 3)
+                            proxy.scrollTo(currentShortIndex, anchor: .leading)
                         }
                     }
+                )
+                .padding(.horizontal, 24)
+                
+                // Smart Horizontal Scrollable Shorts (Zero Nested Scroll Trap)
+                SmartHorizontalScrollView(showsIndicators: false) {
+                    HStack(spacing: 16) {
+                        ForEach(Array(shorts.enumerated()), id: \.element.id) { index, short in
+                            SearchShortCardView(video: short) {
+                                onSelectShort(short)
+                            }
+                            .id(index)
+                        }
+                    }
+                    .padding(.horizontal, 24)
+                    .padding(.vertical, 4)
                 }
-                .padding(.horizontal, 24)
-                .padding(.vertical, 4)
+                
+                // Subtle bottom divider
+                Divider()
+                    .background(ThemeColor.divider(for: colorScheme))
+                    .padding(.horizontal, 24)
+                    .padding(.top, 4)
             }
-            
-            // Subtle bottom divider
-            Divider()
-                .background(ThemeColor.divider(for: colorScheme))
-                .padding(.horizontal, 24)
-                .padding(.top, 4)
         }
     }
 }

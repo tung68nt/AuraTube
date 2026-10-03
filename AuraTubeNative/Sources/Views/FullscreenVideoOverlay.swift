@@ -185,6 +185,7 @@ public struct FullscreenVideoOverlay: View {
             }
             // Space (49)
             if event.keyCode == 49 {
+                if event.isARepeat { return nil }
                 playerManager.togglePlayPause()
                 showControlsAndResetTimer()
                 return nil

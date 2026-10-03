@@ -475,6 +475,7 @@ public final class PiPWindowController: NSObject, ObservableObject, NSWindowDele
         let pm = PlayerManager.shared
         switch event.keyCode {
         case 49, 40: // Space or K: Toggle Play/Pause
+            if event.isARepeat { return true }
             let willPlay = !pm.isPlaying
             pm.togglePlayPause()
             PiPOverlayState.shared.triggerHUD(
