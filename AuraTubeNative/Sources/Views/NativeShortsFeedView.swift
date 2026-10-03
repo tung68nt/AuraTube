@@ -263,6 +263,7 @@ final class NativeShortsViewModel: ObservableObject {
     
     func startScrollMonitor(proxy: ScrollViewProxy) {
         isFeedActive = true
+        ScrollBoost.suspended = true
         guard eventMonitor == nil else { return }
         
         eventMonitor = NSEvent.addLocalMonitorForEvents(matching: .scrollWheel) { [weak self] event in
@@ -411,6 +412,7 @@ final class NativeShortsViewModel: ObservableObject {
     
     func stopScrollMonitor() {
         isFeedActive = false
+        ScrollBoost.suspended = false
         if let monitor = eventMonitor {
             NSEvent.removeMonitor(monitor)
             eventMonitor = nil

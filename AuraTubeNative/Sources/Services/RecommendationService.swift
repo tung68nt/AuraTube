@@ -24,7 +24,8 @@ public final class RecommendationService: ObservableObject {
     private let cacheValidityInterval: TimeInterval = 900 // 15 minutes
     
     public func getCachedTrending() -> [Video] {
-        return trendingCache
+        if userLikesMusic { return trendingCache }
+        return trendingCache.filter { !Self.isMusicCompilation($0) }
     }
     
     private init() {
@@ -353,7 +354,8 @@ public final class RecommendationService: ObservableObject {
     /// 3. Shorts are kept out of the main long-form grid (they have their own shelf).
     private func diversifyAndRank(_ input: [Video]) -> [Video] {
         var seen = Set<String>()
-        let unique = input.filter { seen.insert($0.id).inserted }
+        let likesMusic = userLikesMusic
+        let unique = input.filter { seen.insert($0.id).inserted && (likesMusic || !Self.isMusicCompilation($0)) }
         
         let fresh = unique.filter { (impressionCounts[$0.id] ?? 0) < 2 }
         let stale = unique.filter { (impressionCounts[$0.id] ?? 0) >= 2 }
@@ -641,6 +643,27 @@ public final class RecommendationService: ObservableObject {
         return results
     }
     
+    /// Detects low-signal music compilations (remix mixes, TikTok playlists, BXH, lofi…) that flood
+    /// search results for "triệu view" queries.
+    nonisolated public static func isMusicCompilation(_ video: Video) -> Bool {
+        let t = video.title.lowercased()
+        let ch = video.uploader.lowercased()
+        let strong = ["remix", "nonstop", "vinahouse", "nhạc trẻ", "nhạc tiktok", "lofi", "lo-fi",
+                      "bxh nhạc", "playlist", "liên khúc", "nhạc hot", "nhạc chill", "mashup",
+                      "edm", "bolero", "karaoke", "nhạc hay nhất", "tuyển tập", "album"]
+        if strong.contains(where: { t.contains($0) }) { return true }
+        if ch.contains(" mix") || ch.hasSuffix("mix") || ch.contains("music") || ch.contains("remix") { return true }
+        let musicHint = t.contains("nhạc") || t.contains("music") || t.contains("mv") || t.contains("official")
+        return musicHint && video.totalDurationSeconds > 1800
+    }
+    
+    /// True only if the user's own behavior shows interest in music.
+    public var userLikesMusic: Bool {
+        let words = ["nhạc", "music", "remix", "bài hát", "mv", "lofi", "karaoke", "ca sĩ", "rap", "edm"]
+        let signals = (recentSearches + topKeywords + topChannels).map { $0.lowercased() }
+        return signals.contains { s in words.contains { s.contains($0) } }
+    }
+    
     /// Ensure videos in Trending are fresh (within 1 week to 1 month, strictly excluding 2+ months or years old)
     nonisolated public static func isFreshTrendingVideo(_ video: Video) -> Bool {
         guard let pub = video.publishedTime?.lowercased() else { return true }
@@ -665,15 +688,19 @@ public final class RecommendationService: ObservableObject {
     /// Multi-pillar Vietnam Trending Feed for instant discovery (Both Long Videos & Shorts within 1 week / 1 month)
     public func fetchVietnamTrendingFeed(forceRefresh: Bool = false) async -> [Video] {
         if !forceRefresh, let last = lastTrendingFetchTime, Date().timeIntervalSince(last) < 1200, !trendingCache.isEmpty {
-            return trendingCache
+            return getCachedTrending()
         }
         
-        // Core trending pillars with strict recent upload date filters (streamlined to 4 high-yield queries for 3x faster load)
-        let trendingPillars: [(query: String, params: String)] = [
-            ("top trending việt nam hôm nay", YTDLPService.filterThisWeek),
-            ("nhạc mới thịnh hành việt nam triệu view", YTDLPService.filterThisWeek),
-            ("vtv24 tin tức schannel review công nghệ mới nhất", YTDLPService.filterThisMonth)
+        // Core trending pillars — general interest, NOT music (music only if the user actually likes music)
+        let likesMusic = userLikesMusic
+        var trendingPillars: [(query: String, params: String)] = [
+            ("tin tức nóng hôm nay việt nam", YTDLPService.filterThisWeek),
+            ("review công nghệ mới nhất việt nam", YTDLPService.filterThisWeek),
+            ("vlog giải trí thịnh hành việt nam", YTDLPService.filterThisWeek)
         ]
+        if likesMusic {
+            trendingPillars.append(("mv ca nhạc mới nhất việt nam", YTDLPService.filterThisWeek))
+        }
         
         let shortsPillars: [String] = [
             "shorts trending việt nam viral triệu view"
@@ -686,7 +713,9 @@ public final class RecommendationService: ObservableObject {
             for p in trendingPillars {
                 group.addTask {
                     let res = await YTDLPService.shared.searchVideosWithContinuation(query: p.query, params: p.params, limit: 12)
-                    let freshRegular = res.videos.filter { Self.isFreshTrendingVideo($0) }
+                    let freshRegular = res.videos.filter {
+                        Self.isFreshTrendingVideo($0) && (likesMusic || !Self.isMusicCompilation($0))
+                    }
                     return (isShorts: false, videos: freshRegular)
                 }
             }
@@ -952,9 +981,9 @@ private struct PeerCreatorGraph {
 public struct VietnamTrendingEngine {
     /// Core trending queries across Vietnam
     public static let generalTrendingQueries = [
-        "top trending việt nam hôm nay",
-        "video thịnh hành youtube việt nam triệu view",
-        "thịnh hành việt nam mới nhất"
+        "tin tức nóng hôm nay việt nam",
+        "vlog giải trí thịnh hành việt nam",
+        "review công nghệ mới nhất việt nam"
     ]
     
     public static let musicTrendingQueries = [

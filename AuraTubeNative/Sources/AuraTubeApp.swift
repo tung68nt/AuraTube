@@ -20,6 +20,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     
     func applicationDidFinishLaunching(_ notification: Notification) {
         AppFont.registerCustomFonts()
+        ScrollBoost.install()
         ThemeManager.shared.applyTheme()
         MenuBarController.shared.setup()
         

@@ -77,7 +77,8 @@ private final class SmartScrollTrackingView: NSView {
         activeDirection = .none
     }
     
-    private func handleScrollWheel(_ event: NSEvent) -> NSEvent? {
+    private func handleScrollWheel(_ original: NSEvent) -> NSEvent? {
+        let event = ScrollBoost.boosted(original)
         guard let window = self.window, window == event.window else {
             return event
         }
