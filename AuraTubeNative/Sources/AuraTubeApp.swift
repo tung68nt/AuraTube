@@ -37,6 +37,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         }
         
         // Auto-check for updates after app launch if enabled
+        // Warm the web player once the window is up, so the first video starts quickly
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
+            MainWebPlayerPool.shared.prewarm()
+        }
+        
         if UpdateService.shared.autoCheckEnabled {
             DispatchQueue.main.asyncAfter(deadline: .now() + 3.0) {
                 Task { @MainActor in

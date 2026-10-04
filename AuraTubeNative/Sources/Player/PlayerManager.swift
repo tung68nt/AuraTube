@@ -163,6 +163,10 @@ public final class PlayerManager: ObservableObject {
     static let idlePlayerVideoId = "__idle__"
     private var idlePlayerSinceUptime: TimeInterval = 0
     
+    func markPlayerIdle() {
+        idlePlayerSinceUptime = ProcessInfo.processInfo.systemUptime
+    }
+    
     /// True for a moment while the video moves between the main window and the PiP. Views show
     /// a soft poster over the player then, so the frame or two WebKit needs to draw in its new
     /// window never shows as black.
@@ -781,6 +785,14 @@ public final class PlayerManager: ObservableObject {
         }
         for observer in videoChangeObservers.values {
             observer(video, effectiveStartTime)
+        }
+        
+        // Start loading in the web player right now instead of when the watch page has been
+        // built and laid out; the page attaches to the already-loading player.
+        if let webView = MainWebPlayerPool.shared.webView,
+           let coordinator = MainWebPlayerPool.shared.coordinator,
+           coordinator.currentLoadedVideoId != nil {
+            NativePlayerView.loadCurrentVideo(into: webView, coordinator: coordinator)
         }
         
         // Resume silently (YouTube-style) — no toast over the video

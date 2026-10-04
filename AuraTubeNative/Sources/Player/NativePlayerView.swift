@@ -22,6 +22,20 @@ public final class MainWebPlayerPool {
     
     private init() {}
     
+    /// Boots the YouTube player before any video is chosen, so the first video starts with a
+    /// single loadVideoById instead of loading the whole player first.
+    public func prewarm() {
+        guard webView == nil, PlayerManager.shared.currentVideo == nil else { return }
+        let coord = coordinator ?? NativePlayerView.Coordinator()
+        coordinator = coord
+        let view = NativePlayerView.makeWebView(coordinator: coord)
+        view.frame = NSRect(x: 0, y: 0, width: 1280, height: 720)
+        let shell = Video(id: "", title: "", uploader: "")
+        view.loadHTMLString(NativePlayerView.generateHTML(for: shell, playerManager: PlayerManager.shared), baseURL: URL(string: "https://auratube.app"))
+        coord.currentLoadedVideoId = PlayerManager.idlePlayerVideoId
+        PlayerManager.shared.markPlayerIdle()
+    }
+    
     public func reset() {
         webView?.stopLoading()
         webView?.removeFromSuperview()
@@ -247,15 +261,10 @@ public struct NativePlayerView: NSViewRepresentable {
         return coord
     }
     
-    private func getOrCreateWebView(context: Context) -> ScrollForwardingWKWebView {
-        if let existing = MainWebPlayerPool.shared.webView as? ScrollForwardingWKWebView {
-            existing.autoresizingMask = [.width, .height]
-            existing.translatesAutoresizingMaskIntoConstraints = true
-            context.coordinator.targetWebView = existing
-            setupBridgeCallbacks(for: existing)
-            return existing
-        }
-        
+    /// Creates the shared web view. Independent of any SwiftUI view so the player can be warmed
+    /// up before a video is chosen.
+    @MainActor
+    static func makeWebView(coordinator: Coordinator) -> ScrollForwardingWKWebView {
         let config = WKWebViewConfiguration()
         config.mediaTypesRequiringUserActionForPlayback = []
         config.allowsAirPlayForMediaPlayback = true
@@ -280,8 +289,8 @@ public struct NativePlayerView: NSViewRepresentable {
         pref.setValueIfSupported(false, forKey: "backgroundFetchAndProcessTimerThrottlingEnabled")
         
         let contentController = WKUserContentController()
-        contentController.add(context.coordinator, contentWorld: .page, name: "playerBridge")
-        contentController.add(context.coordinator, contentWorld: .defaultClient, name: "playerBridge")
+        contentController.add(coordinator, contentWorld: .page, name: "playerBridge")
+        contentController.add(coordinator, contentWorld: .defaultClient, name: "playerBridge")
         
         let cleanScript = NativePlayerView.cleanScriptSource
         let userScriptEnd = WKUserScript(source: cleanScript, injectionTime: .atDocumentEnd, forMainFrameOnly: false)
@@ -293,12 +302,23 @@ public struct NativePlayerView: NSViewRepresentable {
         webView.translatesAutoresizingMaskIntoConstraints = true
         webView.customUserAgent = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.4 Safari/605.1.15"
         webView.setValueIfSupported(false, forKey: "drawsBackground")
-        webView.navigationDelegate = context.coordinator
+        webView.navigationDelegate = coordinator
         
         MainWebPlayerPool.shared.webView = webView
-        context.coordinator.targetWebView = webView
+        coordinator.targetWebView = webView
+        return webView
+    }
+    
+    private func getOrCreateWebView(context: Context) -> ScrollForwardingWKWebView {
+        if let existing = MainWebPlayerPool.shared.webView as? ScrollForwardingWKWebView {
+            existing.autoresizingMask = [.width, .height]
+            existing.translatesAutoresizingMaskIntoConstraints = true
+            context.coordinator.targetWebView = existing
+            setupBridgeCallbacks(for: existing)
+            return existing
+        }
+        let webView = Self.makeWebView(coordinator: context.coordinator)
         setupBridgeCallbacks(for: webView)
-        
         return webView
     }
     
@@ -475,22 +495,29 @@ public struct NativePlayerView: NSViewRepresentable {
         if !playerManager.hasActiveMainPlayer {
             playerManager.hasActiveMainPlayer = true
         }
-        guard let video = playerManager.currentVideo else { return }
+        Self.loadCurrentVideo(into: webView, coordinator: context.coordinator)
+    }
+    
+    /// Loads PlayerManager's current video into the web player if it is not the one already
+    /// loaded: a single loadVideoById on a warm player, a full page load on a cold one.
+    @MainActor
+    static func loadCurrentVideo(into webView: WKWebView, coordinator: Coordinator) {
+        guard let video = PlayerManager.shared.currentVideo else { return }
         
-        if context.coordinator.currentLoadedVideoId != video.id {
-            let wasLoaded = context.coordinator.currentLoadedVideoId != nil
-            context.coordinator.currentLoadedVideoId = video.id
-            context.coordinator.isActuallyPlaying = false
-            context.coordinator.didClickAutoPlay = false
-            context.coordinator.clickAttempts = 0
+        if coordinator.currentLoadedVideoId != video.id {
+            let wasLoaded = coordinator.currentLoadedVideoId != nil
+            coordinator.currentLoadedVideoId = video.id
+            coordinator.isActuallyPlaying = false
+            coordinator.didClickAutoPlay = false
+            coordinator.clickAttempts = 0
             
             if wasLoaded {
                 // Video switch: Use loadNewVideo with resume startSec and quality preference
-                let effectiveQ = (playerManager.selectedQuality != "auto") ? playerManager.selectedQuality : playerManager.resolvedOptimalQuality
-                let rate = playerManager.playbackRate
-                let startSec = Int(playerManager.currentTime)
+                let effectiveQ = (PlayerManager.shared.selectedQuality != "auto") ? PlayerManager.shared.selectedQuality : PlayerManager.shared.resolvedOptimalQuality
+                let rate = PlayerManager.shared.playbackRate
+                let startSec = Int(PlayerManager.shared.currentTime)
                 let js = "if (typeof window.loadNewVideo === 'function') { window.loadNewVideo('\(video.id)', \(startSec), '\(effectiveQ)', \(rate)); } else { location.reload(); }"
-                webView.evaluateJavaScript(js) { [weak webView, weak coord = context.coordinator] _, err in
+                webView.evaluateJavaScript(js) { [weak webView, weak coord = coordinator] _, err in
                     if err != nil {
                         guard let v = webView else { return }
                         let html = NativePlayerView.generateHTML(for: video, playerManager: PlayerManager.shared)
@@ -504,10 +531,10 @@ public struct NativePlayerView: NSViewRepresentable {
                 }
             } else {
                 // Initial load
-                let html = NativePlayerView.generateHTML(for: video, playerManager: playerManager)
+                let html = NativePlayerView.generateHTML(for: video, playerManager: PlayerManager.shared)
                 webView.loadHTMLString(html, baseURL: URL(string: "https://auratube.app"))
                 
-                let coord = context.coordinator
+                let coord = coordinator
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { [weak webView, weak coord] in
                     guard let v = webView, let c = coord else { return }
                     c.ensureAutoPlay(on: v)
