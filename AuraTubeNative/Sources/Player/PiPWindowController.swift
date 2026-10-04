@@ -716,6 +716,10 @@ public struct PiPFloatingContentView: View {
                     PiPWindowDragView()
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
                     
+                    // Controls are inserted/removed outright, never faded: glass under a fading
+                    // ancestor is drawn as a flat frosted fill and stays that way until a redraw.
+                    if hud.isHovering || hud.isMenuOpen {
+                        Group {
                     // Cinematic seamless gradient vignetting: clear in the center, dark at top & bottom
                     LinearGradient(
                         colors: [
@@ -748,10 +752,10 @@ public struct PiPFloatingContentView: View {
                             .padding(.bottom, 8)
                             .padding(.horizontal, 8)
                     }
+                        }
+                        .transition(.identity)
+                    }
                 }
-                .opacity((hud.isHovering || hud.isMenuOpen) ? 1.0 : 0.0)
-                .allowsHitTesting(hud.isHovering || hud.isMenuOpen)
-                .animation(.easeInOut(duration: 0.18), value: hud.isHovering || hud.isMenuOpen)
                 .id(hud.glassEpoch)
                 
                 // 3. Animated Center HUD Badge (Space / Mute / Seek feedback)

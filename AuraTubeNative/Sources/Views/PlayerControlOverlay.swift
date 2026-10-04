@@ -45,7 +45,7 @@ private struct PlayerGlassBlur: NSViewRepresentable {
 /// is mixed in so white controls stay readable; `blur` adds a frosted layer under the glass.
 struct PlayerGlassShape<S: InsettableShape>: View {
     let shape: S
-    var tint: Double = 0.30
+    var tint: Double = 0.08
     var blur: Double = 0
     
     var body: some View {
@@ -71,7 +71,7 @@ struct PlayerGlassShape<S: InsettableShape>: View {
 /// Rounded glass panel for player chrome (control bar, mini player toolbar, PiP controls).
 struct PlayerGlassBackground: View {
     var cornerRadius: CGFloat = 16
-    var tint: Double = 0.30
+    var tint: Double = 0.08
     var blur: Double = 0
     
     var body: some View {

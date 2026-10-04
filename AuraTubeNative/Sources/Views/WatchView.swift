@@ -1273,11 +1273,13 @@ struct WatchPlayerContainerView: View {
                 }
                 
                 // Bottom Controls fitted to the 9:16 player frame
-                PlayerControlOverlay()
-                    .frame(width: playerWidth)
-                    .opacity(vm.isControlsVisible ? 1.0 : 0.0)
-                    .animation(.easeInOut(duration: 0.18), value: vm.isControlsVisible)
-                    .allowsHitTesting(vm.isControlsVisible)
+                // Inserted/removed outright, never faded: glass under a fading ancestor is
+                // drawn as a flat frosted fill and stays that way until the next redraw
+                if vm.isControlsVisible {
+                    PlayerControlOverlay()
+                        .frame(width: playerWidth)
+                        .transition(.identity)
+                }
                 
                 // Top Corner Badge for Vertical Video
                 VStack {
@@ -1346,10 +1348,12 @@ struct WatchPlayerContainerView: View {
             centerPlayPauseOverlay
             
             // Bottom Controls with YouTube Auto-Hide
-            PlayerControlOverlay()
-                .opacity(vm.isControlsVisible ? 1.0 : 0.0)
-                .animation(.easeInOut(duration: 0.18), value: vm.isControlsVisible)
-                .allowsHitTesting(vm.isControlsVisible)
+            // Inserted/removed outright, never faded: glass under a fading ancestor is drawn
+            // as a flat frosted fill and stays that way until the next redraw
+            if vm.isControlsVisible {
+                PlayerControlOverlay()
+                    .transition(.identity)
+            }
             
             // Autoplay Countdown Overlay
             if playerManager.autoplayCountdown != nil, let next = playerManager.nextVideo {

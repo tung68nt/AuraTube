@@ -2236,12 +2236,14 @@ struct MiniPlayerPiPOverlay: View {
                         .padding(8)
                     }
                     .frame(width: pipWidth, height: videoHeight, alignment: .top)
+                    .transition(.identity)
                 }
             }
             .frame(width: pipWidth, height: videoHeight)
             // Controls float over the video in one glass bar, exactly like the floating PiP:
             // shown on hover, timeline on top, buttons below.
             .overlay(alignment: .bottom) {
+                if hoverVm.isHovered {
                 VStack(spacing: 2) {
             MiniPlayerInteractiveProgressBar()
                 .padding(.horizontal, 10)
@@ -2340,8 +2342,8 @@ struct MiniPlayerPiPOverlay: View {
                 }
                 .background(PlayerGlassBackground(cornerRadius: 12))
                 .padding(8)
-                .opacity(hoverVm.isHovered ? 1 : 0)
-                .allowsHitTesting(hoverVm.isHovered)
+                .transition(.identity)
+                }
             }
         }
         .frame(width: pipWidth)

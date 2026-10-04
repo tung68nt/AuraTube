@@ -155,7 +155,7 @@ public struct FullscreenVideoOverlay: View {
                 if vm.isControlsVisible {
                     PlayerControlOverlay()
                         .frame(maxWidth: .infinity)
-                        .transition(.opacity)
+                        .transition(.identity)
                 }
             }
         }
