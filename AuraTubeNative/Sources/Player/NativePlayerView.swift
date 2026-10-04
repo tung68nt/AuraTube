@@ -1704,6 +1704,13 @@ public struct NativePlayerView: NSViewRepresentable {
                 if (v.style.getPropertyValue('object-fit') !== fit) {
                     v.style.setProperty('object-fit', fit, 'important');
                 }
+                // Many uploads carry a column or two of black at the left/right edge of the
+                // encoded frame, and sub-pixel layout can leave a hairline too. When the video
+                // fills the frame, overscan it by 0.6% so those edge columns fall outside.
+                var zoom = (fit === 'cover') ? 'translateZ(0) scale(1.006)' : 'translateZ(0)';
+                if (v.style.getPropertyValue('transform') !== zoom) {
+                    v.style.setProperty('transform', zoom, 'important');
+                }
             } catch(e) {}
         }
         function reportVideoDimensions(force) {
