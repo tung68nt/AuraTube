@@ -724,7 +724,7 @@ public struct PiPFloatingContentView: View {
                             .padding(.top, 8)
                             .padding(.bottom, 5)
                             .padding(.horizontal, 10)
-                            .background(PlayerGlassBackground(cornerRadius: 14, tint: 0.10, blur: 0))
+                            .background(PlayerGlassBackground(cornerRadius: 14))
                             .padding(.bottom, 8)
                             .padding(.horizontal, 8)
                     }
@@ -828,7 +828,7 @@ public struct PiPFloatingContentView: View {
                     .font(.system(size: 10, weight: .bold))
                     .foregroundColor(.white.opacity(0.9))
                     .frame(width: 24, height: 24)
-                    .background(PlayerGlassShape(shape: Circle(), tint: 0.18, blur: 0))
+                    .background(PlayerGlassShape(shape: Circle()))
             }
             .buttonStyle(.plain)
             .help("Đóng PiP (Esc)")
@@ -861,7 +861,7 @@ public struct PiPFloatingContentView: View {
                     .font(.system(size: 11, weight: .semibold))
                     .foregroundColor(.white.opacity(0.9))
                     .frame(width: 26, height: 26)
-                    .background(PlayerGlassShape(shape: Circle(), tint: 0.18, blur: 0))
+                    .background(PlayerGlassShape(shape: Circle()))
             }
             .buttonStyle(.plain)
             .contextMenu {
@@ -885,7 +885,7 @@ public struct PiPFloatingContentView: View {
                     .font(.system(size: 11, weight: .bold))
                     .foregroundColor(.white.opacity(0.95))
                     .frame(width: 26, height: 26)
-                    .background(PlayerGlassShape(shape: Circle(), tint: 0.18, blur: 0))
+                    .background(PlayerGlassShape(shape: Circle()))
             }
             .buttonStyle(.plain)
             .help("Ẩn PiP và tiếp tục nghe âm thanh trong nền (H)")
@@ -898,7 +898,7 @@ public struct PiPFloatingContentView: View {
                     .font(.system(size: 11, weight: .bold))
                     .foregroundColor(.white.opacity(0.9))
                     .frame(width: 26, height: 26)
-                    .background(PlayerGlassShape(shape: Circle(), tint: 0.18, blur: 0))
+                    .background(PlayerGlassShape(shape: Circle()))
             }
             .buttonStyle(.plain)
             .help("Đưa video về cửa sổ chính (P / F)")

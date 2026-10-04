@@ -46,8 +46,8 @@ private struct PlayerGlassBlur: NSViewRepresentable {
 /// a top sheen, a bright specular rim that fades downward, and a soft contact shadow.
 struct PlayerGlassShape<S: InsettableShape>: View {
     let shape: S
-    var tint: Double = 0.05
-    var blur: Double = 0.28
+    var tint: Double = 0.08
+    var blur: Double = 0
     
     var body: some View {
         if #available(macOS 26.0, *) {
@@ -72,8 +72,8 @@ struct PlayerGlassShape<S: InsettableShape>: View {
 /// Rounded glass panel for player chrome (control bar, mini player toolbar, PiP controls).
 struct PlayerGlassBackground: View {
     var cornerRadius: CGFloat = 16
-    var tint: Double = 0.05
-    var blur: Double = 0.28
+    var tint: Double = 0.08
+    var blur: Double = 0
     
     var body: some View {
         PlayerGlassShape(

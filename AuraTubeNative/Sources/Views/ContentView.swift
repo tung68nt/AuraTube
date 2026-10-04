@@ -2199,7 +2199,7 @@ struct MiniPlayerPiPOverlay: View {
                                 .foregroundColor(.white)
                                 .padding(.horizontal, 8)
                                 .padding(.vertical, 4.5)
-                                .background(PlayerGlassShape(shape: Capsule(), tint: 0.18, blur: 0))
+                                .background(PlayerGlassShape(shape: Capsule()))
                             }
                             .buttonStyle(.plain)
                             .help("Phóng to video vào giao diện xem chính")
@@ -2216,7 +2216,7 @@ struct MiniPlayerPiPOverlay: View {
                                 .foregroundColor(.white)
                                 .padding(.horizontal, 8)
                                 .padding(.vertical, 4.5)
-                                .background(PlayerGlassShape(shape: Capsule(), tint: 0.18, blur: 0))
+                                .background(PlayerGlassShape(shape: Capsule()))
                             }
                             .buttonStyle(.plain)
                             .help("Chuyển video sang cửa sổ nổi Picture-in-Picture (P)")
@@ -2228,7 +2228,7 @@ struct MiniPlayerPiPOverlay: View {
                                     .font(.system(size: 10.5, weight: .bold))
                                     .foregroundColor(.white)
                                     .frame(width: 24, height: 24)
-                                    .background(PlayerGlassShape(shape: Circle(), tint: 0.18, blur: 0))
+                                    .background(PlayerGlassShape(shape: Circle()))
                             }
                             .buttonStyle(.plain)
                             .help("Đóng phát")
@@ -2239,11 +2239,13 @@ struct MiniPlayerPiPOverlay: View {
                 }
             }
             .frame(width: pipWidth, height: videoHeight)
-            
-            // 2. Timeline lives inside the glass toolbar, like the floating PiP's control bar
+            // Controls float over the video in one glass bar, exactly like the floating PiP:
+            // shown on hover, timeline on top, buttons below.
+            .overlay(alignment: .bottom) {
+                VStack(spacing: 2) {
             MiniPlayerInteractiveProgressBar()
-                .padding(.horizontal, 12)
-                .padding(.top, 7)
+                .padding(.horizontal, 10)
+                .padding(.top, 6)
             
             // 3. Bottom Controls & Metadata Bar
             HStack(spacing: 6) {
@@ -2333,12 +2335,17 @@ struct MiniPlayerPiPOverlay: View {
                 .buttonStyle(.plain)
                 .help("Đóng phát")
             }
-            .padding(.horizontal, 12)
-            .frame(width: pipWidth, height: 46)
+            .padding(.horizontal, 10)
+            .frame(height: 40)
+                }
+                .background(PlayerGlassBackground(cornerRadius: 12))
+                .padding(8)
+                .opacity(hoverVm.isHovered ? 1 : 0)
+                .allowsHitTesting(hoverVm.isHovered)
+            }
         }
         .frame(width: pipWidth)
-        // Glass card: the toolbar under the video blurs the app content behind the mini player
-        .background(PlayerGlassBackground(cornerRadius: 14, tint: 0.14, blur: 0.3))
+        .background(Color.black)
         .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
         .overlay(
             RoundedRectangle(cornerRadius: 14, style: .continuous)
