@@ -583,30 +583,20 @@ public struct PlayerControlOverlay: View {
                 Button(action: {
                     playerManager.toggleAutoplay()
                 }) {
-                    // Compact switch in the bar's own language: solid white knob, track in the
-                    // scrubber's red when on and a faint white when off. The knob's glyph takes
-                    // the track colour, so on/off reads from colour as well as position.
+                    // Quiet switch in the bar's white palette: no accent colour. On = brighter
+                    // track with a solid knob on the right; off = faint track, dimmer knob on the left.
                     ZStack(alignment: playerManager.isAutoplayEnabled ? .trailing : .leading) {
                         Capsule()
-                            .fill(
-                                playerManager.isAutoplayEnabled
-                                    ? Color(red: 1.0, green: 0.16, blue: 0.27)
-                                    : Color.white.opacity(0.24)
-                            )
+                            .fill(Color.white.opacity(playerManager.isAutoplayEnabled ? 0.42 : 0.16))
                             .frame(width: 34, height: 18)
                         
                         Circle()
-                            .fill(Color.white)
+                            .fill(Color.white.opacity(playerManager.isAutoplayEnabled ? 1.0 : 0.7))
                             .frame(width: 14, height: 14)
-                            .shadow(color: .black.opacity(0.25), radius: 1, y: 0.5)
                             .overlay(
                                 Image(systemName: playerManager.isAutoplayEnabled ? "play.fill" : "pause.fill")
                                     .font(.system(size: 6.5, weight: .black))
-                                    .foregroundColor(
-                                        playerManager.isAutoplayEnabled
-                                            ? Color(red: 1.0, green: 0.16, blue: 0.27)
-                                            : Color.black.opacity(0.45)
-                                    )
+                                    .foregroundColor(Color.black.opacity(0.5))
                                     .offset(x: playerManager.isAutoplayEnabled ? 0.5 : 0)
                             )
                             .padding(.horizontal, 2)
