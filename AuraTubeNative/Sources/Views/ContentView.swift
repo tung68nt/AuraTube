@@ -2186,7 +2186,7 @@ struct MiniPlayerPiPOverlay: View {
                 if hoverVm.isHovered {
                     ZStack(alignment: .top) {
                         LinearGradient(
-                            colors: [Color.black.opacity(0.65), Color.clear],
+                            colors: [Color.black.opacity(0.25), Color.clear],
                             startPoint: .top,
                             endPoint: .bottom
                         )
@@ -2204,8 +2204,7 @@ struct MiniPlayerPiPOverlay: View {
                                 .foregroundColor(.white)
                                 .padding(.horizontal, 8)
                                 .padding(.vertical, 4.5)
-                                .background(Color.black.opacity(0.75))
-                                .cornerRadius(6)
+                                .background(PlayerGlassShape(shape: Capsule(), tint: 0.18, blur: 0))
                             }
                             .buttonStyle(.plain)
                             .help("Phóng to video vào giao diện xem chính")
@@ -2222,8 +2221,7 @@ struct MiniPlayerPiPOverlay: View {
                                 .foregroundColor(.white)
                                 .padding(.horizontal, 8)
                                 .padding(.vertical, 4.5)
-                                .background(Color.black.opacity(0.75))
-                                .cornerRadius(6)
+                                .background(PlayerGlassShape(shape: Capsule(), tint: 0.18, blur: 0))
                             }
                             .buttonStyle(.plain)
                             .help("Chuyển video sang cửa sổ nổi Picture-in-Picture (P)")
@@ -2235,8 +2233,7 @@ struct MiniPlayerPiPOverlay: View {
                                     .font(.system(size: 10.5, weight: .bold))
                                     .foregroundColor(.white)
                                     .frame(width: 24, height: 24)
-                                    .background(Color.black.opacity(0.75))
-                                    .clipShape(Circle())
+                                    .background(PlayerGlassShape(shape: Circle(), tint: 0.18, blur: 0))
                             }
                             .buttonStyle(.plain)
                             .help("Đóng phát")
@@ -2344,7 +2341,7 @@ struct MiniPlayerPiPOverlay: View {
         }
         .frame(width: pipWidth)
         // Glass card: the toolbar under the video blurs the app content behind the mini player
-        .background(PlayerGlassBackground(cornerRadius: 14, tint: 0.22))
+        .background(PlayerGlassBackground(cornerRadius: 14, tint: 0.12, blur: 0.45))
         .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
         .overlay(
             RoundedRectangle(cornerRadius: 14, style: .continuous)

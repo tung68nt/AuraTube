@@ -105,6 +105,14 @@ public struct VisualEffectBackground: NSViewRepresentable {
     }
 }
 
+public enum NativeGlass {
+    /// True where the system provides Liquid Glass (macOS 26+).
+    public static var isAvailable: Bool {
+        if #available(macOS 26.0, *) { return true }
+        return false
+    }
+}
+
 // MARK: - Native Liquid Glass Base
 /// The glass layer behind every Liquid Glass surface in the app: the system's Liquid Glass on
 /// macOS 26+, the frosted material it replaced on older systems.

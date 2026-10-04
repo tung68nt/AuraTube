@@ -434,6 +434,16 @@ public final class PlayerManager: ObservableObject {
         }
         
         DistributedNotificationCenter.default().addObserver(
+            forName: NSNotification.Name("app.auratube.togglePiP"),
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            Task { @MainActor in
+                self?.togglePictureInPicture()
+            }
+        }
+        
+        DistributedNotificationCenter.default().addObserver(
             forName: NSNotification.Name("app.auratube.navigateSection"),
             object: nil,
             queue: .main

@@ -40,24 +40,42 @@ private struct PlayerGlassBlur: NSViewRepresentable {
     }
 }
 
-/// Glass surface for player chrome (control bar, mini player). `tint` is how much black is
-/// mixed in so white controls stay readable: low over video, higher over arbitrary app content.
-struct PlayerGlassBackground: View {
-    var cornerRadius: CGFloat = 16
-    var tint: Double = 0.10
+/// Clear glass in any shape for player chrome. `tint` is how much black is mixed in so white
+/// controls stay readable; `blur` adds a frosted layer under the glass (0 = glass only).
+struct PlayerGlassShape<S: InsettableShape>: View {
+    let shape: S
+    var tint: Double = 0.05
+    var blur: Double = 0.28
     
     var body: some View {
-        let shape = RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
         if #available(macOS 26.0, *) {
-            // Regular glass = full frosted blur; pinned to the dark variant so white controls read
-            Color.clear
-                .glassEffect(.regular.tint(Color.black.opacity(tint)), in: shape)
-                .environment(\.colorScheme, .dark)
+            ZStack {
+                if blur > 0 {
+                    PlayerGlassBlur(opacity: blur).clipShape(shape)
+                }
+                Color.clear
+                    .glassEffect(.clear.tint(Color.black.opacity(tint)), in: shape)
+            }
         } else {
-            PlayerGlassBlur(opacity: min(1.0, 0.6 + tint))
+            PlayerGlassBlur(opacity: min(1.0, 0.45 + blur))
                 .clipShape(shape)
                 .overlay(shape.strokeBorder(Color.white.opacity(0.18), lineWidth: 0.75))
         }
+    }
+}
+
+/// Rounded glass panel for player chrome (control bar, mini player toolbar, PiP controls).
+struct PlayerGlassBackground: View {
+    var cornerRadius: CGFloat = 16
+    var tint: Double = 0.05
+    var blur: Double = 0.28
+    
+    var body: some View {
+        PlayerGlassShape(
+            shape: RoundedRectangle(cornerRadius: cornerRadius, style: .continuous),
+            tint: tint,
+            blur: blur
+        )
     }
 }
 
@@ -109,6 +127,8 @@ public struct PlayerControlOverlay: View {
                         .padding(.bottom, 8)
                 }
                 .padding(.top, 10)
+                // The glass is light now; a hairline shadow keeps white glyphs crisp on bright frames
+                .shadow(color: .black.opacity(0.28), radius: 1, y: 0.5)
                 .frame(width: max(0, geo.size.width - barInset * 2))
                 .background(PlayerGlassBackground())
                 .padding(.horizontal, barInset)

@@ -421,16 +421,16 @@ public struct MenuBarView: View {
                         isDark ?
                         LinearGradient(
                             colors: [
-                                Color(red: 24/255, green: 24/255, blue: 28/255).opacity(0.92),
-                                Color(red: 16/255, green: 16/255, blue: 20/255).opacity(0.94)
+                                Color(red: 24/255, green: 24/255, blue: 28/255).opacity(NativeGlass.isAvailable ? 0.35 : 0.92),
+                                Color(red: 16/255, green: 16/255, blue: 20/255).opacity(NativeGlass.isAvailable ? 0.40 : 0.94)
                             ],
                             startPoint: .top,
                             endPoint: .bottom
                         ) :
                         LinearGradient(
                             colors: [
-                                Color.white.opacity(0.96),
-                                Color(red: 248/255, green: 248/255, blue: 250/255).opacity(0.96)
+                                Color.white.opacity(NativeGlass.isAvailable ? 0.38 : 0.96),
+                                Color(red: 248/255, green: 248/255, blue: 250/255).opacity(NativeGlass.isAvailable ? 0.30 : 0.96)
                             ],
                             startPoint: .top,
                             endPoint: .bottom
@@ -453,7 +453,7 @@ public struct MenuBarView: View {
                         startPoint: .topLeading,
                         endPoint: .bottomTrailing
                     ),
-                    lineWidth: 1
+                    lineWidth: NativeGlass.isAvailable ? 0 : 1
                 )
         )
         .shadow(

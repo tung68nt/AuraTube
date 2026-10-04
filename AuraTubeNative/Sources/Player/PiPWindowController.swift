@@ -138,10 +138,10 @@ public final class PiPWindowController: NSObject, ObservableObject, NSWindowDele
     }
     
     public func show(video: Video?) {
-        if let existing = pipWindow {
-            existing.makeKeyAndOrderFront(nil)
-            return
-        }
+        // Never reuse a previous panel: one that is mid-way through returning to the main
+        // window sits at the main player's frame, and reusing it showed PiP at that size.
+        discardPanel()
+        isReturningToMain = false
         
         let isVertical = video?.isShort == true || PlayerManager.shared.isCurrentVideoVertical
         // For vertical (Shorts), standard ideal PiP dimensions: width 270, height 480 (9:16)
@@ -255,24 +255,35 @@ public final class PiPWindowController: NSObject, ObservableObject, NSWindowDele
         })
     }
     
-    public func close() {
+    private var isReturningToMain = false
+    
+    /// Removes the current panel immediately, without touching the PiP state.
+    private func discardPanel() {
         if let monitor = eventMonitor {
             NSEvent.removeMonitor(monitor)
             eventMonitor = nil
         }
+        guard let panel = pipWindow else { return }
+        pipWindow = nil
+        panel.delegate = nil
+        panel.orderOut(nil)
+        panel.close()
+    }
+    
+    public func close() {
         isPiPHiddenKeepAudio = false
         guard let panel = pipWindow else { return }
         NSAnimationContext.runAnimationGroup({ context in
             context.duration = 0.18
             context.timingFunction = CAMediaTimingFunction(controlPoints: 0.16, 1.0, 0.3, 1.0)
             panel.animator().alphaValue = 0.0
-        }, completionHandler: { [weak self] in
-            Task { @MainActor [weak self] in
-                panel.close()
-                self?.pipWindow = nil
-                self?.isPiPHiddenKeepAudio = false
-            }
-        })
+        }, completionHandler: nil)
+        // Timed, not tied to the animation callback, so the panel can never be left behind
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) { [weak self] in
+            guard let self = self, self.pipWindow === panel else { return }
+            self.discardPanel()
+            self.isPiPHiddenKeepAudio = false
+        }
     }
     
     // MARK: - Hide PiP & Keep Audio Playing in Background
@@ -330,6 +341,8 @@ public final class PiPWindowController: NSObject, ObservableObject, NSWindowDele
             PlayerManager.shared.refreshPlayerLayout()
             return
         }
+        guard !isReturningToMain else { return }
+        isReturningToMain = true
         
         isPiPHiddenKeepAudio = false
         panel.ignoresMouseEvents = false
@@ -338,47 +351,37 @@ public final class PiPWindowController: NSObject, ObservableObject, NSWindowDele
             mainWindow.makeKeyAndOrderFront(nil)
         }
         
-        ScrollForwardingWKWebView.isTransitioning = true
-        panel.makeKeyAndOrderFront(nil)
-        panel.alphaValue = 1.0
+        // Hand the video back to the main player, then remove this exact panel.
+        let finish: () -> Void = { [weak self] in
+            guard let self = self, self.pipWindow === panel else { return }
+            self.isPiPHiddenKeepAudio = false
+            PlayerManager.shared.isPictureInPictureActive = false
+            // Keep the panel over the player for 40ms while the main view re-attaches the web view
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.04) { [weak self] in
+                ScrollForwardingWKWebView.isTransitioning = false
+                guard let self = self else { return }
+                if self.pipWindow === panel {
+                    self.discardPanel()
+                }
+                self.isReturningToMain = false
+                PlayerManager.shared.refreshPlayerLayout()
+            }
+        }
         
         if let targetFrame = mainPlayerScreenFrame, targetFrame.width > 200 && targetFrame.height > 100 {
+            ScrollForwardingWKWebView.isTransitioning = true
+            panel.makeKeyAndOrderFront(nil)
+            panel.alphaValue = 1.0
             NSAnimationContext.runAnimationGroup({ context in
                 context.duration = 0.32
                 context.timingFunction = CAMediaTimingFunction(controlPoints: 0.16, 1.0, 0.3, 1.0)
                 context.allowsImplicitAnimation = true
                 panel.animator().setFrame(targetFrame, display: true)
-            }, completionHandler: { [weak self] in
-                Task { @MainActor [weak self] in
-                    guard let self = self else { return }
-                    if let monitor = self.eventMonitor {
-                        NSEvent.removeMonitor(monitor)
-                        self.eventMonitor = nil
-                    }
-                    self.isPiPHiddenKeepAudio = false
-                    // 1. Tell PlayerManager to return to main player
-                    PlayerManager.shared.isPictureInPictureActive = false
-                    
-                    // 2. Keep panel overlaying seamlessly for 40ms while WatchView attaches the webView
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.04) {
-                        ScrollForwardingWKWebView.isTransitioning = false
-                        panel.orderOut(nil)
-                        panel.close()
-                        self.pipWindow = nil
-                        PlayerManager.shared.refreshPlayerLayout()
-                    }
-                }
-            })
+            }, completionHandler: nil)
+            // Timed, not tied to the animation callback, so the hand-back always completes
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.34, execute: finish)
         } else {
-            if let monitor = eventMonitor {
-                NSEvent.removeMonitor(monitor)
-                eventMonitor = nil
-            }
-            PlayerManager.shared.isPictureInPictureActive = false
-            panel.close()
-            self.pipWindow = nil
-            ScrollForwardingWKWebView.isTransitioning = false
-            PlayerManager.shared.refreshPlayerLayout()
+            finish()
         }
     }
     
@@ -457,7 +460,10 @@ public final class PiPWindowController: NSObject, ObservableObject, NSWindowDele
     }
     
     public func windowDidEndLiveResize(_ notification: Notification) {
-        if let panel = pipWindow, !isPanelVertical {
+        // Only a resize the user dragged is a new preferred size. The animated hand-back to the
+        // main window also ends a "live resize" at the main player's width, and saving that
+        // made every later PiP open at full player size.
+        if let panel = pipWindow, !isPanelVertical, !isReturningToMain, !ScrollForwardingWKWebView.isTransitioning {
             defaultWidth = panel.frame.width
             UserDefaults.standard.set(Double(panel.frame.width), forKey: Self.pipWidthKey)
         }
@@ -652,11 +658,13 @@ public final class PiPWindowController: NSObject, ObservableObject, NSWindowDele
     }
     
     public func windowWillClose(_ notification: Notification) {
+        guard (notification.object as? NSWindow) === pipWindow else { return }
         if let monitor = eventMonitor {
             NSEvent.removeMonitor(monitor)
             eventMonitor = nil
         }
         pipWindow = nil
+        isReturningToMain = false
         if PlayerManager.shared.isPictureInPictureActive {
             PlayerManager.shared.isPictureInPictureActive = false
         }
@@ -691,12 +699,12 @@ public struct PiPFloatingContentView: View {
                     // Cinematic seamless gradient vignetting: clear in the center, dark at top & bottom
                     LinearGradient(
                         colors: [
-                            Color.black.opacity(0.80),
-                            Color.black.opacity(0.40),
+                            Color.black.opacity(0.42),
+                            Color.black.opacity(0.14),
                             Color.clear,
                             Color.clear,
-                            Color.black.opacity(0.45),
-                            Color.black.opacity(0.88)
+                            Color.clear,
+                            Color.clear
                         ],
                         startPoint: .top,
                         endPoint: .bottom
@@ -713,8 +721,12 @@ public struct PiPFloatingContentView: View {
                         
                         // Bottom Timeline & Playback Controls
                         bottomControlsBar(width: w)
-                            .padding(.bottom, 8)
+                            .padding(.top, 8)
+                            .padding(.bottom, 5)
                             .padding(.horizontal, 10)
+                            .background(PlayerGlassBackground(cornerRadius: 14, tint: 0.08, blur: 0.3))
+                            .padding(.bottom, 8)
+                            .padding(.horizontal, 8)
                     }
                 }
                 .opacity((hud.isHovering || hud.isMenuOpen) ? 1.0 : 0.0)
@@ -816,8 +828,7 @@ public struct PiPFloatingContentView: View {
                     .font(.system(size: 10, weight: .bold))
                     .foregroundColor(.white.opacity(0.9))
                     .frame(width: 24, height: 24)
-                    .background(Circle().fill(Color.black.opacity(0.65)))
-                    .overlay(Circle().strokeBorder(Color.white.opacity(0.18), lineWidth: 0.75))
+                    .background(PlayerGlassShape(shape: Circle(), tint: 0.18, blur: 0))
             }
             .buttonStyle(.plain)
             .help("Đóng PiP (Esc)")
@@ -850,8 +861,7 @@ public struct PiPFloatingContentView: View {
                     .font(.system(size: 11, weight: .semibold))
                     .foregroundColor(.white.opacity(0.9))
                     .frame(width: 26, height: 26)
-                    .background(Circle().fill(Color.black.opacity(0.65)))
-                    .overlay(Circle().strokeBorder(Color.white.opacity(0.18), lineWidth: 0.75))
+                    .background(PlayerGlassShape(shape: Circle(), tint: 0.18, blur: 0))
             }
             .buttonStyle(.plain)
             .contextMenu {
@@ -875,8 +885,7 @@ public struct PiPFloatingContentView: View {
                     .font(.system(size: 11, weight: .bold))
                     .foregroundColor(.white.opacity(0.95))
                     .frame(width: 26, height: 26)
-                    .background(Circle().fill(Color.black.opacity(0.65)))
-                    .overlay(Circle().strokeBorder(Color.white.opacity(0.18), lineWidth: 0.75))
+                    .background(PlayerGlassShape(shape: Circle(), tint: 0.18, blur: 0))
             }
             .buttonStyle(.plain)
             .help("Ẩn PiP và tiếp tục nghe âm thanh trong nền (H)")
@@ -889,8 +898,7 @@ public struct PiPFloatingContentView: View {
                     .font(.system(size: 11, weight: .bold))
                     .foregroundColor(.white.opacity(0.9))
                     .frame(width: 26, height: 26)
-                    .background(Circle().fill(Color.black.opacity(0.65)))
-                    .overlay(Circle().strokeBorder(Color.white.opacity(0.18), lineWidth: 0.75))
+                    .background(PlayerGlassShape(shape: Circle(), tint: 0.18, blur: 0))
             }
             .buttonStyle(.plain)
             .help("Đưa video về cửa sổ chính (P / F)")

@@ -176,15 +176,8 @@ public struct AutoplayCountdownOverlay: View {
             }
             .padding(20)
             .frame(width: 420)
-            .background(
-                RoundedRectangle(cornerRadius: 16)
-                    .fill(Color(red: 0.1, green: 0.1, blue: 0.12).opacity(0.96))
-            )
-            .overlay(
-                RoundedRectangle(cornerRadius: 16)
-                    .stroke(Color.white.opacity(0.14), lineWidth: 1)
-            )
-            .shadow(color: .black.opacity(0.7), radius: 24, y: 10)
+            .background(PlayerGlassBackground(cornerRadius: 20, tint: 0.22, blur: 0.55))
+            .shadow(color: .black.opacity(0.35), radius: 24, y: 10)
         }
         .transition(.opacity.combined(with: .scale(scale: 0.96)))
     }
