@@ -56,6 +56,8 @@ public struct PiPWindowDragView: NSViewRepresentable {
 // MARK: - PiP Visual HUD State Manager
 @MainActor
 public final class PiPOverlayState: ObservableObject {
+    /// Bumped once the panel is fully on screen so the glass controls are rebuilt then.
+    @Published public var glassEpoch: Int = 0
     public static let shared = PiPOverlayState()
     
     @Published public var hudIcon: String = ""
@@ -255,6 +257,22 @@ public final class PiPWindowController: NSObject, ObservableObject, NSWindowDele
             }
             panel.invalidateShadow()
         })
+        // Glass created while the panel is still fading in (window alpha 0, video not yet
+        // attached) keeps a flat frosted look until the window is resized. Once the panel is
+        // really on screen, rebuild the glass and nudge the frame by a point and back, which is
+        // what a manual resize does.
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { [weak self] in
+            guard let self = self, self.pipWindow === panel else { return }
+            let wasTransitioning = ScrollForwardingWKWebView.isTransitioning
+            ScrollForwardingWKWebView.isTransitioning = true
+            var nudged = panel.frame
+            nudged.size.width += 1
+            panel.setFrame(nudged, display: true)
+            nudged.size.width -= 1
+            panel.setFrame(nudged, display: true)
+            ScrollForwardingWKWebView.isTransitioning = wasTransitioning
+            PiPOverlayState.shared.glassEpoch += 1
+        }
     }
     
     private var isReturningToMain = false
@@ -734,6 +752,7 @@ public struct PiPFloatingContentView: View {
                 .opacity((hud.isHovering || hud.isMenuOpen) ? 1.0 : 0.0)
                 .allowsHitTesting(hud.isHovering || hud.isMenuOpen)
                 .animation(.easeInOut(duration: 0.18), value: hud.isHovering || hud.isMenuOpen)
+                .id(hud.glassEpoch)
                 
                 // 3. Animated Center HUD Badge (Space / Mute / Seek feedback)
                 if hud.isHudVisible {

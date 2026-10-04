@@ -150,11 +150,11 @@ public final class WebPlayerHostingView: NSView {
         } else if let s = superview, s.bounds.width > 0 && s.bounds.height > 0 {
             targetFrame = s.bounds
         } else {
-            // Never keep the frame from the previous host: moving from the large main player
-            // into a small host would make the old size this view's fitting size and push the
-            // enclosing window (the PiP panel) up to it.
-            targetFrame = .zero
-            webView.frame = .zero
+            // No size yet (not laid out): keep the web view's current frame until layout()
+            // gives the real one. Collapsing it to zero made the player re-layout and
+            // re-buffer, which showed as 1-2s of black when the video came back from PiP.
+            // (The host's own size no longer depends on this frame: see sizeThatFits.)
+            targetFrame = webView.frame
         }
         
         if targetFrame.width > 0 && targetFrame.height > 0 {
