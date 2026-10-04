@@ -6,6 +6,18 @@ public final class PiPPanel: NSPanel {
     override public var canBecomeKey: Bool { true }
     override public var canBecomeMain: Bool { false }
     
+    // The system draws Liquid Glass (and the window shadow) in a flat, frosted "inactive" style
+    // for windows that are not key. The PiP floats over other apps and is almost never key, so
+    // its controls looked frosted until clicked. Report key/main *appearance* at all times; the
+    // panel still only takes real key status (keyboard focus) when the user clicks it.
+    @objc func hasKeyAppearance() -> Bool { true }
+    @objc func _hasKeyAppearance() -> Bool { true }
+    @objc func hasMainAppearance() -> Bool { true }
+    @objc func _hasMainAppearance() -> Bool { true }
+    @objc func _hasActiveAppearance() -> Bool { true }
+    @objc func _hasActiveControls() -> Bool { true }
+    @objc func _hasActiveAppearanceIgnoringKeyFocus() -> Bool { true }
+    
     // Remove all standard window traffic light buttons for a clean, borderless custom UI
     override public func standardWindowButton(_ b: NSWindow.ButtonType) -> NSButton? {
         let btn = super.standardWindowButton(b)
@@ -696,6 +708,10 @@ public struct PiPFloatingContentView: View {
     @ObservedObject private var playerManager = PlayerManager.shared
     @ObservedObject private var hud = PiPOverlayState.shared
     
+    private var controlsVisible: Bool {
+        hud.isHovering || hud.isMenuOpen
+    }
+    
     public var body: some View {
         GeometryReader { geo in
             let w = geo.size.width
@@ -718,8 +734,7 @@ public struct PiPFloatingContentView: View {
                     
                     // Controls are inserted/removed outright, never faded: glass under a fading
                     // ancestor is drawn as a flat frosted fill and stays that way until a redraw.
-                    if hud.isHovering || hud.isMenuOpen {
-                        Group {
+                    Group {
                     // Cinematic seamless gradient vignetting: clear in the center, dark at top & bottom
                     LinearGradient(
                         colors: [
@@ -748,13 +763,18 @@ public struct PiPFloatingContentView: View {
                             .padding(.top, 8)
                             .padding(.bottom, 5)
                             .padding(.horizontal, 10)
-                            .background(PlayerGlassBackground(cornerRadius: 8))
+                            .background { if controlsVisible { PlayerGlassBackground(cornerRadius: 13) } }
                             .padding(.bottom, 8)
                             .padding(.horizontal, 8)
                     }
-                        }
-                        .transition(.identity)
                     }
+                    // The buttons stay in the hierarchy: the first click on the panel also
+                    // makes it key, which flips hover state mid-click, and a button removed
+                    // between mouse-down and mouse-up never fires. Shown/hidden in one step,
+                    // never faded; only the glass layers are created fresh (see glassIfVisible).
+                    .opacity(controlsVisible ? 1.0 : 0.0)
+                    .allowsHitTesting(controlsVisible)
+                    .transaction { $0.animation = nil }
                 }
                 .id(hud.glassEpoch)
                 
@@ -793,9 +813,7 @@ public struct PiPFloatingContentView: View {
         )
         .onHover { hovering in
             if !hud.isMenuOpen {
-                withAnimation(.easeInOut(duration: 0.18)) {
-                    hud.isHovering = hovering
-                }
+                hud.isHovering = hovering
             }
         }
         .contextMenu {
@@ -853,7 +871,7 @@ public struct PiPFloatingContentView: View {
                     .font(.system(size: 10, weight: .bold))
                     .foregroundColor(.white.opacity(0.9))
                     .frame(width: 24, height: 24)
-                    .background(PlayerGlassShape(shape: Circle()))
+                    .background { if controlsVisible { PlayerGlassShape(shape: Circle()) } }
             }
             .buttonStyle(.plain)
             .help("Đóng PiP (Esc)")
@@ -886,7 +904,7 @@ public struct PiPFloatingContentView: View {
                     .font(.system(size: 11, weight: .semibold))
                     .foregroundColor(.white.opacity(0.9))
                     .frame(width: 26, height: 26)
-                    .background(PlayerGlassShape(shape: Circle()))
+                    .background { if controlsVisible { PlayerGlassShape(shape: Circle()) } }
             }
             .buttonStyle(.plain)
             .contextMenu {
@@ -910,7 +928,7 @@ public struct PiPFloatingContentView: View {
                     .font(.system(size: 11, weight: .bold))
                     .foregroundColor(.white.opacity(0.95))
                     .frame(width: 26, height: 26)
-                    .background(PlayerGlassShape(shape: Circle()))
+                    .background { if controlsVisible { PlayerGlassShape(shape: Circle()) } }
             }
             .buttonStyle(.plain)
             .help("Ẩn PiP và tiếp tục nghe âm thanh trong nền (H)")
@@ -923,7 +941,7 @@ public struct PiPFloatingContentView: View {
                     .font(.system(size: 11, weight: .bold))
                     .foregroundColor(.white.opacity(0.9))
                     .frame(width: 26, height: 26)
-                    .background(PlayerGlassShape(shape: Circle()))
+                    .background { if controlsVisible { PlayerGlassShape(shape: Circle()) } }
             }
             .buttonStyle(.plain)
             .help("Đưa video về cửa sổ chính (P / F)")
