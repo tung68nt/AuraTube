@@ -42,6 +42,8 @@ private struct PlayerGlassBlur: NSViewRepresentable {
 
 /// Clear glass in any shape for player chrome. `tint` is how much black is mixed in so white
 /// controls stay readable; `blur` adds a frosted layer under the glass (0 = glass only).
+/// On top of the system glass it draws the cues that make it read as glass over moving video:
+/// a top sheen, a bright specular rim that fades downward, and a soft contact shadow.
 struct PlayerGlassShape<S: InsettableShape>: View {
     let shape: S
     var tint: Double = 0.05
@@ -54,8 +56,42 @@ struct PlayerGlassShape<S: InsettableShape>: View {
                     PlayerGlassBlur(opacity: blur).clipShape(shape)
                 }
                 Color.clear
-                    .glassEffect(.clear.tint(Color.black.opacity(tint)), in: shape)
+                    .glassEffect(.clear.tint(Color.black.opacity(tint)).interactive(), in: shape)
+                
+                // Sheen: light caught by the upper half of the glass
+                shape
+                    .fill(
+                        LinearGradient(
+                            stops: [
+                                .init(color: Color.white.opacity(0.20), location: 0.0),
+                                .init(color: Color.white.opacity(0.05), location: 0.38),
+                                .init(color: .clear, location: 0.62)
+                            ],
+                            startPoint: .top,
+                            endPoint: .bottom
+                        )
+                    )
+                    .blendMode(.plusLighter)
+                    .allowsHitTesting(false)
+                
+                // Specular rim: bright along the top edge, a faint return of light at the bottom
+                shape
+                    .strokeBorder(
+                        LinearGradient(
+                            stops: [
+                                .init(color: Color.white.opacity(0.70), location: 0.0),
+                                .init(color: Color.white.opacity(0.14), location: 0.45),
+                                .init(color: Color.white.opacity(0.32), location: 1.0)
+                            ],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        ),
+                        lineWidth: 1
+                    )
+                    .blendMode(.plusLighter)
+                    .allowsHitTesting(false)
             }
+            .shadow(color: Color.black.opacity(0.20), radius: 8, x: 0, y: 3)
         } else {
             PlayerGlassBlur(opacity: min(1.0, 0.45 + blur))
                 .clipShape(shape)
