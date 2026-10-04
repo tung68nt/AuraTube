@@ -256,34 +256,24 @@ public final class PiPWindowController: NSObject, ObservableObject, NSWindowDele
         panel.orderFrontRegardless()
         ScrollForwardingWKWebView.isTransitioning = false
         hostingView.layoutSubtreeIfNeeded()
-        if let swv = MainWebPlayerPool.shared.webView as? ScrollForwardingWKWebView {
-            swv.triggerRelayout()
-        }
-        NSAnimationContext.runAnimationGroup({ context in
-            context.duration = 0.20
-            context.timingFunction = CAMediaTimingFunction(controlPoints: 0.16, 1.0, 0.3, 1.0)
-            panel.animator().alphaValue = 1.0
-        }, completionHandler: {
-            if panel.frame.size != targetFrame.size {
-                panel.setFrame(targetFrame, display: true)
-            }
-            panel.invalidateShadow()
-        })
-        // Glass created while the panel is still fading in (window alpha 0, video not yet
-        // attached) keeps a flat frosted look until the window is resized. Once the panel is
-        // really on screen, rebuild the glass and nudge the frame by a point and back, which is
-        // what a manual resize does.
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { [weak self] in
+        syncWebViewGeometry(in: panel)
+        
+        // The panel stays invisible for a moment while the web view, which arrives still laid
+        // out for the main player, re-renders at the PiP size. Fading in immediately showed the
+        // video at a quarter of the frame before it snapped to full size.
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.12) { [weak self] in
             guard let self = self, self.pipWindow === panel else { return }
-            let wasTransitioning = ScrollForwardingWKWebView.isTransitioning
-            ScrollForwardingWKWebView.isTransitioning = true
-            var nudged = panel.frame
-            nudged.size.width += 1
-            panel.setFrame(nudged, display: true)
-            nudged.size.width -= 1
-            panel.setFrame(nudged, display: true)
-            ScrollForwardingWKWebView.isTransitioning = wasTransitioning
-            PiPOverlayState.shared.glassEpoch += 1
+            self.syncWebViewGeometry(in: panel)
+            NSAnimationContext.runAnimationGroup({ context in
+                context.duration = 0.16
+                context.timingFunction = CAMediaTimingFunction(controlPoints: 0.16, 1.0, 0.3, 1.0)
+                panel.animator().alphaValue = 1.0
+            }, completionHandler: {
+                if panel.frame.size != targetFrame.size {
+                    panel.setFrame(targetFrame, display: true)
+                }
+                panel.invalidateShadow()
+            })
         }
     }
     
@@ -300,6 +290,24 @@ public final class PiPWindowController: NSObject, ObservableObject, NSWindowDele
         panel.delegate = nil
         panel.orderOut(nil)
         panel.close()
+    }
+    
+    /// Makes the shared web view match the panel right now: backing scale, exact frame, and a
+    /// real size change so WebKit re-renders its content instead of stretching the old layout.
+    private func syncWebViewGeometry(in panel: NSWindow) {
+        guard let webView = MainWebPlayerPool.shared.webView,
+              let host = webView.superview, host.window === panel,
+              host.bounds.width > 0, host.bounds.height > 0 else { return }
+        let scale = panel.backingScaleFactor
+        host.layer?.contentsScale = scale
+        webView.layer?.contentsScale = scale
+        var nudged = host.bounds
+        nudged.size.width -= 1
+        webView.frame = nudged
+        webView.frame = host.bounds
+        webView.needsLayout = true
+        webView.layoutSubtreeIfNeeded()
+        (webView as? ScrollForwardingWKWebView)?.triggerRelayout()
     }
     
     public func close() {
