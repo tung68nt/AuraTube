@@ -724,7 +724,7 @@ public struct PiPFloatingContentView: View {
                             .padding(.top, 8)
                             .padding(.bottom, 5)
                             .padding(.horizontal, 10)
-                            .background(PlayerGlassBackground(cornerRadius: 14, tint: 0.08, blur: 0.3))
+                            .background(PlayerGlassBackground(cornerRadius: 14, tint: 0.10, blur: 0))
                             .padding(.bottom, 8)
                             .padding(.horizontal, 8)
                     }

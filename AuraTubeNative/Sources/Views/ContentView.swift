@@ -2045,12 +2045,12 @@ struct MiniPlayerInteractiveProgressBar: View {
             
             ZStack(alignment: .leading) {
                 // Background Track
-                Rectangle()
-                    .fill(Color.white.opacity(barVm.isHovered || barVm.isDragging ? 0.32 : 0.18))
-                    .frame(height: barVm.isHovered || barVm.isDragging ? 5 : 2.5)
+                Capsule()
+                    .fill(Color.white.opacity(barVm.isHovered || barVm.isDragging ? 0.42 : 0.30))
+                    .frame(height: barVm.isHovered || barVm.isDragging ? 5 : 3.5)
                 
                 // Played Progress (YouTube Red gradient)
-                Rectangle()
+                Capsule()
                     .fill(
                         LinearGradient(
                             colors: [Color.red, Color(red: 1.0, green: 0.25, blue: 0.25)],
@@ -2058,7 +2058,7 @@ struct MiniPlayerInteractiveProgressBar: View {
                             endPoint: .trailing
                         )
                     )
-                    .frame(width: max(2, geo.size.width * CGFloat(progress)), height: barVm.isHovered || barVm.isDragging ? 5 : 2.5)
+                    .frame(width: max(2, geo.size.width * CGFloat(progress)), height: barVm.isHovered || barVm.isDragging ? 5 : 3.5)
                 
                 // Scrub thumb circle
                 if barVm.isHovered || barVm.isDragging {
@@ -2245,8 +2245,10 @@ struct MiniPlayerPiPOverlay: View {
             }
             .frame(width: pipWidth, height: videoHeight)
             
-            // 2. Interactive High-Precision Progress Scrubber (Click & Drag to Seek)
+            // 2. Timeline lives inside the glass toolbar, like the floating PiP's control bar
             MiniPlayerInteractiveProgressBar()
+                .padding(.horizontal, 12)
+                .padding(.top, 7)
             
             // 3. Bottom Controls & Metadata Bar
             HStack(spacing: 6) {
@@ -2337,11 +2339,11 @@ struct MiniPlayerPiPOverlay: View {
                 .help("Đóng phát")
             }
             .padding(.horizontal, 12)
-            .frame(width: pipWidth, height: 52)
+            .frame(width: pipWidth, height: 46)
         }
         .frame(width: pipWidth)
         // Glass card: the toolbar under the video blurs the app content behind the mini player
-        .background(PlayerGlassBackground(cornerRadius: 14, tint: 0.12, blur: 0.45))
+        .background(PlayerGlassBackground(cornerRadius: 14, tint: 0.14, blur: 0.3))
         .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
         .overlay(
             RoundedRectangle(cornerRadius: 14, style: .continuous)
