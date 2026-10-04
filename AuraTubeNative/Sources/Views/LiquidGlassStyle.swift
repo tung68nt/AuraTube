@@ -105,6 +105,25 @@ public struct VisualEffectBackground: NSViewRepresentable {
     }
 }
 
+// MARK: - Native Liquid Glass Base
+/// The glass layer behind every Liquid Glass surface in the app: the system's Liquid Glass on
+/// macOS 26+, the frosted material it replaced on older systems.
+public struct NativeGlassFill<S: Shape>: View {
+    public let shape: S
+    
+    public init(shape: S) {
+        self.shape = shape
+    }
+    
+    public var body: some View {
+        if #available(macOS 26.0, *) {
+            Color.clear.glassEffect(.regular, in: shape)
+        } else {
+            shape.fill(.ultraThinMaterial)
+        }
+    }
+}
+
 // MARK: - 2. Continuous Glass Container Modifier
 public struct LiquidGlassModifier: ViewModifier {
     @Environment(\.colorScheme) private var colorScheme
@@ -125,8 +144,7 @@ public struct LiquidGlassModifier: ViewModifier {
             .background(
                 ZStack {
                     // 1. Frosted Material Base (Native macOS blur)
-                    RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                        .fill(.ultraThinMaterial)
+                    NativeGlassFill(shape: RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
                     
                     // 2. Liquid Glass Ambient Tint
                     if isDark {
@@ -241,7 +259,7 @@ public struct LiquidGlassCapsuleModifier: ViewModifier {
                     } else {
                         // YouTube Inactive + Apple Frosted Vibrancy
                         if isDark {
-                            Capsule().fill(.ultraThinMaterial)
+                            NativeGlassFill(shape: Capsule())
                             Capsule()
                                 .fill(
                                     LinearGradient(
@@ -255,7 +273,7 @@ public struct LiquidGlassCapsuleModifier: ViewModifier {
                                 )
                         } else {
                             // Light Mode: Authentic Liquid Glass Capsule
-                            Capsule().fill(.ultraThinMaterial)
+                            NativeGlassFill(shape: Capsule())
                             Capsule()
                                 .fill(
                                     LinearGradient(
@@ -357,8 +375,7 @@ public struct LiquidGlassButton<Content: View>: View {
                                     )
                                 )
                         } else {
-                            RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                                .fill(.ultraThinMaterial)
+                            NativeGlassFill(shape: RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
                             
                             if isDark {
                                 RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
@@ -503,7 +520,7 @@ public struct LiquidGlassCapsuleButton<Content: View>: View {
                                     )
                             } else {
                                 // Authentic Liquid Glass Material Base
-                                Capsule().fill(.ultraThinMaterial)
+                                NativeGlassFill(shape: Capsule())
                                 
                                 if isDark {
                                     Capsule()
@@ -661,7 +678,7 @@ public struct LiquidGlassCircleButton<Content: View>: View {
                 .background(
                     ZStack {
                         // 1. Frosted Material (Hardware-accelerated macOS blur)
-                        Circle().fill(.ultraThinMaterial)
+                        NativeGlassFill(shape: Circle())
                         
                         // 2. Liquid Glass Ambient Tint
                         if isActive {
@@ -812,14 +829,12 @@ public struct LiquidGlassSearchBarModifier: ViewModifier {
                 ZStack {
                     if isDark {
                         // YouTube Dark Translucent Search Bar
-                        RoundedRectangle(cornerRadius: 16, style: .continuous)
-                            .fill(.ultraThinMaterial)
+                        NativeGlassFill(shape: RoundedRectangle(cornerRadius: 16, style: .continuous))
                         RoundedRectangle(cornerRadius: 16, style: .continuous)
                             .fill(Color.white.opacity(isHovered ? 0.12 : 0.075))
                     } else {
                         // YouTube Light Liquid Glass Search Bar
-                        RoundedRectangle(cornerRadius: 16, style: .continuous)
-                            .fill(.ultraThinMaterial)
+                        NativeGlassFill(shape: RoundedRectangle(cornerRadius: 16, style: .continuous))
                         RoundedRectangle(cornerRadius: 16, style: .continuous)
                             .fill(
                                 LinearGradient(
@@ -1643,7 +1658,7 @@ public struct LiquidGlassPiPButton: View {
         }
         .background(
             ZStack {
-                Capsule().fill(.ultraThinMaterial)
+                NativeGlassFill(shape: Capsule())
                 
                 if isActive {
                     Capsule()

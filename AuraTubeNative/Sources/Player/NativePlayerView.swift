@@ -150,7 +150,11 @@ public final class WebPlayerHostingView: NSView {
         } else if let s = superview, s.bounds.width > 0 && s.bounds.height > 0 {
             targetFrame = s.bounds
         } else {
-            targetFrame = webView.frame
+            // Never keep the frame from the previous host: moving from the large main player
+            // into a small host would make the old size this view's fitting size and push the
+            // enclosing window (the PiP panel) up to it.
+            targetFrame = .zero
+            webView.frame = .zero
         }
         
         if targetFrame.width > 0 && targetFrame.height > 0 {
@@ -294,6 +298,11 @@ public struct NativePlayerView: NSViewRepresentable {
         setupBridgeCallbacks(for: webView)
         
         return webView
+    }
+    
+    /// The player always takes exactly the size it is offered; its content never dictates one.
+    public func sizeThatFits(_ proposal: ProposedViewSize, nsView: WebPlayerHostingView, context: Context) -> CGSize? {
+        proposal.replacingUnspecifiedDimensions(by: CGSize(width: 320, height: 180))
     }
     
     public func makeNSView(context: Context) -> WebPlayerHostingView {

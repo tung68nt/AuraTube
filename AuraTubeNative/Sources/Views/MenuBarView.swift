@@ -413,8 +413,7 @@ public struct MenuBarView: View {
         .background(
             ZStack {
                 // Native ultra-thin glass material base
-                RoundedRectangle(cornerRadius: 14, style: .continuous)
-                    .fill(.ultraThinMaterial)
+                NativeGlassFill(shape: RoundedRectangle(cornerRadius: 14, style: .continuous))
                 
                 // Adaptive rich surface tint
                 RoundedRectangle(cornerRadius: 14, style: .continuous)

@@ -44,15 +44,17 @@ private struct PlayerGlassBlur: NSViewRepresentable {
 /// mixed in so white controls stay readable: low over video, higher over arbitrary app content.
 struct PlayerGlassBackground: View {
     var cornerRadius: CGFloat = 16
-    var tint: Double = 0.14
+    var tint: Double = 0.10
     
     var body: some View {
         let shape = RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
         if #available(macOS 26.0, *) {
+            // Regular glass = full frosted blur; pinned to the dark variant so white controls read
             Color.clear
-                .glassEffect(.clear.tint(Color.black.opacity(tint)), in: shape)
+                .glassEffect(.regular.tint(Color.black.opacity(tint)), in: shape)
+                .environment(\.colorScheme, .dark)
         } else {
-            PlayerGlassBlur(opacity: min(1.0, 0.3 + tint))
+            PlayerGlassBlur(opacity: min(1.0, 0.6 + tint))
                 .clipShape(shape)
                 .overlay(shape.strokeBorder(Color.white.opacity(0.18), lineWidth: 0.75))
         }
@@ -99,14 +101,15 @@ public struct PlayerControlOverlay: View {
                 VStack(spacing: isCompact ? 6 : 8) {
                     // 1. Scrubber Timeline Bar (Thanh tua với các phân đoạn)
                     scrubberBar
-                        .padding(.horizontal, isCompact ? 10 : 16)
+                        .padding(.horizontal, isCompact ? 8 : 14)
                     
                     // 2. Control Buttons, Chapter title & Time Display
                     controlButtonsRow(isCompact: isCompact)
-                        .padding(.horizontal, isCompact ? 10 : 18)
+                        .padding(.horizontal, isCompact ? 8 : 12)
                         .padding(.bottom, 8)
                 }
                 .padding(.top, 10)
+                .frame(width: max(0, geo.size.width - barInset * 2))
                 .background(PlayerGlassBackground())
                 .padding(.horizontal, barInset)
                 .padding(.bottom, barInset)

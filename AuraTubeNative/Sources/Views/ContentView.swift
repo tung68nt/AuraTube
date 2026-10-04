@@ -2344,7 +2344,7 @@ struct MiniPlayerPiPOverlay: View {
         }
         .frame(width: pipWidth)
         // Glass card: the toolbar under the video blurs the app content behind the mini player
-        .background(PlayerGlassBackground(cornerRadius: 14, tint: 0.42))
+        .background(PlayerGlassBackground(cornerRadius: 14, tint: 0.22))
         .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
         .overlay(
             RoundedRectangle(cornerRadius: 14, style: .continuous)
