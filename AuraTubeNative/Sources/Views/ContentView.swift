@@ -2123,6 +2123,9 @@ struct MiniPlayerPiPOverlay: View {
                     .frame(width: pipWidth, height: videoHeight)
                     .background(Color.black)
                 
+                PlayerHandoffCover()
+                    .frame(width: pipWidth, height: videoHeight)
+                
                 // Double tap gestures for seeking left/right + single tap for play/pause
                 HStack(spacing: 0) {
                     Color.black.opacity(0.001)

@@ -2179,6 +2179,7 @@ public struct NativePlayerView: NSViewRepresentable {
                     if let playing = isPlaying, playing && currentTime > 0.05 {
                         self.isActuallyPlaying = true
                         self.didClickAutoPlay = true
+                        PlayerManager.shared.markFirstFramePlaying()
                     }
                     
                     PlayerManager.shared.updatePlaybackSync(

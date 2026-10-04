@@ -83,23 +83,37 @@ struct PlayerGlassBackground: View {
     }
 }
 
-/// Soft poster shown over the player while the video changes windows: the video's own
-/// thumbnail, blurred, so the moment reads as a transition instead of a black flash.
+/// Poster shown over the player whenever it has nothing to draw yet, so the frame is never
+/// black: the video's own thumbnail with a spinner while a newly chosen video loads, and the
+/// same thumbnail (no spinner) for the instant the video changes windows.
 struct PlayerHandoffCover: View {
     @ObservedObject private var playerManager = PlayerManager.shared
     
     var body: some View {
-        if playerManager.isHandoffCoverVisible, let video = playerManager.currentVideo {
+        let isLoading = playerManager.isAwaitingFirstFrame
+        if isLoading || playerManager.isHandoffCoverVisible, let video = playerManager.currentVideo {
             GeometryReader { geo in
-                CachedAsyncThumbnail(
-                    url: video.thumbnail,
-                    maxPixelSize: 640,
-                    contentMode: .fill,
-                    placeholderColor: .black
-                )
-                .frame(width: geo.size.width, height: geo.size.height)
-                .blur(radius: 14)
-                .clipped()
+                ZStack {
+                    CachedAsyncThumbnail(
+                        url: video.thumbnail,
+                        maxPixelSize: 640,
+                        contentMode: .fill,
+                        placeholderColor: .black
+                    )
+                    .frame(width: geo.size.width, height: geo.size.height)
+                    // The thumbnail is far smaller than the player: a soft blur hides the upscaling
+                    .blur(radius: isLoading ? 8 : 14)
+                    .clipped()
+                    
+                    if isLoading {
+                        Color.black.opacity(0.18)
+                        ProgressView()
+                            .controlSize(.regular)
+                            .colorScheme(.dark)
+                            .frame(width: 58, height: 58)
+                            .background(Circle().fill(Color.black.opacity(0.28)))
+                    }
+                }
             }
             .background(Color.black)
             .allowsHitTesting(false)

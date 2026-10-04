@@ -171,6 +171,28 @@ public final class PlayerManager: ObservableObject {
     /// a soft poster over the player then, so the frame or two WebKit needs to draw in its new
     /// window never shows as black.
     @Published public var isHandoffCoverVisible: Bool = false
+    
+    /// True from the moment a video is chosen until its first frame is playing. The player
+    /// shows the video's poster with a spinner meanwhile instead of a black frame.
+    @Published public var isAwaitingFirstFrame: Bool = false
+    private var firstFrameTimeoutWork: DispatchWorkItem?
+    
+    private func beginAwaitingFirstFrame() {
+        firstFrameTimeoutWork?.cancel()
+        isAwaitingFirstFrame = true
+        // Never leave the poster up forever if the player fails to report
+        let work = DispatchWorkItem { [weak self] in self?.markFirstFramePlaying() }
+        firstFrameTimeoutWork = work
+        DispatchQueue.main.asyncAfter(deadline: .now() + 10, execute: work)
+    }
+    
+    public func markFirstFramePlaying() {
+        guard isAwaitingFirstFrame else { return }
+        firstFrameTimeoutWork?.cancel()
+        withAnimation(.easeOut(duration: 0.22)) {
+            isAwaitingFirstFrame = false
+        }
+    }
     private var handoffCoverWork: DispatchWorkItem?
     
     public func showHandoffCover(for duration: TimeInterval = 0.38) {
@@ -490,6 +512,7 @@ public final class PlayerManager: ObservableObject {
                     "quality": self.currentQuality,
                     "selectedQuality": self.selectedQuality,
                     "isBuffering": self.isBuffering,
+                    "awaitingFirstFrame": self.isAwaitingFirstFrame,
                     "pip": self.isPictureInPictureActive
                 ]
                 if let data = try? JSONSerialization.data(withJSONObject: state) {
@@ -761,6 +784,7 @@ public final class PlayerManager: ObservableObject {
         self.currentQuality = self.resolvedOptimalQuality
         self.availableQualities = []
         self.hasRecordedCompletionSignal = false
+        self.beginAwaitingFirstFrame()
         self.hasHandledPlaybackEnd = false
         self.lastAppliedAutoCap = nil
         self.sessionStartPosition = effectiveStartTime

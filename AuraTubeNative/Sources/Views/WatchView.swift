@@ -1245,6 +1245,9 @@ struct WatchPlayerContainerView: View {
                 NativePlayerView(cornerRadius: 24)
                     .frame(width: playerWidth, height: playerHeight)
                 
+                PlayerHandoffCover()
+                    .frame(width: playerWidth, height: playerHeight)
+                
                 // Click to play/pause, double click for fullscreen
                 Color.black.opacity(0.001)
                     .contentShape(Rectangle())
@@ -1401,7 +1404,7 @@ struct WatchPlayerContainerView: View {
     // MARK: - Center Play / Pause & Buffering Recovery Indicator
     private var centerPlayPauseOverlay: some View {
         Group {
-            if playerManager.showBufferingIndicator {
+            if playerManager.showBufferingIndicator && !playerManager.isAwaitingFirstFrame {
                 VStack(spacing: 10) {
                     ProgressView()
                         .controlSize(.regular)
