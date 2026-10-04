@@ -704,7 +704,7 @@ public struct SettingsSheetView: View {
                         .padding(.horizontal, 10)
                         .padding(.vertical, 5)
                         .background(isDark ? Color.white.opacity(0.10) : Color.black.opacity(0.06))
-                        .cornerRadius(6)
+                        .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
                     }
                     .buttonStyle(.plain)
                     .disabled(speedService.isTesting)

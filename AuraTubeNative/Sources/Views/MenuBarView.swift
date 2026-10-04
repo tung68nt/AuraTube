@@ -212,7 +212,7 @@ public struct MenuBarView: View {
                                 .transition(.scale(scale: 1.15).combined(with: .opacity))
                             }
                         }
-                        .contentShape(RoundedRectangle(cornerRadius: 10))
+                        .contentShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
                     }
                     .buttonStyle(.plain)
                     .onHover { hovering in

@@ -291,9 +291,9 @@ public struct PlayerControlOverlay: View {
                         .padding(.horizontal, 8)
                         .padding(.vertical, 4)
                         .background(Color.black.opacity(0.88))
-                        .cornerRadius(5)
+                        .clipShape(RoundedRectangle(cornerRadius: 5, style: .continuous))
                         .overlay(
-                            RoundedRectangle(cornerRadius: 5)
+                            RoundedRectangle(cornerRadius: 5, style: .continuous)
                                 .stroke(Color.white.opacity(0.2), lineWidth: 0.8)
                         )
                         .shadow(color: .black.opacity(0.4), radius: 3, y: 1)

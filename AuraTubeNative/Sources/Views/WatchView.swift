@@ -405,7 +405,7 @@ public struct WatchView: View {
                                                 .padding(.horizontal, 7)
                                                 .padding(.vertical, 3.5)
                                                 .background(ThemeColor.buttonBackground(for: colorScheme, isHovered: false))
-                                                .cornerRadius(6)
+                                                .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
                                             }
                                             .menuStyle(BorderlessButtonMenuStyle())
                                         }
@@ -542,7 +542,7 @@ public struct WatchView: View {
                                             .padding(.horizontal, 16)
                                             .padding(.vertical, 8)
                                             .background(ThemeColor.buttonBackground(for: colorScheme, isHovered: false))
-                                            .cornerRadius(8)
+                                            .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
                                         }
                                         .buttonStyle(.plain)
                                         .frame(maxWidth: .infinity, alignment: .center)
@@ -586,9 +586,9 @@ public struct WatchView: View {
                                         }
                                         .frame(width: 156, height: 88)
                                         .clipped()
-                                        .cornerRadius(10)
+                                        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
                                         .overlay(
-                                            RoundedRectangle(cornerRadius: 10)
+                                            RoundedRectangle(cornerRadius: 10, style: .continuous)
                                                 .strokeBorder(
                                                     LinearGradient(
                                                         colors: colorScheme == .dark
@@ -614,7 +614,7 @@ public struct WatchView: View {
                                                 }
                                             }
                                             .frame(width: 156, height: 88)
-                                            .cornerRadius(10)
+                                            .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
                                             .allowsHitTesting(false)
                                         }
                                         
@@ -630,7 +630,7 @@ public struct WatchView: View {
                                         .padding(.horizontal, 4)
                                         .padding(.vertical, 2)
                                         .background(Color.black.opacity(0.85))
-                                        .cornerRadius(4)
+                                        .clipShape(RoundedRectangle(cornerRadius: 4, style: .continuous))
                                         .foregroundColor(.white)
                                         .padding(4)
                                     }
@@ -1228,7 +1228,7 @@ struct WatchPlayerContainerView: View {
             RoundedRectangle(cornerRadius: 24, style: .continuous)
                 .stroke(Color.white.opacity(0.12), lineWidth: 1)
         )
-        .shadow(color: .black.opacity(0.35), radius: 16, y: 6)
+        .background(RoundedRectangle(cornerRadius: 24, style: .continuous).fill(Color.black).shadow(color: .black.opacity(0.35), radius: 16, y: 6))
     }
     
     // MARK: - Vertical Player (Strict 9:16 Centered Card, No Horizontal Zoom Fit)
@@ -1314,7 +1314,7 @@ struct WatchPlayerContainerView: View {
                 RoundedRectangle(cornerRadius: 24, style: .continuous)
                     .stroke(Color.white.opacity(0.14), lineWidth: 1)
             )
-            .shadow(color: .black.opacity(0.45), radius: 18, y: 6)
+            .background(RoundedRectangle(cornerRadius: 24, style: .continuous).fill(Color.black).shadow(color: .black.opacity(0.45), radius: 18, y: 6))
             
             Spacer(minLength: 0)
         }
@@ -1395,7 +1395,7 @@ struct WatchPlayerContainerView: View {
             RoundedRectangle(cornerRadius: 24, style: .continuous)
                 .stroke(Color.white.opacity(0.12), lineWidth: 1)
         )
-        .shadow(color: .black.opacity(0.35), radius: 16, y: 6)
+        .background(RoundedRectangle(cornerRadius: 24, style: .continuous).fill(Color.black).shadow(color: .black.opacity(0.35), radius: 16, y: 6))
     }
     
     // MARK: - Center Play / Pause & Buffering Recovery Indicator

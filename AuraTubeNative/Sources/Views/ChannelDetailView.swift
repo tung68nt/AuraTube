@@ -361,7 +361,7 @@ struct ChannelVideoCardView: View {
                         .padding(.horizontal, 5)
                         .padding(.vertical, 2.5)
                         .background(Color.black.opacity(0.85))
-                        .cornerRadius(4)
+                        .clipShape(RoundedRectangle(cornerRadius: 4, style: .continuous))
                         .foregroundColor(.white)
                         .padding(6)
                 }

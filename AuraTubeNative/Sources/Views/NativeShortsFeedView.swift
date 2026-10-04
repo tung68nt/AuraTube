@@ -2326,7 +2326,7 @@ struct ShortsCommentsDrawer: View {
                         .padding(.horizontal, 8)
                         .padding(.vertical, 4)
                         .background(colorScheme == .dark ? Color(white: 0.2) : Color.black.opacity(0.06))
-                        .cornerRadius(6)
+                        .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
                     }
                     .menuStyle(BorderlessButtonMenuStyle())
                 }
@@ -2432,7 +2432,7 @@ struct ShortsCommentsDrawer: View {
                                 .frame(maxWidth: .infinity)
                                 .padding(.vertical, 8)
                                 .background(colorScheme == .dark ? Color(white: 0.16) : Color.black.opacity(0.06))
-                                .cornerRadius(8)
+                                .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
                             }
                             .buttonStyle(.plain)
                             .padding(.horizontal, 16)

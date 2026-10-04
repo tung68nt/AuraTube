@@ -126,6 +126,24 @@ public extension View {
     }
 }
 
+/// Groups nearby glass elements so the system renders them in one pass (cheaper while they
+/// scroll, and they blend with each other correctly). Plain pass-through before macOS 26.
+public struct GlassGroup<Content: View>: View {
+    @ViewBuilder public let content: () -> Content
+    
+    public init(@ViewBuilder content: @escaping () -> Content) {
+        self.content = content
+    }
+    
+    public var body: some View {
+        if #available(macOS 26.0, *) {
+            GlassEffectContainer { content() }
+        } else {
+            content()
+        }
+    }
+}
+
 // MARK: - Shared Glass Gloss
 /// The gloss every glass surface in the app shares, so they all read as the same material:
 /// a sheen across the upper half and a specular rim that is bright at the top-left, fades

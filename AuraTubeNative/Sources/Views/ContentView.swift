@@ -1120,7 +1120,7 @@ public struct ContentView: View {
                                 .padding(.horizontal, 14)
                                 .padding(.vertical, 6)
                                 .background(
-                                    RoundedRectangle(cornerRadius: 8)
+                                    RoundedRectangle(cornerRadius: 8, style: .continuous)
                                         .fill(vm.selectedChannel?.id == channel.id ? ThemeColor.sidebarHover(for: colorScheme) : Color.clear)
                                 )
                             }
@@ -1659,7 +1659,7 @@ struct DownloadListView: View {
                             .padding(.horizontal, 12)
                             .padding(.vertical, 6)
                             .background(Color.white.opacity(0.06))
-                            .cornerRadius(8)
+                            .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
                             .foregroundColor(ThemeColor.textSecondary(for: colorScheme))
                         }
                         .buttonStyle(.plain)
@@ -1674,8 +1674,8 @@ struct DownloadListView: View {
                         .padding(.horizontal, 14)
                         .padding(.vertical, 6)
                         .background(ThemeColor.buttonBackground(for: colorScheme, isHovered: false))
-                        .cornerRadius(8)
-                        .overlay(RoundedRectangle(cornerRadius: 8).strokeBorder(ThemeColor.buttonBorder(for: colorScheme, isHovered: false), lineWidth: 0.75))
+                        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                        .overlay(RoundedRectangle(cornerRadius: 8, style: .continuous).strokeBorder(ThemeColor.buttonBorder(for: colorScheme, isHovered: false), lineWidth: 0.75))
                         .foregroundColor(ThemeColor.textPrimary(for: colorScheme))
                     }
                     .buttonStyle(.plain)
@@ -1724,7 +1724,7 @@ struct DownloadRowCard: View {
             ZStack {
                 CachedAsyncThumbnail(url: item.thumbnail, maxPixelSize: 192, placeholderColor: Color(white: 0.15))
                 .frame(width: 96, height: 54)
-                .cornerRadius(6)
+                .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
                 .clipped()
                 
                 if item.isAudioOnly {
@@ -1753,7 +1753,7 @@ struct DownloadRowCard: View {
                         .padding(.horizontal, 7)
                         .padding(.vertical, 2)
                         .background(Color.white.opacity(0.08))
-                        .cornerRadius(4)
+                        .clipShape(RoundedRectangle(cornerRadius: 4, style: .continuous))
                         .foregroundColor(ThemeColor.textSecondary(for: colorScheme))
                 }
                 
@@ -1761,9 +1761,9 @@ struct DownloadRowCard: View {
                 if !item.isComplete && !item.isError {
                     GeometryReader { geo in
                         ZStack(alignment: .leading) {
-                            RoundedRectangle(cornerRadius: 3)
+                            RoundedRectangle(cornerRadius: 3, style: .continuous)
                                 .fill(Color.white.opacity(0.08))
-                            RoundedRectangle(cornerRadius: 3)
+                            RoundedRectangle(cornerRadius: 3, style: .continuous)
                                 .fill(LinearGradient(colors: [Color(red: 0.1, green: 0.6, blue: 1.0), Color(red: 0.4, green: 0.85, blue: 1.0)], startPoint: .leading, endPoint: .trailing))
                                 .frame(width: max(4, geo.size.width * CGFloat(min(1.0, max(0.0, item.progress)))))
                                 .animation(.linear(duration: 0.2), value: item.progress)
@@ -1823,7 +1823,7 @@ struct DownloadRowCard: View {
                         .padding(.horizontal, 10)
                         .padding(.vertical, 5)
                         .background(Color.white.opacity(0.08))
-                        .cornerRadius(6)
+                        .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
                         .foregroundColor(ThemeColor.textPrimary(for: colorScheme))
                     }
                     .buttonStyle(.plain)
@@ -1837,7 +1837,7 @@ struct DownloadRowCard: View {
                             .padding(.horizontal, 10)
                             .padding(.vertical, 5)
                             .background(Color.red.opacity(0.12))
-                            .cornerRadius(6)
+                            .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
                     }
                     .buttonStyle(.plain)
                 }
@@ -1857,11 +1857,11 @@ struct DownloadRowCard: View {
         }
         .padding(12)
         .background(
-            RoundedRectangle(cornerRadius: 10)
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
                 .fill(ThemeColor.cardBackground(for: colorScheme))
         )
         .overlay(
-            RoundedRectangle(cornerRadius: 10)
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
                 .strokeBorder(ThemeColor.cardBorder(for: colorScheme), lineWidth: 0.75)
         )
     }
@@ -1879,7 +1879,7 @@ struct FloatingDownloadHUD: View {
             ZStack {
                 CachedAsyncThumbnail(url: item.thumbnail, maxPixelSize: 108, placeholderColor: Color(white: 0.15))
                 .frame(width: 54, height: 36)
-                .cornerRadius(6)
+                .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
                 .clipped()
                 
                 if item.isAudioOnly {
@@ -1911,10 +1911,10 @@ struct FloatingDownloadHUD: View {
                 // Progress Bar
                 GeometryReader { geo in
                     ZStack(alignment: .leading) {
-                        RoundedRectangle(cornerRadius: 2.5)
+                        RoundedRectangle(cornerRadius: 2.5, style: .continuous)
                             .fill(Color.white.opacity(0.12))
                         
-                        RoundedRectangle(cornerRadius: 2.5)
+                        RoundedRectangle(cornerRadius: 2.5, style: .continuous)
                             .fill(
                                 item.isComplete ?
                                     LinearGradient(colors: [Color.green, Color(red: 0.2, green: 0.85, blue: 0.4)], startPoint: .leading, endPoint: .trailing) :
@@ -1990,9 +1990,9 @@ struct FloatingDownloadHUD: View {
         .padding(.horizontal, 12)
         .padding(.vertical, 10)
         .background(GlassPanelBackground(cornerRadius: 12))
-        .cornerRadius(12)
+        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
         .overlay(
-            RoundedRectangle(cornerRadius: 12)
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
                 .strokeBorder(ThemeColor.divider(for: colorScheme), lineWidth: 0.75)
         )
         .shadow(color: Color.black.opacity(colorScheme == .dark ? 0.4 : 0.15), radius: 16, x: 0, y: 8)
@@ -2463,7 +2463,7 @@ struct UpdateNotificationBanner: View {
                         .padding(.vertical, 1.5)
                         .background(Color.green.opacity(colorScheme == .dark ? 0.25 : 0.15))
                         .foregroundColor(colorScheme == .dark ? .green : Color(red: 0.1, green: 0.6, blue: 0.25))
-                        .cornerRadius(4)
+                        .clipShape(RoundedRectangle(cornerRadius: 4, style: .continuous))
                 }
                 
                 Text("Vui lòng cập nhật ngay để khắc phục triệt để lỗi âm thanh và tận hưởng trải nghiệm mượt mà nhất.")
@@ -2505,7 +2505,7 @@ struct UpdateNotificationBanner: View {
         .padding(.vertical, 11)
         .liquidGlass(cornerRadius: 14, elevation: 6)
         .overlay(
-            RoundedRectangle(cornerRadius: 14)
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
                 .strokeBorder(ThemeColor.cardBorder(for: colorScheme), lineWidth: 0.75)
         )
         .frame(maxWidth: 780)

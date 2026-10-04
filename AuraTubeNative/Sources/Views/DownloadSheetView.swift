@@ -401,7 +401,7 @@ public struct DownloadSheetView: View {
                     .padding(8)
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .background(Color.red.opacity(isDark ? 0.15 : 0.08))
-                    .cornerRadius(6)
+                    .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
             }
             
             // Action Buttons
