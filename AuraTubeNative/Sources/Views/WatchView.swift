@@ -1223,9 +1223,9 @@ struct WatchPlayerContainerView: View {
                     .aspectRatio(16/9, contentMode: .fit)
             }
         }
-        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
         .overlay(
-            RoundedRectangle(cornerRadius: 16, style: .continuous)
+            RoundedRectangle(cornerRadius: 24, style: .continuous)
                 .stroke(Color.white.opacity(0.12), lineWidth: 1)
         )
         .shadow(color: .black.opacity(0.35), radius: 16, y: 6)
@@ -1242,7 +1242,7 @@ struct WatchPlayerContainerView: View {
             
             ZStack(alignment: .bottom) {
                 // Centered 9:16 Video Player
-                NativePlayerView(cornerRadius: 16)
+                NativePlayerView(cornerRadius: 24)
                     .frame(width: playerWidth, height: playerHeight)
                 
                 // Click to play/pause, double click for fullscreen
@@ -1309,9 +1309,9 @@ struct WatchPlayerContainerView: View {
                 .animation(.easeInOut(duration: 0.18), value: vm.isControlsVisible)
             }
             .frame(width: playerWidth, height: playerHeight)
-            .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+            .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
             .overlay(
-                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                RoundedRectangle(cornerRadius: 24, style: .continuous)
                     .stroke(Color.white.opacity(0.14), lineWidth: 1)
             )
             .shadow(color: .black.opacity(0.45), radius: 18, y: 6)
@@ -1324,7 +1324,7 @@ struct WatchPlayerContainerView: View {
     // MARK: - Horizontal 16:9 Player
     private var horizontalPlayer: some View {
         ZStack(alignment: .bottom) {
-            NativePlayerView(cornerRadius: 16)
+            NativePlayerView(cornerRadius: 24)
             
             // Click to play/pause, double click for fullscreen
             Color.black.opacity(0.001)
@@ -1388,9 +1388,9 @@ struct WatchPlayerContainerView: View {
             }
         }
         .aspectRatio(16/9, contentMode: .fit)
-        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
         .overlay(
-            RoundedRectangle(cornerRadius: 16, style: .continuous)
+            RoundedRectangle(cornerRadius: 24, style: .continuous)
                 .stroke(Color.white.opacity(0.12), lineWidth: 1)
         )
         .shadow(color: .black.opacity(0.35), radius: 16, y: 6)

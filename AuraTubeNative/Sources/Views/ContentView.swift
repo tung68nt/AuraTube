@@ -2340,7 +2340,7 @@ struct MiniPlayerPiPOverlay: View {
             .padding(.horizontal, 10)
             .frame(height: 40)
                 }
-                .background(PlayerGlassBackground(cornerRadius: 11))
+                .background(PlayerGlassBackground(cornerRadius: 10))
                 .padding(8)
                 .transition(.identity)
                 }
@@ -2348,9 +2348,9 @@ struct MiniPlayerPiPOverlay: View {
         }
         .frame(width: pipWidth)
         .background(Color.black)
-        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
         .overlay(
-            RoundedRectangle(cornerRadius: 14, style: .continuous)
+            RoundedRectangle(cornerRadius: 18, style: .continuous)
                 .strokeBorder(
                     LinearGradient(
                         colors: [

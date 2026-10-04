@@ -228,7 +228,7 @@ public final class PiPWindowController: NSObject, ObservableObject, NSWindowDele
         
         let hostingView = NSHostingView(
             rootView: PiPFloatingContentView()
-                .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+                .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
                 .ignoresSafeArea()
                 .environment(\.controlActiveState, .key)
         )
@@ -730,7 +730,7 @@ public struct PiPFloatingContentView: View {
                 
                 // 1. Full-bleed edge-to-edge Native Video Player
                 if playerManager.isPictureInPictureActive {
-                    NativePlayerView(cornerRadius: 16)
+                    NativePlayerView(cornerRadius: 20)
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
                 }
                 
@@ -771,7 +771,7 @@ public struct PiPFloatingContentView: View {
                             .padding(.top, 8)
                             .padding(.bottom, 5)
                             .padding(.horizontal, 10)
-                            .background { if controlsVisible { PlayerGlassBackground(cornerRadius: 13) } }
+                            .background { if controlsVisible { PlayerGlassBackground(cornerRadius: 12) } }
                             .padding(.bottom, 8)
                             .padding(.horizontal, 8)
                     }
@@ -814,9 +814,9 @@ public struct PiPFloatingContentView: View {
             }
             .frame(width: w, height: h)
         }
-        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
         .overlay(
-            RoundedRectangle(cornerRadius: 16, style: .continuous)
+            RoundedRectangle(cornerRadius: 20, style: .continuous)
                 .strokeBorder(Color.white.opacity(0.18), lineWidth: 1)
         )
         .onHover { hovering in
