@@ -797,7 +797,7 @@ public final class PlayerManager: ObservableObject {
     }
     
     private func setAspectRatio(_ value: Double) {
-        if abs(currentVideoAspectRatio - value) > 0.005 { currentVideoAspectRatio = value }
+        if abs(currentVideoAspectRatio - value) > 0.0005 { currentVideoAspectRatio = value }
     }
     
     // MARK: - Viewer Comments Loading (Streaming All Comments)

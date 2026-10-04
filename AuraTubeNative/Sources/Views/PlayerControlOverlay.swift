@@ -21,6 +21,21 @@ final class PlayerControlViewModel: ObservableObject {
     @Published var hoverX: CGFloat = 0
 }
 
+/// Dark vibrancy that samples whatever is rendered behind it in the window (including the
+/// video), so white controls stay readable on bright frames without a heavy black scrim.
+private struct ControlBarGlass: NSViewRepresentable {
+    func makeNSView(context: Context) -> NSVisualEffectView {
+        let view = NSVisualEffectView()
+        view.material = .hudWindow
+        view.blendingMode = .withinWindow
+        view.state = .active
+        view.appearance = NSAppearance(named: .vibrantDark)
+        return view
+    }
+    
+    func updateNSView(_ nsView: NSVisualEffectView, context: Context) {}
+}
+
 public struct PlayerControlOverlay: View {
     @ObservedObject private var playerManager = PlayerManager.shared
     @ObservedObject private var clock = PlaybackClock.shared
@@ -66,22 +81,28 @@ public struct PlayerControlOverlay: View {
                         .padding(.horizontal, isCompact ? 10 : 18)
                         .padding(.bottom, 8)
                 }
-                // Light scrim + soft shadow keeps the controls readable on bright frames
-                .shadow(color: .black.opacity(0.45), radius: 2.5, y: 0.5)
+                .padding(.top, 10)
+                .background(
+                    // Liquid-glass bar: blurs the video behind it instead of darkening it
+                    ControlBarGlass()
+                        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                                .strokeBorder(
+                                    LinearGradient(
+                                        colors: [Color.white.opacity(0.28), Color.white.opacity(0.06)],
+                                        startPoint: .top,
+                                        endPoint: .bottom
+                                    ),
+                                    lineWidth: 0.75
+                                )
+                        )
+                )
+                .padding(.horizontal, isCompact ? 6 : 10)
+                .padding(.bottom, isCompact ? 6 : 10)
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
             }
-            .frame(height: 68)
-            .background(
-                LinearGradient(
-                    stops: [
-                        .init(color: .clear, location: 0.0),
-                        .init(color: Color.black.opacity(0.18), location: 0.45),
-                        .init(color: Color.black.opacity(0.42), location: 1.0)
-                    ],
-                    startPoint: .top,
-                    endPoint: .bottom
-                )
-            )
+            .frame(height: 88)
         }
         .frame(maxWidth: .infinity)
     }

@@ -172,13 +172,10 @@ public final class PiPWindowController: NSObject, ObservableObject, NSWindowDele
             }
         }
         
-        // Start from main window video player's exact screen geometry if available for a 100% seamless transition
-        let startFrame: NSRect = {
-            if let frame = mainPlayerScreenFrame, frame.width > 200 && frame.height > 100 {
-                return frame
-            }
-            return targetFrame
-        }()
+        // The panel opens directly at its final frame. Morphing a window that hosts live video
+        // from the main player's size re-lays out the web view on every frame (janky) and could
+        // leave the panel stuck at an intermediate, oversized frame.
+        let startFrame = targetFrame
         
         let panel = PiPPanel(
             contentRect: startFrame,
@@ -236,46 +233,24 @@ public final class PiPWindowController: NSObject, ObservableObject, NSWindowDele
             return event
         }
         
-        let isAutoTriggered = PlayerManager.shared.wasAutoPiPTriggered
-        
-        if isAutoTriggered || startFrame == targetFrame {
-            // When automatically triggered on app switch, position directly at targetFrame
-            // Use orderFrontRegardless so it never steals key focus from the newly active app
-            panel.setFrame(targetFrame, display: true)
-            panel.alphaValue = 0.0
-            panel.orderFrontRegardless()
-            ScrollForwardingWKWebView.isTransitioning = false
-            if let swv = MainWebPlayerPool.shared.webView as? ScrollForwardingWKWebView {
-                swv.triggerRelayout()
-            }
-            NSAnimationContext.runAnimationGroup({ context in
-                context.duration = 0.20
-                context.timingFunction = CAMediaTimingFunction(controlPoints: 0.16, 1.0, 0.3, 1.0)
-                panel.animator().alphaValue = 1.0
-            }, completionHandler: {
-                panel.invalidateShadow()
-            })
-        } else {
-            // Explicit user click inside app: smooth fluid animation from main player geometry
-            ScrollForwardingWKWebView.isTransitioning = true
-            panel.alphaValue = 1.0
-            panel.orderFrontRegardless()
-            
-            NSAnimationContext.runAnimationGroup({ context in
-                context.duration = 0.28
-                context.timingFunction = CAMediaTimingFunction(controlPoints: 0.16, 1.0, 0.3, 1.0)
-                context.allowsImplicitAnimation = true
-                panel.animator().setFrame(targetFrame, display: true)
-            }, completionHandler: {
-                panel.invalidateShadow()
-                DispatchQueue.main.async {
-                    ScrollForwardingWKWebView.isTransitioning = false
-                    if let swv = MainWebPlayerPool.shared.webView as? ScrollForwardingWKWebView {
-                        swv.triggerRelayout()
-                    }
-                }
-            })
+        // orderFrontRegardless never steals key focus from the app the user is working in
+        panel.alphaValue = 0.0
+        panel.orderFrontRegardless()
+        ScrollForwardingWKWebView.isTransitioning = false
+        hostingView.layoutSubtreeIfNeeded()
+        if let swv = MainWebPlayerPool.shared.webView as? ScrollForwardingWKWebView {
+            swv.triggerRelayout()
         }
+        NSAnimationContext.runAnimationGroup({ context in
+            context.duration = 0.20
+            context.timingFunction = CAMediaTimingFunction(controlPoints: 0.16, 1.0, 0.3, 1.0)
+            panel.animator().alphaValue = 1.0
+        }, completionHandler: {
+            if panel.frame.size != targetFrame.size {
+                panel.setFrame(targetFrame, display: true)
+            }
+            panel.invalidateShadow()
+        })
     }
     
     public func close() {

@@ -98,8 +98,33 @@ public final class ScrollForwardingWKWebView: WKWebView {
 // MARK: - Auto-resizing WebPlayerHostingView ensuring webView fills bounds 100% and syncs Retina scale
 public final class WebPlayerHostingView: NSView {
     public weak var hostedWebView: WKWebView?
+    private var lastCornerRadius: CGFloat = 0
+    private var lastMaskedCorners: CACornerMask = [.layerMinXMinYCorner, .layerMaxXMinYCorner, .layerMinXMaxYCorner, .layerMaxXMaxYCorner]
+    
+    /// Several hosts exist at once (watch page, fullscreen overlay, PiP panel) but there is one
+    /// shared web view. The PiP panel owns it while PiP is active, a main-window host otherwise.
+    /// Ownership must not depend on which SwiftUI view happened to re-render last.
+    private var isRightfulHost: Bool {
+        guard let win = window else { return true }
+        return (win is PiPPanel) == PlayerManager.shared.isPictureInPictureActive
+    }
+    
+    /// Takes the shared web view if this host should own it and the current owner should not.
+    private func claimWebViewIfNeeded() {
+        guard window != nil, isRightfulHost, let webView = MainWebPlayerPool.shared.webView else { return }
+        guard webView.superview !== self else { return }
+        if let owner = webView.superview as? WebPlayerHostingView, owner.window != nil, owner.isRightfulHost {
+            return
+        }
+        attach(webView: webView, cornerRadius: lastCornerRadius, maskedCorners: lastMaskedCorners)
+    }
     
     public func attach(webView: WKWebView, cornerRadius: CGFloat, maskedCorners: CACornerMask) {
+        lastCornerRadius = cornerRadius
+        lastMaskedCorners = maskedCorners
+        if webView.superview !== self && !isRightfulHost {
+            return
+        }
         if webView.superview !== self {
             webView.removeFromSuperview()
             addSubview(webView)
@@ -154,6 +179,7 @@ public final class WebPlayerHostingView: NSView {
     
     public override func layout() {
         super.layout()
+        claimWebViewIfNeeded()
         guard let wv = hostedWebView, wv.superview === self else { return }
         if bounds.width > 0 && bounds.height > 0 {
             if wv.frame != bounds {
@@ -178,6 +204,7 @@ public final class WebPlayerHostingView: NSView {
     
     public override func viewDidMoveToWindow() {
         super.viewDidMoveToWindow()
+        claimWebViewIfNeeded()
         guard let wv = hostedWebView, wv.superview === self else { return }
         if let win = window {
             let scale = win.backingScaleFactor
@@ -1655,10 +1682,26 @@ public struct NativePlayerView: NSViewRepresentable {
         setTimeout(checkAndReportQualities, 800);
 
         var lastDimKey = '';
+        // When the frame and the video differ by a hair (sub-pixel rounding of the container),
+        // "contain" leaves a 1–2px black strip on two sides. Fill the frame in that case and
+        // only letterbox for a real aspect-ratio difference.
+        function fitVideoToFrame(v) {
+            try {
+                var cw = v.clientWidth, ch = v.clientHeight;
+                if (!cw || !ch) return;
+                var frameRatio = cw / ch;
+                var videoRatio = v.videoWidth / v.videoHeight;
+                var fit = (Math.abs(frameRatio - videoRatio) / videoRatio < 0.025) ? 'cover' : 'contain';
+                if (v.style.getPropertyValue('object-fit') !== fit) {
+                    v.style.setProperty('object-fit', fit, 'important');
+                }
+            } catch(e) {}
+        }
         function reportVideoDimensions(force) {
             try {
                 var v = document.querySelector('video');
                 if (v && v.videoWidth > 0 && v.videoHeight > 0) {
+                    fitVideoToFrame(v);
                     var dimKey = v.videoWidth + 'x' + v.videoHeight;
                     if (!force && dimKey === lastDimKey) return;
                     lastDimKey = dimKey;
