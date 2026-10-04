@@ -83,6 +83,31 @@ struct PlayerGlassBackground: View {
     }
 }
 
+/// Soft poster shown over the player while the video changes windows: the video's own
+/// thumbnail, blurred, so the moment reads as a transition instead of a black flash.
+struct PlayerHandoffCover: View {
+    @ObservedObject private var playerManager = PlayerManager.shared
+    
+    var body: some View {
+        if playerManager.isHandoffCoverVisible, let video = playerManager.currentVideo {
+            GeometryReader { geo in
+                CachedAsyncThumbnail(
+                    url: video.thumbnail,
+                    maxPixelSize: 640,
+                    contentMode: .fill,
+                    placeholderColor: .black
+                )
+                .frame(width: geo.size.width, height: geo.size.height)
+                .blur(radius: 14)
+                .clipped()
+            }
+            .background(Color.black)
+            .allowsHitTesting(false)
+            .transition(.opacity)
+        }
+    }
+}
+
 /// Momentary feedback over the video (play/pause, seek, volume): the glyph in a glass disc,
 /// with the label beneath it on the video itself rather than inside a dark box.
 struct PlayerHUDBadge: View {

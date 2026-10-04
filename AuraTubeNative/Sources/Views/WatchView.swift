@@ -1326,6 +1326,8 @@ struct WatchPlayerContainerView: View {
         ZStack(alignment: .bottom) {
             NativePlayerView(cornerRadius: 24)
             
+            PlayerHandoffCover()
+            
             // Click to play/pause, double click for fullscreen
             Color.black.opacity(0.001)
                 .contentShape(Rectangle())

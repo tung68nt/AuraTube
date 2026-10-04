@@ -175,6 +175,21 @@ Không có test tự động. Tối thiểu phải thử:
 - Cuộn tới cuối trang chủ và cuối danh sách liên quan: tự tải thêm.
 - Tìm kiếm trả về kết quả.
 
+### Kiểm tra bằng script (không cần thao tác tay)
+
+App nhận lệnh qua `DistributedNotificationCenter`, dùng để đo và kiểm tra tự động:
+
+| Tên thông báo | Tác dụng |
+|---|---|
+| `app.auratube.testPlayVideo` | Phát video; `userInfo` gồm `videoId`, `title`, `uploader` |
+| `app.auratube.stop` | Đóng player |
+| `app.auratube.togglePiP` | Bật/thu PiP |
+| `app.auratube.dumpState` | Ghi trạng thái phát (video, thời gian, chất lượng, đang đệm, PiP) vào `$TMPDIR/auratube_state.json` |
+
+Ví dụ đo thời gian tới khung hình đầu: gửi `testPlayVideo`, rồi gửi `dumpState` liên tục và đọc file cho tới khi `currentTime` lớn hơn 0. Kích thước cửa sổ PiP đọc được bằng `CGWindowListCopyWindowInfo` (cửa sổ của AuraTube ở layer 3).
+
+Lưu ý: lệnh gửi khi AuraTube không phải app phía trước có thể cho kết quả khác thao tác thật, vì app không tự giành được vị trí phía trước (ví dụ thu PiP về sẽ bị bật PiP lại ngay).
+
 ## 7. Những điểm dễ gây lỗi trong code
 
 Đây là các bẫy đã từng gây lỗi thật. Đọc trước khi sửa player hoặc PiP.

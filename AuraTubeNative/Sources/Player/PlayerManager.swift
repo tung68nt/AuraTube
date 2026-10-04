@@ -159,6 +159,27 @@ public final class PlayerManager: ObservableObject {
     private var lastSavedPlaybackSyncTimestamp: TimeInterval = 0
     private var hasRecordedCompletionSignal: Bool = false
     private var hasHandledPlaybackEnd: Bool = false
+    /// Marker for "the web player is loaded but no video is playing" (kept warm after stop()).
+    static let idlePlayerVideoId = "__idle__"
+    private var idlePlayerSinceUptime: TimeInterval = 0
+    
+    /// True for a moment while the video moves between the main window and the PiP. Views show
+    /// a soft poster over the player then, so the frame or two WebKit needs to draw in its new
+    /// window never shows as black.
+    @Published public var isHandoffCoverVisible: Bool = false
+    private var handoffCoverWork: DispatchWorkItem?
+    
+    public func showHandoffCover(for duration: TimeInterval = 0.38) {
+        handoffCoverWork?.cancel()
+        isHandoffCoverVisible = true
+        let work = DispatchWorkItem { [weak self] in
+            withAnimation(.easeOut(duration: 0.18)) {
+                self?.isHandoffCoverVisible = false
+            }
+        }
+        handoffCoverWork = work
+        DispatchQueue.main.asyncAfter(deadline: .now() + duration, execute: work)
+    }
     private var sessionStartPosition: Double = 0
     private var lastProgressRecordUptime: TimeInterval = 0
     private var lastNowPlayingUptime: TimeInterval = 0
@@ -440,6 +461,40 @@ public final class PlayerManager: ObservableObject {
         }
         
         DistributedNotificationCenter.default().addObserver(
+            forName: NSNotification.Name("app.auratube.stop"),
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            Task { @MainActor in
+                self?.stop()
+            }
+        }
+        
+        // Writes the playback state to a file so playback can be checked from a script
+        DistributedNotificationCenter.default().addObserver(
+            forName: NSNotification.Name("app.auratube.dumpState"),
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            Task { @MainActor in
+                guard let self = self else { return }
+                let state: [String: Any] = [
+                    "videoId": self.currentVideo?.id ?? "",
+                    "isPlaying": self.isPlaying,
+                    "currentTime": self.currentTime,
+                    "duration": self.duration,
+                    "quality": self.currentQuality,
+                    "selectedQuality": self.selectedQuality,
+                    "isBuffering": self.isBuffering,
+                    "pip": self.isPictureInPictureActive
+                ]
+                if let data = try? JSONSerialization.data(withJSONObject: state) {
+                    try? data.write(to: URL(fileURLWithPath: NSTemporaryDirectory()).appendingPathComponent("auratube_state.json"))
+                }
+            }
+        }
+        
+        DistributedNotificationCenter.default().addObserver(
             forName: NSNotification.Name("app.auratube.togglePiP"),
             object: nil,
             queue: .main
@@ -629,6 +684,12 @@ public final class PlayerManager: ObservableObject {
     public func loadAndPlay(video: Video, quality: String = "1080", startTime: Double = 0) {
         // 0. Flush any pending playback position for the previous video
         flushSavedPlaybackPositions()
+        
+        // A warm player that has sat idle for over 30 minutes is rebuilt from scratch
+        if MainWebPlayerPool.shared.coordinator?.currentLoadedVideoId == Self.idlePlayerVideoId,
+           ProcessInfo.processInfo.systemUptime - idlePlayerSinceUptime > 1800 {
+            MainWebPlayerPool.shared.reset()
+        }
         
         // Quick abandon of the previous video = negative recommendation signal
         if let prev = currentVideo, prev.id != video.id, !prev.isShort, duration > 90 {
@@ -1140,7 +1201,10 @@ public final class PlayerManager: ObservableObject {
         player.pause()
         player.replaceCurrentItem(with: nil)
         
-        // 2. Shut down and clean Main WebKit Player (Iframe, Videos, Audios, and unload page)
+        // 2. Stop playback but keep the web player alive. Tearing the page down meant the next
+        // video had to boot the whole YouTube player again (1–2s); a warm player starts the next
+        // video with a single loadVideoById. A player idle for a long time is rebuilt instead
+        // (see loadAndPlay), since its session can go stale.
         if let mainWV = MainWebPlayerPool.shared.webView {
             let stopJS = """
             (function() {
@@ -1151,21 +1215,14 @@ public final class PlayerManager: ObservableObject {
                         ifr.contentWindow.postMessage(JSON.stringify({event: "command", func: "pauseVideo", args: []}), '*');
                         ifr.contentWindow.postMessage(JSON.stringify({event: "command", func: "stopVideo", args: []}), '*');
                     }
-                    var medias = document.querySelectorAll('video, audio');
-                    for (var i = 0; i < medias.length; i++) {
-                        medias[i].pause();
-                        medias[i].muted = true;
-                        medias[i].src = '';
-                        medias[i].load();
-                    }
                 } catch(e) {}
             })();
             """
             mainWV.evaluateJavaScript(stopJS, completionHandler: nil)
-            mainWV.stopLoading()
-            mainWV.loadHTMLString("<!DOCTYPE html><html><body style='background:#000;'></body></html>", baseURL: nil)
+            mainWV.removeFromSuperview()
+            MainWebPlayerPool.shared.coordinator?.currentLoadedVideoId = Self.idlePlayerVideoId
+            idlePlayerSinceUptime = ProcessInfo.processInfo.systemUptime
         }
-        MainWebPlayerPool.shared.reset()
         
         // 3. Terminate Mini Player Engine in MenuBar
         MiniPlayerEngine.shared.stop()

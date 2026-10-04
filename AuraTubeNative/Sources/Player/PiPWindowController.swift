@@ -241,6 +241,7 @@ public final class PiPWindowController: NSObject, ObservableObject, NSWindowDele
         
         self.pipWindow = panel
         self.isPiPHiddenKeepAudio = false
+        PlayerManager.shared.showHandoffCover(for: 0.45)
         PlayerManager.shared.reevaluateAndApplyOptimalQuality()
         
         // Register local key event monitor
@@ -398,6 +399,7 @@ public final class PiPWindowController: NSObject, ObservableObject, NSWindowDele
         let finish: () -> Void = { [weak self] in
             guard let self = self, self.pipWindow === panel else { return }
             self.isPiPHiddenKeepAudio = false
+            PlayerManager.shared.showHandoffCover()
             PlayerManager.shared.isPictureInPictureActive = false
             // Keep the panel over the player for 40ms while the main view re-attaches the web view
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.04) { [weak self] in
@@ -748,6 +750,8 @@ public struct PiPFloatingContentView: View {
                     NativePlayerView(cornerRadius: 20)
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
                 }
+                
+                PlayerHandoffCover()
                 
                 // 2. Interactive Control Overlay (Always resident to eliminate layer allocation and black frame flicker)
                 ZStack {
