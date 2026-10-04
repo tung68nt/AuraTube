@@ -133,10 +133,12 @@ public final class WebPlayerHostingView: NSView {
         
         self.wantsLayer = true
         self.layer?.cornerRadius = cornerRadius
+        self.layer?.cornerCurve = .continuous
         self.layer?.maskedCorners = maskedCorners
         self.layer?.masksToBounds = cornerRadius > 0
         
         webView.wantsLayer = true
+        webView.layer?.cornerCurve = .continuous
         webView.layer?.cornerRadius = cornerRadius
         webView.layer?.maskedCorners = maskedCorners
         webView.layer?.masksToBounds = cornerRadius > 0

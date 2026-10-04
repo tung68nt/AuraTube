@@ -84,6 +84,9 @@ struct PlayerGlassBackground: View {
 }
 
 public struct PlayerControlOverlay: View {
+    /// Corner radius of the player frame this bar sits in (see NativePlayerView(cornerRadius:)).
+    static let playerFrameCornerRadius: CGFloat = 16
+
     @ObservedObject private var playerManager = PlayerManager.shared
     @ObservedObject private var clock = PlaybackClock.shared
     @ObservedObject private var speedService = NetworkSpeedService.shared
@@ -117,8 +120,11 @@ public struct PlayerControlOverlay: View {
             
             GeometryReader { geo in
                 let isCompact = geo.size.width < 460 || playerManager.isCurrentVideoVertical
-                // Same gap to the left, right and bottom edges of the video
-                let barInset: CGFloat = isCompact ? 8 : 12
+                // Same gap to the left, right and bottom edges of the video. The bar's corners are
+                // concentric with the player frame's: inner radius = frame radius − gap, both
+                // continuous, so the band between the two curves has constant width.
+                let barInset: CGFloat = 8
+                let barRadius: CGFloat = max(4, Self.playerFrameCornerRadius - barInset)
                 
                 VStack(spacing: isCompact ? 6 : 8) {
                     // 1. Scrubber Timeline Bar (Thanh tua với các phân đoạn)
@@ -136,7 +142,7 @@ public struct PlayerControlOverlay: View {
                 .shadow(color: .black.opacity(0.45), radius: 0.6, y: 0.5)
                 .shadow(color: .black.opacity(0.25), radius: 3, y: 1)
                 .frame(width: max(0, geo.size.width - barInset * 2))
-                .background(PlayerGlassBackground())
+                .background(PlayerGlassBackground(cornerRadius: barRadius))
                 .padding(.horizontal, barInset)
                 .padding(.bottom, barInset)
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)

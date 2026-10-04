@@ -2340,7 +2340,7 @@ struct MiniPlayerPiPOverlay: View {
             .padding(.horizontal, 10)
             .frame(height: 40)
                 }
-                .background(PlayerGlassBackground(cornerRadius: 12))
+                .background(PlayerGlassBackground(cornerRadius: 6))
                 .padding(8)
                 .transition(.identity)
                 }
