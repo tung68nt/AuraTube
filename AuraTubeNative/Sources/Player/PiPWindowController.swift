@@ -241,6 +241,7 @@ public final class PiPWindowController: NSObject, ObservableObject, NSWindowDele
         
         self.pipWindow = panel
         self.isPiPHiddenKeepAudio = false
+        PlayerManager.shared.reevaluateAndApplyOptimalQuality()
         
         // Register local key event monitor
         self.eventMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
@@ -331,6 +332,7 @@ public final class PiPWindowController: NSObject, ObservableObject, NSWindowDele
         guard let panel = pipWindow, !isPiPHiddenKeepAudio else { return }
         isPiPHiddenKeepAudio = true
         lastHideTimestamp = ProcessInfo.processInfo.systemUptime
+        PlayerManager.shared.reevaluateAndApplyOptimalQuality()
         PiPOverlayState.shared.triggerHUD(icon: "headphones", text: "Đang phát âm thanh trong nền 🎧")
         
         // The panel stays on screen but fully transparent and click-through: ordering it out
@@ -352,6 +354,7 @@ public final class PiPWindowController: NSObject, ObservableObject, NSWindowDele
     public func unhidePiP() {
         guard let panel = pipWindow, isPiPHiddenKeepAudio else { return }
         isPiPHiddenKeepAudio = false
+        PlayerManager.shared.reevaluateAndApplyOptimalQuality()
         panel.ignoresMouseEvents = false
         panel.hasShadow = true
         panel.makeKeyAndOrderFront(nil)
@@ -408,21 +411,30 @@ public final class PiPWindowController: NSObject, ObservableObject, NSWindowDele
             }
         }
         
-        if let targetFrame = mainPlayerScreenFrame, targetFrame.width > 200 && targetFrame.height > 100 {
-            ScrollForwardingWKWebView.isTransitioning = true
-            panel.makeKeyAndOrderFront(nil)
-            panel.alphaValue = 1.0
-            NSAnimationContext.runAnimationGroup({ context in
-                context.duration = 0.32
-                context.timingFunction = CAMediaTimingFunction(controlPoints: 0.16, 1.0, 0.3, 1.0)
-                context.allowsImplicitAnimation = true
-                panel.animator().setFrame(targetFrame, display: true)
-            }, completionHandler: nil)
-            // Timed, not tied to the animation callback, so the hand-back always completes
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.34, execute: finish)
-        } else {
-            finish()
+        // Fade the panel out, then hand the video back. Resizing the panel up to the main
+        // player's frame re-laid out the playing video on every frame of the animation, which
+        // was the stutter on the way back.
+        ScrollForwardingWKWebView.isTransitioning = false
+        NSAnimationContext.runAnimationGroup({ context in
+            context.duration = 0.14
+            context.timingFunction = CAMediaTimingFunction(name: .easeOut)
+            panel.animator().alphaValue = 0.0
+        }, completionHandler: nil)
+        // Timed, not tied to the animation callback, so the hand-back always completes
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.15, execute: finish)
+    }
+    
+    /// Highest video resolution worth downloading for the PiP as it is right now: the panel's
+    /// pixel height rounded up to the next rung, and the minimum while the picture is hidden
+    /// (audio-only mode). Audio is a separate stream and is not affected.
+    public var usefulVideoHeight: Int {
+        if isPiPHiddenKeepAudio { return 144 }
+        guard let panel = pipWindow else { return 1080 }
+        let lines = min(panel.frame.width, panel.frame.height) * panel.backingScaleFactor
+        for rung in [360, 480, 720, 1080] where CGFloat(rung) >= lines * 0.95 {
+            return rung
         }
+        return 2160
     }
     
     public var currentWidth: CGFloat {
@@ -470,6 +482,7 @@ public final class PiPWindowController: NSObject, ObservableObject, NSWindowDele
         let newY = currentFrame.minY
         let newFrame = NSRect(x: newX, y: newY, width: targetWidth, height: targetHeight)
         panel.setFrame(newFrame, display: true, animate: true)
+        PlayerManager.shared.reevaluateAndApplyOptimalQuality()
         
         let label = targetHeight >= 540 ? "Lớn (560p dọc)" : (targetHeight >= 450 ? "Tiêu chuẩn (480p dọc)" : "Nhỏ (384p dọc)")
         PiPOverlayState.shared.triggerHUD(icon: "aspectratio", text: label)
@@ -490,6 +503,7 @@ public final class PiPWindowController: NSObject, ObservableObject, NSWindowDele
         let newY = currentFrame.minY
         let newFrame = NSRect(x: newX, y: newY, width: targetWidth, height: targetHeight)
         panel.setFrame(newFrame, display: true, animate: true)
+        PlayerManager.shared.reevaluateAndApplyOptimalQuality()
         
         let label = targetWidth >= 700 ? "Lớn (720p)" : (targetWidth >= 500 ? "Trung bình (540p)" : "Nhỏ (380p)")
         PiPOverlayState.shared.triggerHUD(icon: "aspectratio", text: label)
@@ -500,6 +514,7 @@ public final class PiPWindowController: NSObject, ObservableObject, NSWindowDele
     }
     
     public func windowDidEndLiveResize(_ notification: Notification) {
+        PlayerManager.shared.reevaluateAndApplyOptimalQuality()
         // Only a resize the user dragged is a new preferred size. The animated hand-back to the
         // main window also ends a "live resize" at the main player's width, and saving that
         // made every later PiP open at full player size.

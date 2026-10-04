@@ -60,7 +60,9 @@ public final class PlayerManager: ObservableObject {
     private var lastQualityDropTimestamp: TimeInterval = 0
     
     public var resolvedOptimalQuality: String {
-        NetworkSpeedService.shared.recommendedQuality(from: availableQualities, preferMax: preferMaxQuality)
+        let base = NetworkSpeedService.shared.recommendedQuality(from: availableQualities, preferMax: preferMaxQuality)
+        guard isPictureInPictureActive, let baseHeight = Int(base) else { return base }
+        return String(min(baseHeight, PiPWindowController.shared.usefulVideoHeight))
     }
     
     private var lastAppliedAutoCap: String?
@@ -170,6 +172,10 @@ public final class PlayerManager: ObservableObject {
                 PlaybackActivityManager.shared.ensurePlaybackActivity(reason: "AuraTube PiP Media Playback")
             } else if !isPlaying {
                 PlaybackActivityManager.shared.endPlaybackActivity()
+            }
+            // The quality ceiling follows the surface the video is shown on (small PiP vs main)
+            if isPictureInPictureActive != oldValue {
+                reevaluateAndApplyOptimalQuality()
             }
         }
     }
