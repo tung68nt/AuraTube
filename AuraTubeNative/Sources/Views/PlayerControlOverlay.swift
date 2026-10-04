@@ -57,6 +57,9 @@ struct PlayerGlassShape<S: InsettableShape>: View {
                 Color.clear
                     .glassEffect(.clear.tint(Color.black.opacity(tint)).interactive(), in: shape)
             }
+            // macOS draws glass flatter and more frosted in windows that are not active. Player
+            // chrome should look the same whether or not AuraTube is the frontmost app.
+            .environment(\.controlActiveState, .key)
         } else {
             PlayerGlassBlur(opacity: min(1.0, 0.45 + blur))
                 .clipShape(shape)
