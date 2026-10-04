@@ -40,10 +40,7 @@ public struct DownloadSheetView: View {
         }
         .padding(22)
         .frame(width: 460)
-        .background(liquidGlassBackground)
-        .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
-        .overlay(liquidGlassBorder)
-        .shadow(color: Color.black.opacity(isDark ? 0.42 : 0.16), radius: 26, y: 12)
+        .sheetSurface()
     }
     
     // MARK: - Header
@@ -597,17 +594,6 @@ public struct DownloadSheetView: View {
             }
             .buttonStyle(.plain)
         }
-    }
-    
-    // MARK: - Liquid Glass Background & Border
-    @ViewBuilder
-    private var liquidGlassBackground: some View {
-        GlassPanelBackground(cornerRadius: 18, behindWindow: true)
-    }
-    
-    @ViewBuilder
-    private var liquidGlassBorder: some View {
-        Color.clear.allowsHitTesting(false)
     }
     
     // MARK: - Format Button Helper

@@ -231,8 +231,7 @@ public struct OpenYouTubeURLSheet: View {
             .padding(22)
         }
         .frame(width: 480)
-        .background(GlassPanelBackground(cornerRadius: 18, behindWindow: true))
-        .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+        .sheetSurface()
         .onAppear {
             if urlText.isEmpty {
                 pasteFromClipboard()

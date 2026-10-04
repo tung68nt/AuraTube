@@ -40,9 +40,7 @@ public struct UpdateSheetView: View {
         }
         .padding(24)
         .frame(width: 540)
-        .background(GlassPanelBackground(cornerRadius: 18, behindWindow: true))
-        .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
-        .shadow(color: Color.black.opacity(isDark ? 0.42 : 0.16), radius: 26, y: 12)
+        .sheetSurface()
     }
     
     // MARK: - App Icon View

@@ -240,6 +240,34 @@ public struct GlassPanelBackground: View {
     }
 }
 
+// MARK: - Sheet Surface
+/// Surface for content presented with `.sheet`. On macOS 26+ the system sheet *is* the glass
+/// container (Apple's guidance: don't draw a second card inside it), so the content gets no
+/// background, border or shadow of its own and the sheet follows the content's size. A custom
+/// card inside the system sheet showed two nested borders whenever the content got shorter.
+/// Older systems keep the app's own glass card.
+public struct SheetSurfaceModifier: ViewModifier {
+    @Environment(\.colorScheme) private var colorScheme
+    public var cornerRadius: CGFloat = 18
+    
+    public func body(content: Content) -> some View {
+        if #available(macOS 26.0, *) {
+            content.presentationSizing(.fitted)
+        } else {
+            content
+                .background(GlassPanelBackground(cornerRadius: cornerRadius, behindWindow: true))
+                .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
+                .shadow(color: Color.black.opacity(colorScheme == .dark ? 0.42 : 0.16), radius: 26, y: 12)
+        }
+    }
+}
+
+public extension View {
+    func sheetSurface(cornerRadius: CGFloat = 18) -> some View {
+        modifier(SheetSurfaceModifier(cornerRadius: cornerRadius))
+    }
+}
+
 // MARK: - 2. Continuous Glass Container Modifier
 public struct LiquidGlassModifier: ViewModifier {
     @Environment(\.colorScheme) private var colorScheme
