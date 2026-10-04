@@ -45,7 +45,7 @@ private struct PlayerGlassBlur: NSViewRepresentable {
 /// is mixed in so white controls stay readable; `blur` adds a frosted layer under the glass.
 struct PlayerGlassShape<S: InsettableShape>: View {
     let shape: S
-    var tint: Double = 0.08
+    var tint: Double = 0.30
     var blur: Double = 0
     
     var body: some View {
@@ -71,7 +71,7 @@ struct PlayerGlassShape<S: InsettableShape>: View {
 /// Rounded glass panel for player chrome (control bar, mini player toolbar, PiP controls).
 struct PlayerGlassBackground: View {
     var cornerRadius: CGFloat = 16
-    var tint: Double = 0.08
+    var tint: Double = 0.30
     var blur: Double = 0
     
     var body: some View {
@@ -132,8 +132,9 @@ public struct PlayerControlOverlay: View {
                 }
                 .padding(.top, 10)
                 .environment(\.colorScheme, .dark)
-                // A hairline shadow keeps white glyphs crisp on bright frames
-                .shadow(color: .black.opacity(0.28), radius: 1, y: 0.5)
+                // Tight + soft shadow pair: glyph edges stay crisp over busy, bright frames
+                .shadow(color: .black.opacity(0.45), radius: 0.6, y: 0.5)
+                .shadow(color: .black.opacity(0.25), radius: 3, y: 1)
                 .frame(width: max(0, geo.size.width - barInset * 2))
                 .background(PlayerGlassBackground())
                 .padding(.horizontal, barInset)
