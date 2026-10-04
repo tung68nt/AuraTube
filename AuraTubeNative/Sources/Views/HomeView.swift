@@ -119,9 +119,11 @@ public struct HomeView: View {
     private let trendingTag = "Thịnh hành"
     private let followingTag = "Đang theo dõi"
     private let allTag = "Tất cả"
+    private let recentTag = "Mới tải lên gần đây"
+    private let newToYouTag = "Đề xuất mới"
     
     private var allTags: [String] {
-        var list = [trendingTag, allTag, followingTag]
+        var list = [trendingTag, allTag, recentTag, newToYouTag, followingTag]
         for t in recService.dynamicInterestTags {
             if !list.contains(t) && t != trendingTag {
                 list.append(t)
@@ -717,10 +719,31 @@ public struct HomeView: View {
                                     onSelectShort: { onSelectVideo($0) }
                                 )
                                 
-                                // 3. Remaining regular videos (16:9 grid)
-                                if !remainingVideos.isEmpty {
+                                // 3. Next rows, then a second Shorts shelf like YouTube's home
+                                let hasSecondShelf = shortVideos.count > 14 && remainingVideos.count > 12
+                                if hasSecondShelf {
                                     LazyVGrid(columns: columns, alignment: .leading, spacing: 28) {
-                                        ForEach(remainingVideos) { video in
+                                        ForEach(Array(remainingVideos.prefix(12))) { video in
+                                            VideoCardView(
+                                                video: video,
+                                                onSelect: { onSelectVideo(video) },
+                                                onSelectChannel: onSelectChannel
+                                            )
+                                        }
+                                    }
+                                    .padding(.horizontal, 24)
+                                    
+                                    HomeShortsShelfView(
+                                        shorts: Array(shortVideos.dropFirst(14).prefix(14)),
+                                        onSelectShort: { onSelectVideo($0) }
+                                    )
+                                }
+                                
+                                // 4. Remaining regular videos (16:9 grid)
+                                let tailVideos = hasSecondShelf ? Array(remainingVideos.dropFirst(12)) : remainingVideos
+                                if !tailVideos.isEmpty {
+                                    LazyVGrid(columns: columns, alignment: .leading, spacing: 28) {
+                                        ForEach(tailVideos) { video in
                                             VideoCardView(
                                                 video: video,
                                                 onSelect: { onSelectVideo(video) },
@@ -789,6 +812,10 @@ public struct HomeView: View {
             vm.isLoading = true
             if tag == allTag {
                 vm.videos = await RecommendationService.shared.fetchRecommendations()
+            } else if tag == recentTag {
+                vm.videos = await RecommendationService.shared.fetchRecommendations(filter: .recentlyUploaded)
+            } else if tag == newToYouTag {
+                vm.videos = await RecommendationService.shared.fetchRecommendations(filter: .newToYou)
             } else if tag == trendingTag {
                 let feed = await RecommendationService.shared.fetchVietnamTrendingFeed(forceRefresh: true)
                 vm.videos = feed.isEmpty ? await RecommendationService.shared.fetchRecommendations() : feed
