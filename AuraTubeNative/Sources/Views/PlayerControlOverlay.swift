@@ -555,21 +555,33 @@ public struct PlayerControlOverlay: View {
                 Button(action: {
                     playerManager.toggleAutoplay()
                 }) {
+                    // Compact switch in the bar's own language: solid white knob, track in the
+                    // scrubber's red when on and a faint white when off. The knob's glyph takes
+                    // the track colour, so on/off reads from colour as well as position.
                     ZStack(alignment: playerManager.isAutoplayEnabled ? .trailing : .leading) {
                         Capsule()
-                            .fill(Color.white.opacity(playerManager.isAutoplayEnabled ? 0.38 : 0.16))
-                            .overlay(Capsule().strokeBorder(Color.white.opacity(0.35), lineWidth: 0.5))
-                            .frame(width: 32, height: 16)
+                            .fill(
+                                playerManager.isAutoplayEnabled
+                                    ? Color(red: 1.0, green: 0.16, blue: 0.27)
+                                    : Color.white.opacity(0.24)
+                            )
+                            .frame(width: 34, height: 18)
                         
                         Circle()
-                            .fill(Color.white.opacity(playerManager.isAutoplayEnabled ? 1.0 : 0.6))
-                            .frame(width: 12, height: 12)
-                            .padding(.horizontal, 2)
+                            .fill(Color.white)
+                            .frame(width: 14, height: 14)
+                            .shadow(color: .black.opacity(0.25), radius: 1, y: 0.5)
                             .overlay(
                                 Image(systemName: playerManager.isAutoplayEnabled ? "play.fill" : "pause.fill")
-                                    .font(.system(size: 6, weight: .bold))
-                                    .foregroundColor(Color.black.opacity(0.55))
+                                    .font(.system(size: 6.5, weight: .black))
+                                    .foregroundColor(
+                                        playerManager.isAutoplayEnabled
+                                            ? Color(red: 1.0, green: 0.16, blue: 0.27)
+                                            : Color.black.opacity(0.45)
+                                    )
+                                    .offset(x: playerManager.isAutoplayEnabled ? 0.5 : 0)
                             )
+                            .padding(.horizontal, 2)
                     }
                     .animation(.easeInOut(duration: 0.18), value: playerManager.isAutoplayEnabled)
                 }
