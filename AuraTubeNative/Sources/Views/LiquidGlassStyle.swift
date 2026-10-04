@@ -113,10 +113,56 @@ public enum NativeGlass {
     }
 }
 
+// MARK: - Shared Glass Gloss
+/// The gloss every glass surface in the app shares, so they all read as the same material:
+/// a sheen across the upper half and a specular rim that is bright at the top-left, fades
+/// through the middle and returns faintly at the bottom-right.
+public struct GlassGloss<S: InsettableShape>: View {
+    public let shape: S
+    public var intensity: Double
+    
+    public init(shape: S, intensity: Double = 1.0) {
+        self.shape = shape
+        self.intensity = intensity
+    }
+    
+    public var body: some View {
+        ZStack {
+            shape
+                .fill(
+                    LinearGradient(
+                        stops: [
+                            .init(color: Color.white.opacity(0.20 * intensity), location: 0.0),
+                            .init(color: Color.white.opacity(0.05 * intensity), location: 0.38),
+                            .init(color: .clear, location: 0.62)
+                        ],
+                        startPoint: .top,
+                        endPoint: .bottom
+                    )
+                )
+            shape
+                .strokeBorder(
+                    LinearGradient(
+                        stops: [
+                            .init(color: Color.white.opacity(min(1, 0.70 * intensity)), location: 0.0),
+                            .init(color: Color.white.opacity(0.14 * intensity), location: 0.45),
+                            .init(color: Color.white.opacity(0.32 * intensity), location: 1.0)
+                        ],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    ),
+                    lineWidth: 1
+                )
+        }
+        .blendMode(.plusLighter)
+        .allowsHitTesting(false)
+    }
+}
+
 // MARK: - Native Liquid Glass Base
 /// The glass layer behind every Liquid Glass surface in the app: the system's Liquid Glass on
-/// macOS 26+, the frosted material it replaced on older systems.
-public struct NativeGlassFill<S: Shape>: View {
+/// macOS 26+ with the shared gloss, the frosted material it replaced on older systems.
+public struct NativeGlassFill<S: InsettableShape>: View {
     public let shape: S
     
     public init(shape: S) {
@@ -125,7 +171,10 @@ public struct NativeGlassFill<S: Shape>: View {
     
     public var body: some View {
         if #available(macOS 26.0, *) {
-            Color.clear.glassEffect(.regular, in: shape)
+            ZStack {
+                Color.clear.glassEffect(.regular.interactive(), in: shape)
+                GlassGloss(shape: shape, intensity: 0.8)
+            }
         } else {
             shape.fill(.ultraThinMaterial)
         }
@@ -950,15 +999,15 @@ public struct LiquidGlassMenuContainer<Content: View>: View {
             .padding(8)
             .background(
                 ZStack {
-                    VisualEffectBackground(material: .popover, blendingMode: .withinWindow)
+                    NativeGlassFill(shape: RoundedRectangle(cornerRadius: 14, style: .continuous))
                     
                     if isDark {
                         RoundedRectangle(cornerRadius: 14, style: .continuous)
                             .fill(
                                 LinearGradient(
                                     colors: [
-                                        Color(white: 0.12).opacity(0.85),
-                                        Color(white: 0.06).opacity(0.92)
+                                        Color(white: 0.12).opacity(NativeGlass.isAvailable ? 0.45 : 0.85),
+                                        Color(white: 0.06).opacity(NativeGlass.isAvailable ? 0.55 : 0.92)
                                     ],
                                     startPoint: .top,
                                     endPoint: .bottom
@@ -1549,8 +1598,8 @@ public struct PiPLiquidGlassSettingsCard: View {
         .frame(width: 304)
         .background(
             ZStack {
-                // 1. Ultra-thin hardware vibrancy
-                VisualEffectBackground(material: .popover, blendingMode: .withinWindow)
+                // 1. Glass base
+                NativeGlassFill(shape: RoundedRectangle(cornerRadius: 18, style: .continuous))
                 
                 // 2. Translucent Ambient Glass Tint
                 if isDark {
@@ -1558,8 +1607,8 @@ public struct PiPLiquidGlassSettingsCard: View {
                         .fill(
                             LinearGradient(
                                 colors: [
-                                    Color(red: 24/255, green: 26/255, blue: 34/255).opacity(0.86),
-                                    Color(red: 14/255, green: 16/255, blue: 22/255).opacity(0.92)
+                                    Color(red: 24/255, green: 26/255, blue: 34/255).opacity(NativeGlass.isAvailable ? 0.45 : 0.86),
+                                    Color(red: 14/255, green: 16/255, blue: 22/255).opacity(NativeGlass.isAvailable ? 0.55 : 0.92)
                                 ],
                                 startPoint: .topLeading,
                                 endPoint: .bottomTrailing

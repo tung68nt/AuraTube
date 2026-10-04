@@ -58,38 +58,7 @@ struct PlayerGlassShape<S: InsettableShape>: View {
                 Color.clear
                     .glassEffect(.clear.tint(Color.black.opacity(tint)).interactive(), in: shape)
                 
-                // Sheen: light caught by the upper half of the glass
-                shape
-                    .fill(
-                        LinearGradient(
-                            stops: [
-                                .init(color: Color.white.opacity(0.20), location: 0.0),
-                                .init(color: Color.white.opacity(0.05), location: 0.38),
-                                .init(color: .clear, location: 0.62)
-                            ],
-                            startPoint: .top,
-                            endPoint: .bottom
-                        )
-                    )
-                    .blendMode(.plusLighter)
-                    .allowsHitTesting(false)
-                
-                // Specular rim: bright along the top edge, a faint return of light at the bottom
-                shape
-                    .strokeBorder(
-                        LinearGradient(
-                            stops: [
-                                .init(color: Color.white.opacity(0.70), location: 0.0),
-                                .init(color: Color.white.opacity(0.14), location: 0.45),
-                                .init(color: Color.white.opacity(0.32), location: 1.0)
-                            ],
-                            startPoint: .topLeading,
-                            endPoint: .bottomTrailing
-                        ),
-                        lineWidth: 1
-                    )
-                    .blendMode(.plusLighter)
-                    .allowsHitTesting(false)
+                GlassGloss(shape: shape)
             }
             .shadow(color: Color.black.opacity(0.20), radius: 8, x: 0, y: 3)
         } else {
@@ -421,6 +390,7 @@ public struct PlayerControlOverlay: View {
                     .font(.system(size: isCompact ? 10.5 : 12, weight: .medium).monospacedDigit())
                     .foregroundColor(.white)
                     .lineLimit(1)
+                    .fixedSize()
                 Text("/")
                     .font(.system(size: isCompact ? 9.5 : 11, weight: .regular))
                     .foregroundColor(Color(white: 0.5))
@@ -429,6 +399,7 @@ public struct PlayerControlOverlay: View {
                     .font(.system(size: isCompact ? 10.5 : 12, weight: .medium).monospacedDigit())
                     .foregroundColor(Color(white: 0.7))
                     .lineLimit(1)
+                    .fixedSize()
                 
                 // Display Current Chapter Title next to time (like YouTube)
                 if !isCompact && !playerManager.isCurrentVideoVertical, let ch = playerManager.currentChapter {
@@ -442,11 +413,11 @@ public struct PlayerControlOverlay: View {
                         .foregroundColor(Color(white: 0.92))
                         .lineLimit(1)
                         .truncationMode(.tail)
-                        .frame(maxWidth: 240, alignment: .leading)
+                        .frame(minWidth: 0, maxWidth: 240, alignment: .leading)
+                        .layoutPriority(-1)
                 }
             }
             .lineLimit(1)
-            .fixedSize(horizontal: true, vertical: false)
             .padding(.leading, isCompact ? 0 : 2)
             
             Spacer(minLength: 4)
