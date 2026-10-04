@@ -21,19 +21,42 @@ final class PlayerControlViewModel: ObservableObject {
     @Published var hoverX: CGFloat = 0
 }
 
-/// Dark vibrancy that samples whatever is rendered behind it in the window (including the
-/// video), so white controls stay readable on bright frames without a heavy black scrim.
-private struct ControlBarGlass: NSViewRepresentable {
+/// Fallback glass for systems without Liquid Glass: a see-through blur of what is behind.
+private struct PlayerGlassBlur: NSViewRepresentable {
+    let opacity: CGFloat
+    
     func makeNSView(context: Context) -> NSVisualEffectView {
         let view = NSVisualEffectView()
         view.material = .hudWindow
         view.blendingMode = .withinWindow
         view.state = .active
         view.appearance = NSAppearance(named: .vibrantDark)
+        view.alphaValue = opacity
         return view
     }
     
-    func updateNSView(_ nsView: NSVisualEffectView, context: Context) {}
+    func updateNSView(_ nsView: NSVisualEffectView, context: Context) {
+        nsView.alphaValue = opacity
+    }
+}
+
+/// Glass surface for player chrome (control bar, mini player). `tint` is how much black is
+/// mixed in so white controls stay readable: low over video, higher over arbitrary app content.
+struct PlayerGlassBackground: View {
+    var cornerRadius: CGFloat = 16
+    var tint: Double = 0.14
+    
+    var body: some View {
+        let shape = RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+        if #available(macOS 26.0, *) {
+            Color.clear
+                .glassEffect(.clear.tint(Color.black.opacity(tint)), in: shape)
+        } else {
+            PlayerGlassBlur(opacity: min(1.0, 0.3 + tint))
+                .clipShape(shape)
+                .overlay(shape.strokeBorder(Color.white.opacity(0.18), lineWidth: 0.75))
+        }
+    }
 }
 
 public struct PlayerControlOverlay: View {
@@ -70,6 +93,8 @@ public struct PlayerControlOverlay: View {
             
             GeometryReader { geo in
                 let isCompact = geo.size.width < 460 || playerManager.isCurrentVideoVertical
+                // Same gap to the left, right and bottom edges of the video
+                let barInset: CGFloat = isCompact ? 8 : 12
                 
                 VStack(spacing: isCompact ? 6 : 8) {
                     // 1. Scrubber Timeline Bar (Thanh tua với các phân đoạn)
@@ -82,27 +107,12 @@ public struct PlayerControlOverlay: View {
                         .padding(.bottom, 8)
                 }
                 .padding(.top, 10)
-                .background(
-                    // Liquid-glass bar: blurs the video behind it instead of darkening it
-                    ControlBarGlass()
-                        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 16, style: .continuous)
-                                .strokeBorder(
-                                    LinearGradient(
-                                        colors: [Color.white.opacity(0.28), Color.white.opacity(0.06)],
-                                        startPoint: .top,
-                                        endPoint: .bottom
-                                    ),
-                                    lineWidth: 0.75
-                                )
-                        )
-                )
-                .padding(.horizontal, isCompact ? 6 : 10)
-                .padding(.bottom, isCompact ? 6 : 10)
+                .background(PlayerGlassBackground())
+                .padding(.horizontal, barInset)
+                .padding(.bottom, barInset)
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
             }
-            .frame(height: 88)
+            .frame(height: 108)
         }
         .frame(maxWidth: .infinity)
     }
@@ -454,16 +464,19 @@ public struct PlayerControlOverlay: View {
                     Text(displayQualityBadge(isCompact: isCompact))
                         .font(.system(size: isCompact ? 10 : 11, weight: .bold))
                         .foregroundColor(.white)
-                    Image(systemName: "chevron.up.chevron.down")
-                        .font(.system(size: isCompact ? 6 : 7, weight: .semibold))
-                        .foregroundColor(Color(white: 0.7))
+                    Image(systemName: "chevron.down")
+                        .font(.system(size: isCompact ? 7 : 8, weight: .bold))
+                        .foregroundColor(.white.opacity(0.85))
                 }
                 .padding(.horizontal, isCompact ? 5 : 7)
                 .padding(.vertical, isCompact ? 3 : 3.5)
                 .background(Color.white.opacity(0.18))
-                .cornerRadius(4)
+                .clipShape(Capsule())
+                .contentShape(Capsule())
             }
-            .menuStyle(.borderlessButton)
+            .menuStyle(.button)
+            .buttonStyle(.plain)
+            .menuIndicator(.hidden)
             .fixedSize()
             .help("Chọn độ phân giải video")
             
@@ -484,16 +497,19 @@ public struct PlayerControlOverlay: View {
                     Text(displaySpeedBadge)
                         .font(.system(size: isCompact ? 10 : 11, weight: .bold))
                         .foregroundColor(.white)
-                    Image(systemName: "chevron.up.chevron.down")
-                        .font(.system(size: isCompact ? 6 : 7, weight: .semibold))
-                        .foregroundColor(Color(white: 0.7))
+                    Image(systemName: "chevron.down")
+                        .font(.system(size: isCompact ? 7 : 8, weight: .bold))
+                        .foregroundColor(.white.opacity(0.85))
                 }
                 .padding(.horizontal, isCompact ? 5 : 7)
                 .padding(.vertical, isCompact ? 3 : 3.5)
                 .background(Color.white.opacity(0.18))
-                .cornerRadius(4)
+                .clipShape(Capsule())
+                .contentShape(Capsule())
             }
-            .menuStyle(.borderlessButton)
+            .menuStyle(.button)
+            .buttonStyle(.plain)
+            .menuIndicator(.hidden)
             .fixedSize()
             .help("Tốc độ phát video (Shift + < / >)")
             

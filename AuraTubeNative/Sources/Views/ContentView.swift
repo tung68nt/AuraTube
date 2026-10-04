@@ -2261,9 +2261,10 @@ struct MiniPlayerPiPOverlay: View {
                         .lineLimit(1)
                     Text(video.uploader)
                         .font(.system(size: 10.5))
-                        .foregroundColor(Color(white: 0.72))
+                        .foregroundColor(Color.white.opacity(0.78))
                         .lineLimit(1)
                 }
+                .shadow(color: .black.opacity(0.35), radius: 1.5, y: 0.5)
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .contentShape(Rectangle())
                 .onTapGesture {
@@ -2279,7 +2280,8 @@ struct MiniPlayerPiPOverlay: View {
                         .font(.system(size: 11.5, weight: .semibold))
                         .foregroundColor(Color.white.opacity(0.85))
                         .frame(width: 26, height: 26)
-                        .background(Circle().fill(Color.white.opacity(0.08)))
+                        .background(Circle().fill(Color.white.opacity(0.14)))
+                        .overlay(Circle().strokeBorder(Color.white.opacity(0.22), lineWidth: 0.5))
                 }
                 .buttonStyle(.plain)
                 .help("Lùi 10 giây (← / J)")
@@ -2294,7 +2296,9 @@ struct MiniPlayerPiPOverlay: View {
                 }) {
                     ZStack {
                         Circle()
-                            .fill(Color.white.opacity(0.20))
+                            .fill(Color.white.opacity(0.26))
+                        Circle()
+                            .strokeBorder(Color.white.opacity(0.35), lineWidth: 0.5)
                         Image(systemName: playerManager.isPlaying ? "pause.fill" : "play.fill")
                             .font(.system(size: 11.5, weight: .bold))
                             .foregroundColor(.white)
@@ -2313,7 +2317,8 @@ struct MiniPlayerPiPOverlay: View {
                         .font(.system(size: 11.5, weight: .semibold))
                         .foregroundColor(Color.white.opacity(0.85))
                         .frame(width: 26, height: 26)
-                        .background(Circle().fill(Color.white.opacity(0.08)))
+                        .background(Circle().fill(Color.white.opacity(0.14)))
+                        .overlay(Circle().strokeBorder(Color.white.opacity(0.22), lineWidth: 0.5))
                 }
                 .buttonStyle(.plain)
                 .help("Tua tiếp 10 giây (→ / L)")
@@ -2322,7 +2327,9 @@ struct MiniPlayerPiPOverlay: View {
                 Button(action: onClose) {
                     ZStack {
                         Circle()
-                            .fill(Color.white.opacity(0.08))
+                            .fill(Color.white.opacity(0.14))
+                        Circle()
+                            .strokeBorder(Color.white.opacity(0.22), lineWidth: 0.5)
                         Image(systemName: "xmark")
                             .font(.system(size: 10, weight: .semibold))
                             .foregroundColor(Color.white.opacity(0.85))
@@ -2332,15 +2339,12 @@ struct MiniPlayerPiPOverlay: View {
                 .buttonStyle(.plain)
                 .help("Đóng phát")
             }
-            .padding(.horizontal, 10)
-            .frame(width: pipWidth, height: 50)
-            .background(Color(red: 0.11, green: 0.11, blue: 0.13))
+            .padding(.horizontal, 12)
+            .frame(width: pipWidth, height: 52)
         }
         .frame(width: pipWidth)
-        .background(
-            RoundedRectangle(cornerRadius: 14, style: .continuous)
-                .fill(Color(red: 0.10, green: 0.10, blue: 0.12))
-        )
+        // Glass card: the toolbar under the video blurs the app content behind the mini player
+        .background(PlayerGlassBackground(cornerRadius: 14, tint: 0.42))
         .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
         .overlay(
             RoundedRectangle(cornerRadius: 14, style: .continuous)
@@ -2356,7 +2360,7 @@ struct MiniPlayerPiPOverlay: View {
                     lineWidth: 1
                 )
         )
-        .shadow(color: Color.black.opacity(0.55), radius: hoverVm.isHovered ? 24 : 16, x: 0, y: 10)
+        .shadow(color: Color.black.opacity(0.32), radius: hoverVm.isHovered ? 26 : 18, x: 0, y: 10)
         .animation(.spring(response: 0.35, dampingFraction: 0.8), value: isVertical)
         .onHover { hovering in
             withAnimation(.easeInOut(duration: 0.15)) {
