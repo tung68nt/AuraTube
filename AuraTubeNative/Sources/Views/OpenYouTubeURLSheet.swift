@@ -231,16 +231,8 @@ public struct OpenYouTubeURLSheet: View {
             .padding(22)
         }
         .frame(width: 480)
-        .background(
-            ZStack {
-                VisualEffectBackground(material: .popover, blendingMode: .behindWindow)
-                if colorScheme == .dark {
-                    Color(red: 22/255, green: 22/255, blue: 26/255).opacity(0.96)
-                } else {
-                    Color.white.opacity(0.96)
-                }
-            }
-        )
+        .background(GlassPanelBackground(cornerRadius: 18, behindWindow: true))
+        .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
         .onAppear {
             if urlText.isEmpty {
                 pasteFromClipboard()

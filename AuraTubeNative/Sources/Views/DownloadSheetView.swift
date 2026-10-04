@@ -602,61 +602,12 @@ public struct DownloadSheetView: View {
     // MARK: - Liquid Glass Background & Border
     @ViewBuilder
     private var liquidGlassBackground: some View {
-        ZStack {
-            // 1. Hardware Optical Blur
-            VisualEffectBackground(material: .popover, blendingMode: .behindWindow, state: .active)
-            
-            // 2. Translucent Optical Glass Tint
-            RoundedRectangle(cornerRadius: 18, style: .continuous)
-                .fill(
-                    isDark ?
-                        LinearGradient(
-                            colors: [
-                                Color(red: 32/255, green: 34/255, blue: 40/255).opacity(0.65),
-                                Color(red: 22/255, green: 23/255, blue: 28/255).opacity(0.72)
-                            ],
-                            startPoint: .top,
-                            endPoint: .bottom
-                        ) :
-                        LinearGradient(
-                            colors: [
-                                Color.white.opacity(0.75),
-                                Color(red: 248/255, green: 249/255, blue: 252/255).opacity(0.78)
-                            ],
-                            startPoint: .top,
-                            endPoint: .bottom
-                        )
-                )
-            
-            // 3. Specular Ambient Top Sheen
-            RoundedRectangle(cornerRadius: 18, style: .continuous)
-                .fill(
-                    LinearGradient(
-                        colors: [
-                            Color.white.opacity(isDark ? 0.08 : 0.25),
-                            Color.clear
-                        ],
-                        startPoint: .top,
-                        endPoint: .center
-                    )
-                )
-        }
+        GlassPanelBackground(cornerRadius: 18, behindWindow: true)
     }
     
     @ViewBuilder
     private var liquidGlassBorder: some View {
-        RoundedRectangle(cornerRadius: 18, style: .continuous)
-            .strokeBorder(
-                LinearGradient(
-                    colors: [
-                        Color.white.opacity(isDark ? 0.30 : 0.80),
-                        Color.white.opacity(isDark ? 0.08 : 0.25)
-                    ],
-                    startPoint: .top,
-                    endPoint: .bottom
-                ),
-                lineWidth: 0.75
-            )
+        Color.clear.allowsHitTesting(false)
     }
     
     // MARK: - Format Button Helper

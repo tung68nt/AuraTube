@@ -1993,12 +1993,7 @@ struct FloatingDownloadHUD: View {
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 10)
-        .background(
-            ZStack {
-                VisualEffectBackground(material: .popover, blendingMode: .withinWindow)
-                (colorScheme == .dark ? Color.black.opacity(0.7) : Color.white.opacity(0.85))
-            }
-        )
+        .background(GlassPanelBackground(cornerRadius: 12))
         .cornerRadius(12)
         .overlay(
             RoundedRectangle(cornerRadius: 12)

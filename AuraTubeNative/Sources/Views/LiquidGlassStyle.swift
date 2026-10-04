@@ -181,6 +181,50 @@ public struct NativeGlassFill<S: InsettableShape>: View {
     }
 }
 
+// MARK: - Glass Panel (popups, sheets, menus)
+/// The one background for every popup-style surface, so sheets, menus and overlays share the
+/// same glass. Sheets are separate windows and must blur what is behind their window
+/// (`behindWindow: true`); in-window popups use the system glass directly.
+public struct GlassPanelBackground: View {
+    @Environment(\.colorScheme) private var colorScheme
+    public var cornerRadius: CGFloat
+    public var behindWindow: Bool
+    
+    public init(cornerRadius: CGFloat = 18, behindWindow: Bool = false) {
+        self.cornerRadius = cornerRadius
+        self.behindWindow = behindWindow
+    }
+    
+    private static let darkTop = Color(red: 0.125, green: 0.133, blue: 0.157)
+    private static let darkBottom = Color(red: 0.086, green: 0.090, blue: 0.110)
+    private static let lightBottom = Color(red: 0.973, green: 0.976, blue: 0.988)
+    
+    /// Light tint only: enough for text contrast, thin enough that the glass shows
+    private var tint: LinearGradient {
+        let colors: [Color]
+        if colorScheme == .dark {
+            colors = [Self.darkTop.opacity(0.40), Self.darkBottom.opacity(0.50)]
+        } else {
+            colors = [Color.white.opacity(0.48), Self.lightBottom.opacity(0.56)]
+        }
+        return LinearGradient(colors: colors, startPoint: .top, endPoint: .bottom)
+    }
+    
+    public var body: some View {
+        let shape = RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+        ZStack {
+            if behindWindow {
+                VisualEffectBackground(material: .popover, blendingMode: .behindWindow, state: .active)
+                    .clipShape(shape)
+            } else {
+                NativeGlassFill(shape: shape)
+            }
+            shape.fill(tint)
+            GlassGloss(shape: shape)
+        }
+    }
+}
+
 // MARK: - 2. Continuous Glass Container Modifier
 public struct LiquidGlassModifier: ViewModifier {
     @Environment(\.colorScheme) private var colorScheme
