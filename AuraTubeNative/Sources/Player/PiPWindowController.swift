@@ -212,7 +212,7 @@ public final class PiPWindowController: NSObject, ObservableObject, NSWindowDele
         panel.standardWindowButton(.miniaturizeButton)?.removeFromSuperview()
         panel.standardWindowButton(.zoomButton)?.removeFromSuperview()
         
-        let hostingView = NSHostingView(rootView: PiPFloatingContentView().ignoresSafeArea())
+        let hostingView = NSHostingView(rootView: PiPFloatingContentView().ignoresSafeArea().environment(\.controlActiveState, .key))
         // The panel's size comes from the saved PiP size only, never from the SwiftUI content
         hostingView.sizingOptions = []
         hostingView.frame = NSRect(x: 0, y: 0, width: startFrame.width, height: startFrame.height)

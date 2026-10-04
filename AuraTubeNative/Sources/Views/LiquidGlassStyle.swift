@@ -113,6 +113,19 @@ public enum NativeGlass {
     }
 }
 
+public extension View {
+    /// Puts the system Liquid Glass (regular, interactive) behind the view in `shape`.
+    /// No-op before macOS 26.
+    @ViewBuilder
+    func systemGlass<S: Shape>(in shape: S) -> some View {
+        if #available(macOS 26.0, *) {
+            self.glassEffect(.regular.interactive(), in: shape)
+        } else {
+            self
+        }
+    }
+}
+
 // MARK: - Shared Glass Gloss
 /// The gloss every glass surface in the app shares, so they all read as the same material:
 /// a sheen across the upper half and a specular rim that is bright at the top-left, fades
@@ -171,10 +184,8 @@ public struct NativeGlassFill<S: InsettableShape>: View {
     
     public var body: some View {
         if #available(macOS 26.0, *) {
-            ZStack {
-                Color.clear.glassEffect(.regular.interactive(), in: shape)
-                GlassGloss(shape: shape, intensity: 0.8)
-            }
+            // System glass as-is: macOS draws the edge highlight and refraction itself
+            Color.clear.glassEffect(.regular.interactive(), in: shape)
         } else {
             shape.fill(.ultraThinMaterial)
         }
@@ -220,7 +231,11 @@ public struct GlassPanelBackground: View {
                 NativeGlassFill(shape: shape)
             }
             shape.fill(tint)
-            GlassGloss(shape: shape)
+            // Sheets blur behind their window with a plain material, which has no edge of its
+            // own; in-window panels already get the system glass rim
+            if behindWindow {
+                GlassGloss(shape: shape, intensity: 0.5)
+            }
         }
     }
 }
@@ -239,6 +254,15 @@ public struct LiquidGlassModifier: ViewModifier {
     }
     
     public func body(content: Content) -> some View {
+        if NativeGlass.isAvailable {
+            content.systemGlass(in: RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
+        } else {
+            legacyBody(content: content)
+        }
+    }
+    
+    @ViewBuilder
+    private func legacyBody(content: Content) -> some View {
         let isDark = (colorScheme == .dark)
         
         content
@@ -324,6 +348,15 @@ public struct LiquidGlassCapsuleModifier: ViewModifier {
     }
     
     public func body(content: Content) -> some View {
+        if NativeGlass.isAvailable && !isSelected {
+            content.systemGlass(in: Capsule())
+        } else {
+            legacyBody(content: content)
+        }
+    }
+    
+    @ViewBuilder
+    private func legacyBody(content: Content) -> some View {
         let isDark = (colorScheme == .dark)
         
         content
@@ -455,7 +488,22 @@ public struct LiquidGlassButton<Content: View>: View {
         self.content = content
     }
     
+    /// macOS 26+: a plain system glass button; the prominent variant keeps its colour fill.
     public var body: some View {
+        if NativeGlass.isAvailable && !isProminent {
+            Button(action: action) {
+                content()
+                    .contentShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
+                    .systemGlass(in: RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
+            }
+            .buttonStyle(.plain)
+        } else {
+            legacyBody
+        }
+    }
+    
+    @ViewBuilder
+    private var legacyBody: some View {
         let isDark = (colorScheme == .dark)
         
         Button(action: action) {
@@ -579,7 +627,22 @@ public struct LiquidGlassCapsuleButton<Content: View>: View {
         self.content = content
     }
     
+    /// macOS 26+: a plain system glass capsule; selected / prominent keep their solid fills.
     public var body: some View {
+        if NativeGlass.isAvailable && !isSelected && !isProminent {
+            Button(action: action) {
+                content()
+                    .contentShape(Capsule())
+                    .systemGlass(in: Capsule())
+            }
+            .buttonStyle(.plain)
+        } else {
+            legacyBody
+        }
+    }
+    
+    @ViewBuilder
+    private var legacyBody: some View {
         let isDark = (colorScheme == .dark)
         
         Button(action: action) {
@@ -770,7 +833,24 @@ public struct LiquidGlassCircleButton<Content: View>: View {
         self.content = content
     }
     
+    /// macOS 26+: a plain system glass button. The hand-drawn tints, bevels, rims and shadows
+    /// below are only for older systems and for the coloured "active" state.
     public var body: some View {
+        if NativeGlass.isAvailable && !isActive {
+            Button(action: action) {
+                content()
+                    .frame(width: size, height: size)
+                    .contentShape(Circle())
+                    .systemGlass(in: Circle())
+            }
+            .buttonStyle(.plain)
+        } else {
+            legacyBody
+        }
+    }
+    
+    @ViewBuilder
+    private var legacyBody: some View {
         let isDark = (colorScheme == .dark)
         
         Button(action: action) {
@@ -923,6 +1003,15 @@ public struct LiquidGlassSearchBarModifier: ViewModifier {
     public var isHovered: Bool = false
     
     public func body(content: Content) -> some View {
+        if NativeGlass.isAvailable {
+            content.systemGlass(in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+        } else {
+            legacyBody(content: content)
+        }
+    }
+    
+    @ViewBuilder
+    private func legacyBody(content: Content) -> some View {
         let isDark = (colorScheme == .dark)
         
         content

@@ -40,10 +40,9 @@ private struct PlayerGlassBlur: NSViewRepresentable {
     }
 }
 
-/// Clear glass in any shape for player chrome. `tint` is how much black is mixed in so white
-/// controls stay readable; `blur` adds a frosted layer under the glass (0 = glass only).
-/// On top of the system glass it draws the cues that make it read as glass over moving video:
-/// a top sheen, a bright specular rim that fades downward, and a soft contact shadow.
+/// Clear glass in any shape for player chrome: the system Liquid Glass exactly as macOS draws
+/// it (its own edge refraction and highlight, nothing layered on top). `tint` is how much black
+/// is mixed in so white controls stay readable; `blur` adds a frosted layer under the glass.
 struct PlayerGlassShape<S: InsettableShape>: View {
     let shape: S
     var tint: Double = 0.08
@@ -57,10 +56,7 @@ struct PlayerGlassShape<S: InsettableShape>: View {
                 }
                 Color.clear
                     .glassEffect(.clear.tint(Color.black.opacity(tint)).interactive(), in: shape)
-                
-                GlassGloss(shape: shape)
             }
-            .shadow(color: Color.black.opacity(0.20), radius: 8, x: 0, y: 3)
         } else {
             PlayerGlassBlur(opacity: min(1.0, 0.45 + blur))
                 .clipShape(shape)
