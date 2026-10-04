@@ -415,6 +415,28 @@ public final class MiniPlayerEngine: NSObject, WKNavigationDelegate, WKScriptMes
         """
         let userScript = WKUserScript(source: cleanScript, injectionTime: .atDocumentEnd, forMainFrameOnly: false)
         contentController.addUserScript(userScript)
+        
+        // Same edge handling as the main player: when the frame and the video differ only by a
+        // hair, fill the frame and overscan 0.6% so no black strip shows at the left/right edge.
+        let fitScript = """
+        (function() {
+            function fit() {
+                try {
+                    var v = document.querySelector('video');
+                    if (!v || !v.videoWidth || !v.videoHeight || !v.clientWidth || !v.clientHeight) return;
+                    var frameRatio = v.clientWidth / v.clientHeight;
+                    var videoRatio = v.videoWidth / v.videoHeight;
+                    var cover = Math.abs(frameRatio - videoRatio) / videoRatio < 0.025;
+                    v.style.setProperty('object-fit', cover ? 'cover' : 'contain', 'important');
+                    v.style.setProperty('transform', cover ? 'translateZ(0) scale(1.006)' : 'translateZ(0)', 'important');
+                } catch(e) {}
+            }
+            setInterval(fit, 1000);
+            document.addEventListener('loadedmetadata', fit, true);
+            window.addEventListener('resize', fit);
+        })();
+        """
+        contentController.addUserScript(WKUserScript(source: fitScript, injectionTime: .atDocumentEnd, forMainFrameOnly: false))
         config.userContentController = contentController
         
         self.webView = WKWebView(frame: NSRect(x: 0, y: 0, width: 288, height: 162), configuration: config)

@@ -135,12 +135,11 @@ public struct MenuBarView: View {
                     .padding(.vertical, 4.5)
                     .foregroundColor(textPrimary)
                     .background(
-                        Capsule()
-                            .fill(isDark ? Color.white.opacity(0.10) : Color.black.opacity(0.06))
+                        NativeGlassFill(shape: Capsule())
                     )
                     .overlay(
                         Capsule()
-                            .strokeBorder(isDark ? Color.white.opacity(0.14) : Color.black.opacity(0.08), lineWidth: 0.75)
+                            .strokeBorder(isDark ? Color.white.opacity(0.12) : Color.black.opacity(0.06), lineWidth: NativeGlass.isAvailable ? 0 : 0.75)
                     )
                 }
                 .buttonStyle(.plain)
@@ -252,12 +251,11 @@ public struct MenuBarView: View {
                                 .foregroundColor(playerManager.canPlayPrevious ? textPrimary : textSecondary.opacity(0.35))
                                 .frame(width: 28, height: 28)
                                 .background(
-                                    Circle()
-                                        .fill(isDark ? Color.white.opacity(0.08) : Color.black.opacity(0.05))
+                                    NativeGlassFill(shape: Circle())
                                 )
                                 .overlay(
                                     Circle()
-                                        .strokeBorder(isDark ? Color.white.opacity(0.12) : Color.black.opacity(0.06), lineWidth: 0.75)
+                                        .strokeBorder(isDark ? Color.white.opacity(0.12) : Color.black.opacity(0.06), lineWidth: NativeGlass.isAvailable ? 0 : 0.75)
                                 )
                         }
                         .buttonStyle(.plain)
@@ -271,12 +269,11 @@ public struct MenuBarView: View {
                                 .foregroundColor(textPrimary)
                                 .frame(width: 28, height: 28)
                                 .background(
-                                    Circle()
-                                        .fill(isDark ? Color.white.opacity(0.08) : Color.black.opacity(0.05))
+                                    NativeGlassFill(shape: Circle())
                                 )
                                 .overlay(
                                     Circle()
-                                        .strokeBorder(isDark ? Color.white.opacity(0.12) : Color.black.opacity(0.06), lineWidth: 0.75)
+                                        .strokeBorder(isDark ? Color.white.opacity(0.12) : Color.black.opacity(0.06), lineWidth: NativeGlass.isAvailable ? 0 : 0.75)
                                 )
                         }
                         .buttonStyle(.plain)
@@ -309,12 +306,11 @@ public struct MenuBarView: View {
                                 .foregroundColor(textPrimary)
                                 .frame(width: 28, height: 28)
                                 .background(
-                                    Circle()
-                                        .fill(isDark ? Color.white.opacity(0.08) : Color.black.opacity(0.05))
+                                    NativeGlassFill(shape: Circle())
                                 )
                                 .overlay(
                                     Circle()
-                                        .strokeBorder(isDark ? Color.white.opacity(0.12) : Color.black.opacity(0.06), lineWidth: 0.75)
+                                        .strokeBorder(isDark ? Color.white.opacity(0.12) : Color.black.opacity(0.06), lineWidth: NativeGlass.isAvailable ? 0 : 0.75)
                                 )
                         }
                         .buttonStyle(.plain)
@@ -327,12 +323,11 @@ public struct MenuBarView: View {
                                 .foregroundColor(textPrimary)
                                 .frame(width: 28, height: 28)
                                 .background(
-                                    Circle()
-                                        .fill(isDark ? Color.white.opacity(0.08) : Color.black.opacity(0.05))
+                                    NativeGlassFill(shape: Circle())
                                 )
                                 .overlay(
                                     Circle()
-                                        .strokeBorder(isDark ? Color.white.opacity(0.12) : Color.black.opacity(0.06), lineWidth: 0.75)
+                                        .strokeBorder(isDark ? Color.white.opacity(0.12) : Color.black.opacity(0.06), lineWidth: NativeGlass.isAvailable ? 0 : 0.75)
                                 )
                         }
                         .buttonStyle(.plain)
@@ -359,12 +354,11 @@ public struct MenuBarView: View {
                                 .padding(.horizontal, 6)
                                 .frame(height: 26)
                                 .background(
-                                    Capsule()
-                                        .fill(isDark ? Color.white.opacity(0.08) : Color.black.opacity(0.05))
+                                    NativeGlassFill(shape: Capsule())
                                 )
                                 .overlay(
                                     Capsule()
-                                        .strokeBorder(isDark ? Color.white.opacity(0.12) : Color.black.opacity(0.06), lineWidth: 0.75)
+                                        .strokeBorder(isDark ? Color.white.opacity(0.12) : Color.black.opacity(0.06), lineWidth: NativeGlass.isAvailable ? 0 : 0.75)
                                 )
                         }
                         .menuStyle(.borderlessButton)
@@ -378,12 +372,11 @@ public struct MenuBarView: View {
                                 .foregroundColor(playerManager.isMuted ? Color.red : textPrimary)
                                 .frame(width: 28, height: 28)
                                 .background(
-                                    Circle()
-                                        .fill(isDark ? Color.white.opacity(0.08) : Color.black.opacity(0.05))
+                                    NativeGlassFill(shape: Circle())
                                 )
                                 .overlay(
                                     Circle()
-                                        .strokeBorder(isDark ? Color.white.opacity(0.12) : Color.black.opacity(0.06), lineWidth: 0.75)
+                                        .strokeBorder(isDark ? Color.white.opacity(0.12) : Color.black.opacity(0.06), lineWidth: NativeGlass.isAvailable ? 0 : 0.75)
                                 )
                         }
                         .buttonStyle(.plain)
