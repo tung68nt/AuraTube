@@ -1419,11 +1419,7 @@ struct WatchPlayerContainerView: View {
                         .foregroundColor(.white)
                         .padding(.horizontal, 12)
                         .padding(.vertical, 6)
-                        .background(Color.black.opacity(0.68))
-                        .clipShape(Capsule())
-                        .overlay(
-                            Capsule().strokeBorder(Color.white.opacity(0.25), lineWidth: 0.8)
-                        )
+                        .background(PlayerGlassShape(shape: Capsule(), tint: 0.2))
                     }
                     .buttonStyle(.plain)
                     .help("Bấm để làm mới luồng video khi mạng chập chờn (R)")
@@ -1437,33 +1433,24 @@ struct WatchPlayerContainerView: View {
                 Button(action: {
                     playerManager.togglePlayPause()
                 }) {
-                    ZStack {
-                        Circle()
-                            .fill(Color.black.opacity(0.62))
-                            .frame(width: 68, height: 68)
-                            .overlay(
-                                Circle()
-                                    .strokeBorder(
-                                        LinearGradient(
-                                            colors: [Color.white.opacity(0.4), Color.white.opacity(0.12)],
-                                            startPoint: .topLeading,
-                                            endPoint: .bottomTrailing
-                                        ),
-                                        lineWidth: 1.2
-                                    )
-                            )
-                            .shadow(color: .black.opacity(0.5), radius: 12, x: 0, y: 4)
-                        
-                        Image(systemName: "play.fill")
-                            .font(.system(size: 26, weight: .bold))
-                            .foregroundColor(.white)
-                            .offset(x: 2)
-                    }
+                    // Same clear glass disc as the PiP feedback badge. The glass is only in the
+                    // hierarchy while visible and is never faded (fading draws glass frosted).
+                    Image(systemName: "play.fill")
+                        .font(.system(size: 26, weight: .semibold))
+                        .foregroundColor(.white)
+                        .offset(x: 2)
+                        .frame(width: 68, height: 68)
+                        .background {
+                            if vm.isControlsVisible {
+                                PlayerGlassShape(shape: Circle(), tint: 0.16)
+                            }
+                        }
+                        .contentShape(Circle())
                 }
                 .buttonStyle(.plain)
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
                 .opacity(vm.isControlsVisible ? 1.0 : 0.0)
-                .animation(.easeInOut(duration: 0.18), value: vm.isControlsVisible)
+                .transaction { $0.animation = nil }
                 .allowsHitTesting(vm.isControlsVisible)
             }
         }
