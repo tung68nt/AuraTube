@@ -128,7 +128,8 @@ public struct PlayerControlOverlay: View {
                         .padding(.bottom, 8)
                 }
                 .padding(.top, 10)
-                // The glass is light now; a hairline shadow keeps white glyphs crisp on bright frames
+                .environment(\.colorScheme, .dark)
+                // A hairline shadow keeps white glyphs crisp on bright frames
                 .shadow(color: .black.opacity(0.28), radius: 1, y: 0.5)
                 .frame(width: max(0, geo.size.width - barInset * 2))
                 .background(PlayerGlassBackground())
@@ -352,8 +353,8 @@ public struct PlayerControlOverlay: View {
                 // Backward 10s
                 Button(action: { playerManager.seekRelative(-10) }) {
                     Image(systemName: "gobackward.10")
-                        .font(.system(size: 14, weight: .medium))
-                        .foregroundColor(Color(white: 0.9))
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundColor(.white)
                         .frame(width: 26, height: 26)
                 }
                 .buttonStyle(.plain)
@@ -362,8 +363,8 @@ public struct PlayerControlOverlay: View {
                 // Forward 10s
                 Button(action: { playerManager.seekRelative(10) }) {
                     Image(systemName: "goforward.10")
-                        .font(.system(size: 14, weight: .medium))
-                        .foregroundColor(Color(white: 0.9))
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundColor(.white)
                         .frame(width: 26, height: 26)
                 }
                 .buttonStyle(.plain)
@@ -374,7 +375,7 @@ public struct PlayerControlOverlay: View {
             Button(action: { playerManager.toggleMute() }) {
                 Image(systemName: playerManager.isMuted ? "speaker.slash.fill" : (playerManager.volume > 0.5 ? "speaker.wave.2.fill" : "speaker.wave.1.fill"))
                     .font(.system(size: isCompact ? 12 : 13, weight: .medium))
-                    .foregroundColor(Color(white: 0.9))
+                    .foregroundColor(.white)
                     .frame(width: isCompact ? 22 : 26, height: isCompact ? 22 : 26)
             }
             .buttonStyle(.plain)
@@ -389,11 +390,11 @@ public struct PlayerControlOverlay: View {
                     .fixedSize()
                 Text("/")
                     .font(.system(size: isCompact ? 9.5 : 11, weight: .regular))
-                    .foregroundColor(Color(white: 0.5))
+                    .foregroundColor(.white.opacity(0.5))
                     .lineLimit(1)
                 Text(formatTime(playerManager.duration))
                     .font(.system(size: isCompact ? 10.5 : 12, weight: .medium).monospacedDigit())
-                    .foregroundColor(Color(white: 0.7))
+                    .foregroundColor(.white.opacity(0.72))
                     .lineLimit(1)
                     .fixedSize()
                 
@@ -401,12 +402,12 @@ public struct PlayerControlOverlay: View {
                 if !isCompact && !playerManager.isCurrentVideoVertical, let ch = playerManager.currentChapter {
                     Text("•")
                         .font(.system(size: 11, weight: .regular))
-                        .foregroundColor(Color(white: 0.4))
+                        .foregroundColor(.white.opacity(0.5))
                         .padding(.horizontal, 3)
                         .lineLimit(1)
                     Text(ch.title)
                         .font(.system(size: 12, weight: .semibold))
-                        .foregroundColor(Color(white: 0.92))
+                        .foregroundColor(.white)
                         .lineLimit(1)
                         .truncationMode(.tail)
                         .frame(minWidth: 0, maxWidth: 240, alignment: .leading)
@@ -546,17 +547,18 @@ public struct PlayerControlOverlay: View {
                 }) {
                     ZStack(alignment: playerManager.isAutoplayEnabled ? .trailing : .leading) {
                         Capsule()
-                            .fill(playerManager.isAutoplayEnabled ? Color.white : Color(white: 0.28))
+                            .fill(Color.white.opacity(playerManager.isAutoplayEnabled ? 0.38 : 0.16))
+                            .overlay(Capsule().strokeBorder(Color.white.opacity(0.35), lineWidth: 0.5))
                             .frame(width: 32, height: 16)
                         
                         Circle()
-                            .fill(playerManager.isAutoplayEnabled ? Color.black : Color(white: 0.75))
+                            .fill(Color.white.opacity(playerManager.isAutoplayEnabled ? 1.0 : 0.6))
                             .frame(width: 12, height: 12)
                             .padding(.horizontal, 2)
                             .overlay(
                                 Image(systemName: playerManager.isAutoplayEnabled ? "play.fill" : "pause.fill")
                                     .font(.system(size: 6, weight: .bold))
-                                    .foregroundColor(playerManager.isAutoplayEnabled ? .white : .black)
+                                    .foregroundColor(Color.black.opacity(0.55))
                             )
                     }
                     .animation(.easeInOut(duration: 0.18), value: playerManager.isAutoplayEnabled)
