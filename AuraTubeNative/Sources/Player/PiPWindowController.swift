@@ -105,6 +105,17 @@ public final class PiPWindowController: NSObject, ObservableObject, NSWindowDele
     public var mainPlayerScreenFrame: NSRect?
     @Published public var isPiPHiddenKeepAudio: Bool = false
     
+    private var lastHideTimestamp: TimeInterval = 0
+    
+    /// True while the user is interacting with the PiP itself (pointer over it, or it was just
+    /// hidden to audio-only). Main-window focus changes in that state are side effects of the
+    /// interaction, not the user returning to the app.
+    public var isUserInteractingWithPiP: Bool {
+        if ProcessInfo.processInfo.systemUptime - lastHideTimestamp < 1.0 { return true }
+        guard let panel = pipWindow, panel.isVisible, !isPiPHiddenKeepAudio else { return false }
+        return panel.frame.contains(NSEvent.mouseLocation)
+    }
+    
     public func isPipWindow(_ window: NSWindow?) -> Bool {
         guard let w = window else { return false }
         return w === pipWindow
@@ -171,7 +182,7 @@ public final class PiPWindowController: NSObject, ObservableObject, NSWindowDele
         
         let panel = PiPPanel(
             contentRect: startFrame,
-            styleMask: [.titled, .fullSizeContentView, .resizable],
+            styleMask: [.titled, .fullSizeContentView, .resizable, .nonactivatingPanel],
             backing: .buffered,
             defer: false
         )
@@ -291,15 +302,21 @@ public final class PiPWindowController: NSObject, ObservableObject, NSWindowDele
     public func hidePiPKeepAudio() {
         guard let panel = pipWindow, !isPiPHiddenKeepAudio else { return }
         isPiPHiddenKeepAudio = true
+        lastHideTimestamp = ProcessInfo.processInfo.systemUptime
         PiPOverlayState.shared.triggerHUD(icon: "headphones", text: "Đang phát âm thanh trong nền 🎧")
         
+        // The panel stays on screen but fully transparent and click-through: ordering it out
+        // would detach the web view from a visible window and WebKit suspends its media.
+        panel.ignoresMouseEvents = true
+        panel.hasShadow = false
         NSAnimationContext.runAnimationGroup({ context in
             context.duration = 0.22
             context.timingFunction = CAMediaTimingFunction(controlPoints: 0.16, 1.0, 0.3, 1.0)
-        }, completionHandler: { [weak self, weak panel] in
-            Task { @MainActor [weak self, weak panel] in
-                guard let self = self, self.isPiPHiddenKeepAudio else { return }
-                panel?.orderOut(nil)
+            // Not exactly 0: a fully transparent window counts as occluded
+            panel.animator().alphaValue = 0.01
+        }, completionHandler: { [weak panel] in
+            Task { @MainActor [weak panel] in
+                panel?.resignKey()
             }
         })
     }
@@ -307,7 +324,8 @@ public final class PiPWindowController: NSObject, ObservableObject, NSWindowDele
     public func unhidePiP() {
         guard let panel = pipWindow, isPiPHiddenKeepAudio else { return }
         isPiPHiddenKeepAudio = false
-        panel.alphaValue = 0.0
+        panel.ignoresMouseEvents = false
+        panel.hasShadow = true
         panel.makeKeyAndOrderFront(nil)
         PiPOverlayState.shared.triggerHUD(icon: "pip.enter", text: "Đã hiện lại PiP")
         
@@ -337,6 +355,7 @@ public final class PiPWindowController: NSObject, ObservableObject, NSWindowDele
         }
         
         isPiPHiddenKeepAudio = false
+        panel.ignoresMouseEvents = false
         NSApp.activate(ignoringOtherApps: true)
         if let mainWindow = NSApp.windows.first(where: { !($0 is NSPanel) && $0.canBecomeKey }) {
             mainWindow.makeKeyAndOrderFront(nil)

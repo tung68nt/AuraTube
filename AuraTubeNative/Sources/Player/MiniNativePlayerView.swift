@@ -19,17 +19,17 @@ public final class MiniPlayerEngine: NSObject, WKNavigationDelegate, WKScriptMes
         let config = WKWebViewConfiguration()
         config.mediaTypesRequiringUserActionForPlayback = []
         config.allowsAirPlayForMediaPlayback = false
-        config.preferences.setValue(false, forKey: "allowFileAccessFromFileURLs")
-        config.setValue(false, forKey: "requiresUserActionForAudioPlayback")
-        config.setValue(false, forKey: "requiresUserActionForVideoPlayback")
-        config.setValue(true, forKey: "mainContentUserGestureOverrideEnabled")
-        config.setValue(false, forKey: "invisibleAutoplayNotPermitted")
+        config.preferences.setValueIfSupported(false, forKey: "allowFileAccessFromFileURLs")
+        config.setValueIfSupported(false, forKey: "requiresUserActionForAudioPlayback")
+        config.setValueIfSupported(false, forKey: "requiresUserActionForVideoPlayback")
+        config.setValueIfSupported(true, forKey: "mainContentUserGestureOverrideEnabled")
+        config.setValueIfSupported(false, forKey: "invisibleAutoplayNotPermitted")
         
         let pref = config.preferences
-        pref.setValue(false, forKey: "requiresUserGestureForAudioPlayback")
-        pref.setValue(false, forKey: "requiresUserGestureForVideoPlayback")
-        pref.setValue(true, forKey: "mainContentUserGestureOverrideEnabled")
-        pref.setValue(false, forKey: "invisibleMediaAutoplayNotPermitted")
+        pref.setValueIfSupported(false, forKey: "requiresUserGestureForAudioPlayback")
+        pref.setValueIfSupported(false, forKey: "requiresUserGestureForVideoPlayback")
+        pref.setValueIfSupported(true, forKey: "mainContentUserGestureOverrideEnabled")
+        pref.setValueIfSupported(false, forKey: "invisibleMediaAutoplayNotPermitted")
         
         let contentController = WKUserContentController()
         
@@ -418,7 +418,7 @@ public final class MiniPlayerEngine: NSObject, WKNavigationDelegate, WKScriptMes
         config.userContentController = contentController
         
         self.webView = WKWebView(frame: NSRect(x: 0, y: 0, width: 288, height: 162), configuration: config)
-        self.webView.setValue(false, forKey: "drawsBackground")
+        self.webView.setValueIfSupported(false, forKey: "drawsBackground")
         
         // Persistent standby window to keep WebKit media playback alive
         let offscreen = NSWindow(

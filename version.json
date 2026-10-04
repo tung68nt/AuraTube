@@ -1,9 +1,9 @@
 {
-  "version": "2.1.1",
-  "build": 102,
-  "title": "AuraTube v2.1.1 (Cuộn nhanh hơn, hết nhạc remix tràn feed Thịnh hành)",
-  "releaseNotes": "• Cuộn nhanh hơn toàn app: Tăng tốc độ cuộn dọc/ngang (trackpad ~2,2x, chuột bánh xe ~3,5x) cho trang chủ, tìm kiếm, video liên quan, bình luận và các hàng kênh/Shorts, vuốt ít hơn vẫn hết danh sách. Giữ nguyên quán tính tự nhiên; trình xem Shorts và PiP không bị ảnh hưởng.\n• Hết nhạc remix tràn feed: Mục Thịnh hành không còn truy vấn nhạc cố định; tự lọc các video nhạc tổng hợp (remix, nonstop, lofi, BXH, playlist, kênh Mix…) trừ khi lịch sử của bạn có sở thích nhạc. Áp dụng cả cho dữ liệu cache cũ.",
-  "downloadUrl": "https://github.com/tung68nt/AuraTube/releases/download/v2.1.1/AuraTube-v2.1.1.dmg",
+  "version": "2.1.2",
+  "build": 103,
+  "title": "AuraTube v2.1.2 (Phát mượt hơn, tự chỉnh độ phân giải theo mạng, Đề xuất đa dạng & cuộn vô hạn, sửa PiP)",
+  "releaseNotes": "• Phát video mượt hơn: Giao diện không còn vẽ lại ~10 lần/giây trong lúc phát; sửa lỗi vòng xoay buffering bị kẹt.\n• Tự chỉnh độ phân giải theo đường truyền (chế độ Auto): hạ một bậc khi video khựng lặp lại hoặc rớt khung hình, tự nâng lại sau khi mạng ổn định, không nhảy qua lại.\n• Đề xuất thông minh hơn: Gom ứng viên từ nhiều nguồn (video liên quan của lịch sử xem, kênh theo dõi, chủ đề, thịnh hành), chấm điểm theo sở thích, độ mới và lượt xem, xếp lại để không bị một kênh/chủ đề chiếm feed. Sở thích cũ phai dần theo thời gian; bấm vào rồi thoát ngay sẽ bị tính là không thích.\n• Nhiều nội dung hơn: Trang chủ và danh sách video liên quan tự tải thêm khi cuộn tới cuối. Người dùng đã có lịch sử xem sẽ mở app vào tab Tất cả (feed cá nhân hoá).\n• PiP: Kéo di chuyển cửa sổ PiP không còn bị bật về app chính; nút tai nghe ẩn PiP và tiếp tục phát âm thanh.\n• Thanh điều khiển: Lớp nền gradient nhạt hơn, không che video.\n• Sửa lỗi app thoát ngay khi mở trên macOS mới.",
+  "downloadUrl": "https://github.com/tung68nt/AuraTube/releases/download/v2.1.2/AuraTube-v2.1.2.dmg",
   "publishedAt": "2026-10-04",
   "minOSVersion": "13.0",
   "fileSize": "6.0 MB"

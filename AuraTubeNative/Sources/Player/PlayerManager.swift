@@ -63,8 +63,13 @@ public final class PlayerManager: ObservableObject {
         NetworkSpeedService.shared.recommendedQuality(from: availableQualities, preferMax: preferMaxQuality)
     }
     
+    private var lastAppliedAutoCap: String?
+    
     public func reevaluateAndApplyOptimalQuality() {
         guard selectedQuality == "auto" else { return }
+        let cap = resolvedOptimalQuality
+        guard cap != lastAppliedAutoCap else { return }
+        lastAppliedAutoCap = cap
         onQualityChange?("auto")
     }
     
@@ -151,6 +156,10 @@ public final class PlayerManager: ObservableObject {
     @Published public var savedPlaybackRecords: [String: SavedPlaybackRecord] = [:]
     private var lastSavedPlaybackSyncTimestamp: TimeInterval = 0
     private var hasRecordedCompletionSignal: Bool = false
+    private var hasHandledPlaybackEnd: Bool = false
+    private var sessionStartPosition: Double = 0
+    private var lastProgressRecordUptime: TimeInterval = 0
+    private var lastNowPlayingUptime: TimeInterval = 0
     @Published public var isLoadingStream: Bool = false
     @Published public var isBuffering: Bool = false
     @Published public var errorMessage: String?
@@ -569,6 +578,7 @@ public final class PlayerManager: ObservableObject {
             if source == "main" {
                 if playing != self.isPlaying {
                     self.isPlaying = playing
+                    lastNowPlayingUptime = 0
                     // Notify mini player observers to match main player state
                     for observer in playPauseObservers.values {
                         observer(playing)
@@ -587,7 +597,10 @@ public final class PlayerManager: ObservableObject {
         
         // Note: PlayerManager is the authoritative source of truth for isMuted.
         // Asynchronous WebKit events are ignored here to prevent mute/unmute flickering.
-        updateNowPlaying()
+        // The system extrapolates elapsed time from the rate, so a periodic refresh is enough.
+        if now - lastNowPlayingUptime > 5.0 {
+            updateNowPlaying()
+        }
         
         // 3. Fallback end-of-video check for Autoplay
         if isAutoplayEnabled && duration > 5 && currentTime >= (duration - 0.8) && !isSeekingLock {
@@ -600,6 +613,14 @@ public final class PlayerManager: ObservableObject {
     public func loadAndPlay(video: Video, quality: String = "1080", startTime: Double = 0) {
         // 0. Flush any pending playback position for the previous video
         flushSavedPlaybackPositions()
+        
+        // Quick abandon of the previous video = negative recommendation signal
+        if let prev = currentVideo, prev.id != video.id, !prev.isShort, duration > 90 {
+            let watched = currentTime - sessionStartPosition
+            if watched >= 0 && watched < 15 && !hasRecordedCompletionSignal {
+                RecommendationService.shared.recordSkip(video: prev)
+            }
+        }
         
         cancelAutoplay()
         commentsLoadingTask?.cancel()
@@ -659,6 +680,9 @@ public final class PlayerManager: ObservableObject {
         self.currentQuality = self.resolvedOptimalQuality
         self.availableQualities = []
         self.hasRecordedCompletionSignal = false
+        self.hasHandledPlaybackEnd = false
+        self.lastAppliedAutoCap = nil
+        self.sessionStartPosition = effectiveStartTime
         self.currentTime = effectiveStartTime
         self.duration = video.totalDurationSeconds
         self.chapters = []
@@ -731,18 +755,18 @@ public final class PlayerManager: ObservableObject {
             let videoDur = self.duration > 0 ? self.duration : (currentVideo?.totalDurationSeconds ?? 0)
             if videoDur > 65 {
                 if !isStreamVertical {
-                    self.isCurrentVideoVertical = false
-                    self.currentVideoAspectRatio = max(ratio, 16.0 / 9.0)
+                    setVertical(false)
+                    setAspectRatio(max(ratio, 16.0 / 9.0))
                     return
                 }
             }
             
             if isStreamVertical {
-                self.isCurrentVideoVertical = true
-                self.currentVideoAspectRatio = 9.0 / 16.0
+                setVertical(true)
+                setAspectRatio(9.0 / 16.0)
             } else {
-                self.isCurrentVideoVertical = false
-                self.currentVideoAspectRatio = ratio
+                setVertical(false)
+                setAspectRatio(ratio)
             }
             return
         }
@@ -750,8 +774,8 @@ public final class PlayerManager: ObservableObject {
         // 2. Fallback when pixel dimensions not yet ready:
         let videoDur = self.duration > 0 ? self.duration : (currentVideo?.totalDurationSeconds ?? 0)
         if videoDur > 65 {
-            self.isCurrentVideoVertical = false
-            self.currentVideoAspectRatio = 16.0 / 9.0
+            setVertical(false)
+            setAspectRatio(16.0 / 9.0)
             return
         }
         
@@ -760,12 +784,20 @@ public final class PlayerManager: ObservableObject {
             || (currentVideo?.isExplicitShort == true)
         
         if isShortByMeta || isVertical {
-            self.isCurrentVideoVertical = true
-            self.currentVideoAspectRatio = 9.0 / 16.0
+            setVertical(true)
+            setAspectRatio(9.0 / 16.0)
         } else {
-            self.isCurrentVideoVertical = false
-            self.currentVideoAspectRatio = 16.0 / 9.0
+            setVertical(false)
+            setAspectRatio(16.0 / 9.0)
         }
+    }
+    
+    private func setVertical(_ value: Bool) {
+        if isCurrentVideoVertical != value { isCurrentVideoVertical = value }
+    }
+    
+    private func setAspectRatio(_ value: Double) {
+        if abs(currentVideoAspectRatio - value) > 0.005 { currentVideoAspectRatio = value }
     }
     
     // MARK: - Viewer Comments Loading (Streaming All Comments)
@@ -891,6 +923,7 @@ public final class PlayerManager: ObservableObject {
     
     public func setQuality(_ quality: String) {
         self.selectedQuality = quality
+        lastAppliedAutoCap = (quality == "auto") ? resolvedOptimalQuality : nil
         if quality != "auto" {
             self.currentQuality = quality
             if let h = Int(quality) {
@@ -1022,6 +1055,7 @@ public final class PlayerManager: ObservableObject {
         let clampedTime = max(0, min(maxD, seconds))
         
         self.currentTime = clampedTime
+        self.hasHandledPlaybackEnd = false
         self.seekTargetTime = clampedTime
         self.lastSeekTimestamp = ProcessInfo.processInfo.systemUptime
         self.isSeekingLock = true
@@ -1203,9 +1237,14 @@ public final class PlayerManager: ObservableObject {
             self.play()
             return
         }
+        guard !hasHandledPlaybackEnd else { return }
+        hasHandledPlaybackEnd = true
         if let cur = currentVideo {
             clearSavedPlaybackPosition(for: cur.id)
-            RecommendationService.shared.recordWatchCompletion(video: cur)
+            if !hasRecordedCompletionSignal {
+                hasRecordedCompletionSignal = true
+                RecommendationService.shared.recordWatchCompletion(video: cur)
+            }
         }
         guard isAutoplayEnabled else { return }
         guard autoplayCountdown == nil else { return }
@@ -1382,6 +1421,17 @@ public final class PlayerManager: ObservableObject {
         // Only record meaningful progress (> 3.0 seconds)
         guard time >= 3.0 else { return }
         
+        // savedPlaybackRecords is @Published: writing it on every sync tick would re-render every
+        // view observing PlayerManager ~10x/s during playback. Sample it instead; seeks/jumps
+        // are still recorded immediately.
+        let nowUptime = ProcessInfo.processInfo.systemUptime
+        if let existing = savedPlaybackRecords[vid],
+           abs(existing.position - time) < 15,
+           nowUptime - lastProgressRecordUptime < 5.0 {
+            return
+        }
+        lastProgressRecordUptime = nowUptime
+        
         savedPlaybackRecords[vid] = SavedPlaybackRecord(
             videoId: vid,
             position: time,
@@ -1537,6 +1587,7 @@ public final class PlayerManager: ObservableObject {
             return
         }
         
+        lastNowPlayingUptime = ProcessInfo.processInfo.systemUptime
         let info: [String: Any] = [
             MPMediaItemPropertyTitle: video.title,
             MPMediaItemPropertyArtist: video.uploader,

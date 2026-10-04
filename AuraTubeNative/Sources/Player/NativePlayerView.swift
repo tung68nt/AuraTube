@@ -2,6 +2,18 @@ import SwiftUI
 import AppKit
 import WebKit
 
+extension NSObject {
+    /// KVC for private WebKit switches. Apps linked against the current SDK crash with
+    /// NSUnknownKeyException on keys WebKit no longer exposes, so only set keys that still
+    /// have a setter.
+    func setValueIfSupported(_ value: Any?, forKey key: String) {
+        let setter = "set" + key.prefix(1).uppercased() + key.dropFirst() + ":"
+        if responds(to: NSSelectorFromString(setter)) || responds(to: NSSelectorFromString("_" + setter)) {
+            setValue(value, forKey: key)
+        }
+    }
+}
+
 @MainActor
 public final class MainWebPlayerPool {
     public static let shared = MainWebPlayerPool()
@@ -215,24 +227,24 @@ public struct NativePlayerView: NSViewRepresentable {
         config.mediaTypesRequiringUserActionForPlayback = []
         config.allowsAirPlayForMediaPlayback = true
         config.preferences.isElementFullscreenEnabled = true
-        config.preferences.setValue(false, forKey: "allowFileAccessFromFileURLs")
-        config.preferences.setValue(true, forKey: "fullScreenEnabled")
+        config.preferences.setValueIfSupported(false, forKey: "allowFileAccessFromFileURLs")
+        config.preferences.setValueIfSupported(true, forKey: "fullScreenEnabled")
         
         // Bypass WebKit user activation restrictions for autoplay and unmuted audio
-        config.setValue(false, forKey: "requiresUserActionForAudioPlayback")
-        config.setValue(false, forKey: "requiresUserActionForVideoPlayback")
-        config.setValue(true, forKey: "mainContentUserGestureOverrideEnabled")
-        config.setValue(false, forKey: "invisibleAutoplayNotPermitted")
-        config.setValue(false, forKey: "pageVisibilityBasedProcessSuppressionEnabled")
-        config.setValue(false, forKey: "backgroundFetchAndProcessTimerThrottlingEnabled")
+        config.setValueIfSupported(false, forKey: "requiresUserActionForAudioPlayback")
+        config.setValueIfSupported(false, forKey: "requiresUserActionForVideoPlayback")
+        config.setValueIfSupported(true, forKey: "mainContentUserGestureOverrideEnabled")
+        config.setValueIfSupported(false, forKey: "invisibleAutoplayNotPermitted")
+        config.setValueIfSupported(false, forKey: "pageVisibilityBasedProcessSuppressionEnabled")
+        config.setValueIfSupported(false, forKey: "backgroundFetchAndProcessTimerThrottlingEnabled")
         
         let pref = config.preferences
-        pref.setValue(false, forKey: "requiresUserGestureForAudioPlayback")
-        pref.setValue(false, forKey: "requiresUserGestureForVideoPlayback")
-        pref.setValue(true, forKey: "mainContentUserGestureOverrideEnabled")
-        pref.setValue(false, forKey: "invisibleMediaAutoplayNotPermitted")
-        pref.setValue(false, forKey: "pageVisibilityBasedProcessSuppressionEnabled")
-        pref.setValue(false, forKey: "backgroundFetchAndProcessTimerThrottlingEnabled")
+        pref.setValueIfSupported(false, forKey: "requiresUserGestureForAudioPlayback")
+        pref.setValueIfSupported(false, forKey: "requiresUserGestureForVideoPlayback")
+        pref.setValueIfSupported(true, forKey: "mainContentUserGestureOverrideEnabled")
+        pref.setValueIfSupported(false, forKey: "invisibleMediaAutoplayNotPermitted")
+        pref.setValueIfSupported(false, forKey: "pageVisibilityBasedProcessSuppressionEnabled")
+        pref.setValueIfSupported(false, forKey: "backgroundFetchAndProcessTimerThrottlingEnabled")
         
         let contentController = WKUserContentController()
         contentController.add(context.coordinator, contentWorld: .page, name: "playerBridge")
@@ -247,7 +259,7 @@ public struct NativePlayerView: NSViewRepresentable {
         webView.autoresizingMask = [.width, .height]
         webView.translatesAutoresizingMaskIntoConstraints = true
         webView.customUserAgent = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.4 Safari/605.1.15"
-        webView.setValue(false, forKey: "drawsBackground")
+        webView.setValueIfSupported(false, forKey: "drawsBackground")
         webView.navigationDelegate = context.coordinator
         
         MainWebPlayerPool.shared.webView = webView
@@ -490,6 +502,10 @@ public struct NativePlayerView: NSViewRepresentable {
         <meta charset="utf-8">
         <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
         <meta name="referrer" content="origin">
+        <link rel="preconnect" href="https://www.youtube.com">
+        <link rel="preconnect" href="https://i.ytimg.com">
+        <link rel="preconnect" href="https://www.google.com">
+        <link rel="dns-prefetch" href="https://googlevideo.com">
         <style>
           * { margin: 0; padding: 0; box-sizing: border-box; }
           html, body { width: 100%; height: 100%; overflow: hidden !important; background: #000 !important; }
@@ -1344,9 +1360,10 @@ public struct NativePlayerView: NSViewRepresentable {
                     } catch(e) {}
                 }
                 
-                function onWaitingOrStalled() {
+                function onWaitingOrStalled(e) {
                     try {
                         if (v.paused || v.ended) return;
+                        if (e && e.type === 'waiting') { noteStall(v); }
                         if (window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.playerBridge) {
                             window.webkit.messageHandlers.playerBridge.postMessage({ type: 'buffering', isBuffering: true });
                         }
@@ -1367,7 +1384,6 @@ public struct NativePlayerView: NSViewRepresentable {
                 });
                 v.addEventListener('pause', function() { emitDirectSync(true); });
                 v.addEventListener('playing', function() {
-                    if (waitingTimer) { clearTimeout(waitingTimer); waitingTimer = null; }
                     emitDirectSync(true);
                     if (window.__auratube_playback_rate && Math.abs(v.playbackRate - window.__auratube_playback_rate) > 0.01) {
                         v.playbackRate = window.__auratube_playback_rate;
@@ -1387,6 +1403,8 @@ public struct NativePlayerView: NSViewRepresentable {
                     } catch(e) {}
                 });
                 v.addEventListener('seeked', function() { emitDirectSync(true); });
+                v.addEventListener('seeking', function() { lastSeekAt = Date.now(); });
+                v.addEventListener('loadstart', function() { lastLoadAt = Date.now(); stallTimes = []; healthySince = 0; lastQualityKey = ''; lastDimKey = ''; });
                 
                 // Picture-in-Picture event hooks
                 v.addEventListener('enterpictureinpicture', function() {
@@ -1460,6 +1478,152 @@ public struct NativePlayerView: NSViewRepresentable {
         // Quality reporting & active high-resolution control
         var isManualQualityLocked = false;
         var qualityCap = 1080;
+        var lastQualityKey = '';
+        var qualityReportTick = 0;
+
+        // ---- Adaptive smoothness controller (Auto mode) ----
+        // YouTube's own ABR picks the rendition per segment inside [tiny … cap]. This controller
+        // moves the cap from real playback health: repeated rebuffering or sustained dropped
+        // frames step the cap down one rung (the range change never flushes the buffer, so the
+        // switch is seamless); a long healthy stretch with a comfortable buffer steps it back up.
+        // Step-ups back off exponentially after each failed attempt to avoid oscillation.
+        var QUALITY_LADDER = [144, 240, 360, 480, 720, 1080, 1440, 2160, 2880, 4320];
+        var YT_QUALITY_NAME = {144: 'tiny', 240: 'small', 360: 'medium', 480: 'large', 720: 'hd720', 1080: 'hd1080', 1440: 'hd1440', 2160: 'hd2160', 2880: 'hd2880', 4320: 'highres'};
+        var YT_QUALITY_HEIGHT = {tiny: 144, small: 240, medium: 360, large: 480, hd720: 720, hd1080: 1080, hd1440: 1440, hd2160: 2160, hd2880: 2880, highres: 4320};
+        var isAutoQuality = true;
+        var adaptiveCap = 0;          // 0 = no extra restriction beyond qualityCap
+        var stallTimes = [];
+        var lastSeekAt = 0;
+        var lastLoadAt = Date.now();
+        var lastCapChangeAt = 0;
+        var healthySince = 0;
+        var stepUpHoldMs = 45000;
+        var lastStepUpAt = 0;
+        var badFrameTicks = 0;
+        var prevFrames = null;
+
+        function ytPlayer() {
+            return document.getElementById('movie_player') || document.querySelector('.html5-video-player');
+        }
+
+        function effectiveCap() {
+            return (adaptiveCap > 0 && adaptiveCap < qualityCap) ? adaptiveCap : qualityCap;
+        }
+
+        function applyAutoRange() {
+            var p = ytPlayer();
+            if (!p || typeof p.setPlaybackQualityRange !== 'function') return false;
+            p.setPlaybackQualityRange('tiny', YT_QUALITY_NAME[effectiveCap()] || 'hd1080');
+            return true;
+        }
+
+        function noteStall(v) {
+            var now = Date.now();
+            // Seeks and the initial load always buffer; only mid-playback stalls count
+            if (v.seeking || now - lastSeekAt < 3000 || now - lastLoadAt < 4000) return;
+            stallTimes.push(now);
+            healthySince = 0;
+        }
+
+        function currentPlayingHeight(v) {
+            var p = ytPlayer();
+            var name = (p && typeof p.getPlaybackQuality === 'function') ? p.getPlaybackQuality() : '';
+            if (YT_QUALITY_HEIGHT[name]) return YT_QUALITY_HEIGHT[name];
+            var h = Math.min(v.videoWidth || 0, v.videoHeight || 0);
+            var best = 0;
+            for (var i = 0; i < QUALITY_LADDER.length; i++) {
+                if (QUALITY_LADDER[i] <= h * 1.15) best = QUALITY_LADDER[i];
+            }
+            return best;
+        }
+
+        function bufferAhead(v) {
+            try {
+                var t = v.currentTime;
+                for (var i = 0; i < v.buffered.length; i++) {
+                    if (v.buffered.start(i) <= t + 0.25 && v.buffered.end(i) >= t) {
+                        return v.buffered.end(i) - t;
+                    }
+                }
+            } catch(e) {}
+            return 0;
+        }
+
+        function stepCapDown(v, now) {
+            var playing = currentPlayingHeight(v) || effectiveCap();
+            var target = 0;
+            for (var i = QUALITY_LADDER.length - 1; i >= 0; i--) {
+                if (QUALITY_LADDER[i] < Math.min(playing, effectiveCap())) { target = QUALITY_LADDER[i]; break; }
+            }
+            if (target < 360) return;
+            // A stall soon after stepping up means that rung is not sustainable yet
+            if (lastStepUpAt && now - lastStepUpAt < 60000) {
+                stepUpHoldMs = Math.min(stepUpHoldMs * 2, 300000);
+            }
+            adaptiveCap = target;
+            lastCapChangeAt = now;
+            stallTimes = [];
+            badFrameTicks = 0;
+            healthySince = 0;
+            applyAutoRange();
+        }
+
+        function stepCapUp(now) {
+            var next = 0;
+            for (var i = 0; i < QUALITY_LADDER.length; i++) {
+                if (QUALITY_LADDER[i] > adaptiveCap) { next = QUALITY_LADDER[i]; break; }
+            }
+            adaptiveCap = (!next || next >= qualityCap) ? 0 : next;
+            lastCapChangeAt = now;
+            lastStepUpAt = now;
+            healthySince = now;
+            applyAutoRange();
+        }
+
+        setInterval(function() {
+            try {
+                if (!isAutoQuality) return;
+                var v = document.querySelector('video');
+                if (!v) return;
+                var now = Date.now();
+
+                var frames = (typeof v.getVideoPlaybackQuality === 'function') ? v.getVideoPlaybackQuality() : null;
+                var dropRatio = 0;
+                if (frames && prevFrames && frames.totalVideoFrames >= prevFrames.total) {
+                    var dTotal = frames.totalVideoFrames - prevFrames.total;
+                    var dDropped = frames.droppedVideoFrames - prevFrames.dropped;
+                    if (dTotal >= 30) dropRatio = dDropped / dTotal;
+                }
+                prevFrames = frames ? { total: frames.totalVideoFrames, dropped: frames.droppedVideoFrames } : null;
+
+                if (v.paused || v.ended || v.seeking || now - lastSeekAt < 3000) {
+                    healthySince = 0;
+                    badFrameTicks = 0;
+                    return;
+                }
+
+                while (stallTimes.length && now - stallTimes[0] > 30000) stallTimes.shift();
+                badFrameTicks = (dropRatio > 0.12) ? badFrameTicks + 1 : 0;
+
+                var canChange = now - lastCapChangeAt > 8000;
+                if (canChange && (stallTimes.length >= 2 || badFrameTicks >= 3)) {
+                    stepCapDown(v, now);
+                    return;
+                }
+
+                var ahead = bufferAhead(v);
+                var bufferedToEnd = v.duration > 0 && (v.currentTime + ahead) >= v.duration - 1;
+                var healthy = stallTimes.length === 0 && dropRatio < 0.03 && (ahead >= 12 || bufferedToEnd);
+                if (!healthy) { healthySince = 0; return; }
+                if (!healthySince) healthySince = now;
+
+                if (adaptiveCap > 0 && canChange && now - healthySince >= stepUpHoldMs) {
+                    stepCapUp(now);
+                } else if (adaptiveCap === 0 && now - healthySince > 180000) {
+                    stepUpHoldMs = 45000;
+                }
+            } catch(e) {}
+        }, 2000);
 
         function checkAndReportQualities() {
             try {
@@ -1468,6 +1632,10 @@ public struct NativePlayerView: NSViewRepresentable {
                 var levels = (typeof p.getAvailableQualityLevels === 'function') ? p.getAvailableQualityLevels() : [];
                 var cur = (typeof p.getPlaybackQuality === 'function') ? p.getPlaybackQuality() : '';
                 if (levels && levels.length > 0) {
+                    var qKey = levels.join(',') + '|' + cur;
+                    qualityReportTick += 1;
+                    if (qKey === lastQualityKey && qualityReportTick % 8 !== 0) return;
+                    lastQualityKey = qKey;
                     var payload = {
                         type: 'availableQualities',
                         levels: levels,
@@ -1483,13 +1651,17 @@ public struct NativePlayerView: NSViewRepresentable {
                 }
             } catch(e) {}
         }
-        setInterval(checkAndReportQualities, 3000);
+        setInterval(checkAndReportQualities, 2000);
         setTimeout(checkAndReportQualities, 800);
 
-        function reportVideoDimensions() {
+        var lastDimKey = '';
+        function reportVideoDimensions(force) {
             try {
                 var v = document.querySelector('video');
                 if (v && v.videoWidth > 0 && v.videoHeight > 0) {
+                    var dimKey = v.videoWidth + 'x' + v.videoHeight;
+                    if (!force && dimKey === lastDimKey) return;
+                    lastDimKey = dimKey;
                     var isVertical = v.videoHeight > v.videoWidth;
                     var payload = {
                         type: 'videoDimensions',
@@ -1504,12 +1676,11 @@ public struct NativePlayerView: NSViewRepresentable {
                 }
             } catch(e) {}
         }
-        document.addEventListener('loadedmetadata', reportVideoDimensions, true);
-        document.addEventListener('loadeddata', reportVideoDimensions, true);
-        document.addEventListener('playing', reportVideoDimensions, true);
-        document.addEventListener('timeupdate', reportVideoDimensions, true);
-        document.addEventListener('resize', reportVideoDimensions, true);
-        setInterval(reportVideoDimensions, 1500);
+        document.addEventListener('loadedmetadata', function() { reportVideoDimensions(true); }, true);
+        document.addEventListener('loadeddata', function() { reportVideoDimensions(true); }, true);
+        document.addEventListener('playing', function() { reportVideoDimensions(false); }, true);
+        document.addEventListener('resize', function() { reportVideoDimensions(false); }, true);
+        setInterval(function() { reportVideoDimensions(false); }, 1500);
 
         function forceQualityChange(targetQuality, optimalQuality, ytQualityHint, retries) {
             retries = retries || 0;
@@ -1524,8 +1695,11 @@ public struct NativePlayerView: NSViewRepresentable {
 
                 if (targetQuality !== 'auto') {
                     isManualQualityLocked = (targetQuality === '360' || targetQuality === '480' || targetQuality === '240' || targetQuality === '144');
+                    isAutoQuality = false;
+                    adaptiveCap = 0;
                 } else {
                     isManualQualityLocked = false;
+                    isAutoQuality = true;
                 }
 
                 var effectiveQ = targetQuality;
@@ -1563,9 +1737,7 @@ public struct NativePlayerView: NSViewRepresentable {
                         localStorage.removeItem('yt-player-quality');
                         localStorage.removeItem('yt-player-av-quality');
                     } catch(e) {}
-                    if (typeof p.setPlaybackQualityRange === 'function') {
-                        p.setPlaybackQualityRange('tiny', ytQuality);
-                    }
+                    applyAutoRange();
                     setTimeout(checkAndReportQualities, 400);
                     return;
                 }
@@ -1862,7 +2034,7 @@ public struct NativePlayerView: NSViewRepresentable {
                     }
                     let unique = Array(Set(heights)).sorted(by: >)
                     DispatchQueue.main.async {
-                        if !unique.isEmpty {
+                        if !unique.isEmpty && PlayerManager.shared.availableQualities != unique {
                             PlayerManager.shared.availableQualities = unique
                             PlayerManager.shared.reevaluateAndApplyOptimalQuality()
                         }
@@ -1881,7 +2053,7 @@ public struct NativePlayerView: NSViewRepresentable {
                             case "tiny": cleanQ = "144"
                             default: cleanQ = cur
                             }
-                            if cleanQ != "auto" && cleanQ != "default" && !cleanQ.isEmpty {
+                            if cleanQ != "auto" && cleanQ != "default" && !cleanQ.isEmpty && PlayerManager.shared.currentQuality != cleanQ {
                                 PlayerManager.shared.currentQuality = cleanQ
                             }
                         }

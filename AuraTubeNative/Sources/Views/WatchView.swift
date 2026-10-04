@@ -7,6 +7,8 @@ final class WatchViewModel: ObservableObject {
     @Published var isSubscribed = false
     @Published var showDownloadSheet = false
     @Published var relatedVideos: [Video] = []
+    @Published var isLoadingMoreRelated = false
+    var canLoadMoreRelated = true
     @Published var shareToast: String?
 }
 
@@ -663,6 +665,14 @@ public struct WatchView: View {
                                 .background(Color.white.opacity(0.001))
                             }
                             .buttonStyle(.plain)
+                            .onAppear { loadMoreRelatedIfNeeded(after: item) }
+                        }
+                        
+                        if vm.isLoadingMoreRelated {
+                            ProgressView()
+                                .controlSize(.small)
+                                .frame(maxWidth: .infinity)
+                                .padding(.vertical, 8)
                         }
                     }
                     .frame(width: 320)
@@ -686,9 +696,31 @@ public struct WatchView: View {
             // Load intelligent personalized related videos (InnerTube + user affinity)
             let related = await RecommendationService.shared.fetchRelatedVideos(for: displayVideo)
             vm.relatedVideos = related
-            if let firstNext = related.first(where: { $0.id != displayVideo.id }) {
-                playerManager.nextVideo = firstNext
+            vm.canLoadMoreRelated = true
+            if let upNext = RecommendationService.shared.pickUpNext(from: related, current: displayVideo) {
+                playerManager.nextVideo = upNext
             }
+        }
+    }
+
+    /// Endless related list: extend it when the last row scrolls into view.
+    private func loadMoreRelatedIfNeeded(after item: Video) {
+        guard item.id == vm.relatedVideos.last?.id else { return }
+        guard !vm.isLoadingMoreRelated, vm.canLoadMoreRelated, vm.relatedVideos.count < 200 else { return }
+        let current = displayVideo
+        vm.isLoadingMoreRelated = true
+        Task {
+            let more = await RecommendationService.shared.fetchMoreRelatedVideos(for: current, shown: vm.relatedVideos)
+            if displayVideo.id == current.id {
+                let known = Set(vm.relatedVideos.map { $0.id })
+                let fresh = more.filter { !known.contains($0.id) }
+                if fresh.isEmpty {
+                    vm.canLoadMoreRelated = false
+                } else {
+                    vm.relatedVideos.append(contentsOf: fresh)
+                }
+            }
+            vm.isLoadingMoreRelated = false
         }
     }
 

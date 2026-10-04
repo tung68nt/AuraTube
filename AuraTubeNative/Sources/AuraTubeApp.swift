@@ -62,6 +62,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
                 let elapsed = Date().timeIntervalSinceReferenceDate - pm.lastPiPEnterTimestamp
                 guard elapsed > 0.4 else { return }
                 
+                // Dragging / clicking the PiP (or hiding it to audio-only) is not "back to the app"
+                guard !PiPWindowController.shared.isUserInteractingWithPiP else { return }
+                
                 // Verify that this is the main application window (not the PiP floating panel, not an auxiliary panel)
                 if !PiPWindowController.shared.isPipWindow(window),
                    !(window is NSPanel),

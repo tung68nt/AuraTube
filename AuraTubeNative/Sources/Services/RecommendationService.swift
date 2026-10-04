@@ -6,7 +6,9 @@ public final class RecommendationService: ObservableObject {
     public static let shared = RecommendationService()
     
     private let channelsKey = "auratube_user_channel_affinity_v1"
-    private let topicsKey = "auratube_user_topic_affinity_v1"
+    private let topicsKey = "auratube_user_topic_affinity_v2"
+    private let decayStampKey = "auratube_affinity_last_decay_v1"
+    private let homeFeedCacheKey = "auratube_home_feed_cache_v1"
     private let searchesKey = "auratube_recent_searches_v1"
     private let channelAvatarsKey = "auratube_channel_avatars_v1"
     
@@ -38,6 +40,7 @@ public final class RecommendationService: ObservableObject {
             self.trendingCache = cached
             self.lastTrendingFetchTime = Date()
         }
+        loadProfile()
         refreshProfileMetrics()
     }
     
@@ -80,43 +83,107 @@ public final class RecommendationService: ObservableObject {
         }
     }
     
+    // MARK: - Affinity Profile (time-decayed)
+    
+    /// Channel / topic affinity scores. Kept in memory and decayed over time so the feed follows
+    /// what the user is into *now* instead of locking onto whatever they watched most months ago.
+    private var channelAffinity: [String: Double] = [:]
+    private var topicAffinity: [String: Double] = [:]
+    private var persistProfileWork: DispatchWorkItem?
+    
+    private func loadProfile() {
+        func load(_ key: String) -> [String: Double] {
+            (UserDefaults.standard.dictionary(forKey: key) ?? [:]).compactMapValues { ($0 as? NSNumber)?.doubleValue }
+        }
+        channelAffinity = load(channelsKey)
+        topicAffinity = load(topicsKey)
+        
+        // Exponential decay: channel half-life 30 days, topic half-life 14 days
+        let now = Date().timeIntervalSince1970
+        let last = UserDefaults.standard.double(forKey: decayStampKey)
+        guard last > 0 else {
+            UserDefaults.standard.set(now, forKey: decayStampKey)
+            return
+        }
+        let days = (now - last) / 86400
+        guard days >= 1 else { return }
+        let channelFactor = pow(0.5, days / 30)
+        let topicFactor = pow(0.5, days / 14)
+        channelAffinity = channelAffinity.mapValues { $0 * channelFactor }.filter { $0.value >= 0.25 }
+        topicAffinity = topicAffinity.mapValues { $0 * topicFactor }.filter { $0.value >= 0.25 }
+        UserDefaults.standard.set(now, forKey: decayStampKey)
+        persistProfile()
+    }
+    
+    private func persistProfile() {
+        persistProfileWork?.cancel()
+        let work = DispatchWorkItem { [weak self] in
+            guard let self = self else { return }
+            UserDefaults.standard.set(self.channelAffinity, forKey: self.channelsKey)
+            UserDefaults.standard.set(self.topicAffinity, forKey: self.topicsKey)
+        }
+        persistProfileWork = work
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.0, execute: work)
+    }
+    
+    private func bump(_ dict: inout [String: Double], key: String, by delta: Double) {
+        let value = (dict[key] ?? 0) + delta
+        if value <= 0.05 {
+            dict.removeValue(forKey: key)
+        } else {
+            dict[key] = min(value, 60)
+        }
+    }
+    
+    /// Applies one engagement signal (positive or negative) to the channel and topics of a video.
+    private func applySignal(video: Video, weight: Double) {
+        let uploader = video.uploader.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !uploader.isEmpty && uploader.lowercased() != "youtube" && uploader.lowercased() != "youtube shorts" {
+            bump(&channelAffinity, key: uploader, by: weight)
+            if weight > 0, let avatar = video.channelAvatarUrl, !avatar.isEmpty {
+                setChannelAvatar(for: uploader, url: avatar)
+            }
+        }
+        for kw in extractKeywordsAndPhrases(from: video.title) {
+            bump(&topicAffinity, key: kw, by: weight)
+        }
+        persistProfile()
+    }
+    
     // MARK: - Signal Collection & Tracking
     
-    /// Sync and bootstrap recommendations from existing watch history if available
+    /// Bootstrap the profile from existing watch history (only when there is nothing learned yet —
+    /// re-adding the whole history on every launch would inflate the scores).
     public func syncFromExistingHistory(_ videos: [Video]) {
         guard !videos.isEmpty else { return }
         for v in videos {
-            recordWatch(video: v, saveImmediately: false)
             if let avatar = v.channelAvatarUrl, !avatar.isEmpty {
                 setChannelAvatar(for: v.uploader, url: avatar)
             }
         }
+        let needsChannels = channelAffinity.isEmpty
+        let needsTopics = topicAffinity.isEmpty
+        if needsChannels || needsTopics {
+            for (idx, v) in videos.enumerated() {
+                let weight = idx < 15 ? 1.0 : 0.5
+                let uploader = v.uploader.trimmingCharacters(in: .whitespacesAndNewlines)
+                if needsChannels, !uploader.isEmpty, uploader.lowercased() != "youtube", uploader.lowercased() != "youtube shorts" {
+                    bump(&channelAffinity, key: uploader, by: weight)
+                }
+                if needsTopics {
+                    for kw in extractKeywordsAndPhrases(from: v.title) {
+                        bump(&topicAffinity, key: kw, by: weight)
+                    }
+                }
+            }
+            persistProfile()
+        }
         refreshProfileMetrics()
     }
     
-    /// Record a video watch event
+    /// Record a video watch event (a click — the weakest positive signal)
     public func recordWatch(video: Video, saveImmediately: Bool = true) {
-        let uploader = video.uploader.trimmingCharacters(in: .whitespacesAndNewlines)
-        if !uploader.isEmpty && uploader.lowercased() != "youtube" && uploader.lowercased() != "youtube shorts" {
-            var channelCounts = UserDefaults.standard.dictionary(forKey: channelsKey) as? [String: Int] ?? [:]
-            channelCounts[uploader] = (channelCounts[uploader] ?? 0) + 1
-            UserDefaults.standard.set(channelCounts, forKey: channelsKey)
-            
-            if let avatar = video.channelAvatarUrl, !avatar.isEmpty {
-                setChannelAvatar(for: uploader, url: avatar)
-            }
-        }
-        
-        // Extract meaningful topic keywords & intact phrases from title
-        let keywords = extractKeywordsAndPhrases(from: video.title)
-        if !keywords.isEmpty {
-            var topicCounts = UserDefaults.standard.dictionary(forKey: topicsKey) as? [String: Int] ?? [:]
-            for kw in keywords {
-                topicCounts[kw] = (topicCounts[kw] ?? 0) + 1
-            }
-            UserDefaults.standard.set(topicCounts, forKey: topicsKey)
-        }
-        
+        applySignal(video: video, weight: 1.0)
         if saveImmediately {
             refreshProfileMetrics()
         }
@@ -124,22 +191,15 @@ public final class RecommendationService: ObservableObject {
     
     /// Record high-retention watch completion (> 50% or finished) with enhanced signal weight
     public func recordWatchCompletion(video: Video) {
-        let uploader = video.uploader.trimmingCharacters(in: .whitespacesAndNewlines)
-        if !uploader.isEmpty && uploader.lowercased() != "youtube" && uploader.lowercased() != "youtube shorts" {
-            var channelCounts = UserDefaults.standard.dictionary(forKey: channelsKey) as? [String: Int] ?? [:]
-            channelCounts[uploader] = (channelCounts[uploader] ?? 0) + 2
-            UserDefaults.standard.set(channelCounts, forKey: channelsKey)
-        }
-        
-        let keywords = extractKeywordsAndPhrases(from: video.title)
-        if !keywords.isEmpty {
-            var topicCounts = UserDefaults.standard.dictionary(forKey: topicsKey) as? [String: Int] ?? [:]
-            for kw in keywords {
-                topicCounts[kw] = (topicCounts[kw] ?? 0) + 2
-            }
-            UserDefaults.standard.set(topicCounts, forKey: topicsKey)
-        }
-        
+        applySignal(video: video, weight: 2.0)
+        refreshProfileMetrics()
+    }
+    
+    /// Record a quick abandon (clicked, then left within seconds): cancels the click and counts
+    /// slightly against the channel/topic, like YouTube's "not satisfied" watch-time signal.
+    public func recordSkip(video: Video) {
+        applySignal(video: video, weight: -1.5)
+        impressionCounts[video.id, default: 0] += 3
         refreshProfileMetrics()
     }
     
@@ -150,9 +210,14 @@ public final class RecommendationService: ObservableObject {
     
     /// Reset learned preferences
     public func resetLearnedPreferences() {
+        persistProfileWork?.cancel()
+        channelAffinity = [:]
+        topicAffinity = [:]
+        impressionCounts = [:]
         UserDefaults.standard.removeObject(forKey: channelsKey)
         UserDefaults.standard.removeObject(forKey: topicsKey)
         UserDefaults.standard.removeObject(forKey: searchesKey)
+        UserDefaults.standard.removeObject(forKey: homeFeedCacheKey)
         refreshProfileMetrics()
     }
     
@@ -167,26 +232,21 @@ public final class RecommendationService: ObservableObject {
         if searches.count > 20 { searches.removeLast() }
         UserDefaults.standard.set(searches, forKey: searchesKey)
         
-        // Boost keywords and the search phrase itself
-        var topicCounts = UserDefaults.standard.dictionary(forKey: topicsKey) as? [String: Int] ?? [:]
-        topicCounts[trimmed.lowercased()] = (topicCounts[trimmed.lowercased()] ?? 0) + 3 // High weight for full search phrase
-        
-        let keywords = extractKeywordsAndPhrases(from: trimmed)
-        for kw in keywords {
-            topicCounts[kw] = (topicCounts[kw] ?? 0) + 2
+        // Boost keywords and the search phrase itself (explicit intent = strong signal)
+        bump(&topicAffinity, key: trimmed.lowercased(), by: 3)
+        for kw in extractKeywordsAndPhrases(from: trimmed) where kw != trimmed.lowercased() {
+            bump(&topicAffinity, key: kw, by: 2)
         }
-        UserDefaults.standard.set(topicCounts, forKey: topicsKey)
+        persistProfile()
         
         refreshProfileMetrics()
     }
     
     public func refreshProfileMetrics() {
-        let channelCounts = UserDefaults.standard.dictionary(forKey: channelsKey) as? [String: Int] ?? [:]
-        let sortedChannels = channelCounts.sorted(by: { $0.value > $1.value }).map { $0.key }
+        let sortedChannels = channelAffinity.sorted(by: { $0.value > $1.value }).map { $0.key }
         self.topChannels = Array(sortedChannels.prefix(8))
         
-        let topicCounts = UserDefaults.standard.dictionary(forKey: topicsKey) as? [String: Int] ?? [:]
-        let sortedTopics = topicCounts.sorted(by: { $0.value > $1.value }).map { $0.key }
+        let sortedTopics = topicAffinity.sorted(by: { $0.value > $1.value }).map { $0.key }
         self.topKeywords = Array(sortedTopics.prefix(10))
         
         self.recentSearches = UserDefaults.standard.stringArray(forKey: searchesKey) ?? []
@@ -272,69 +332,138 @@ public final class RecommendationService: ObservableObject {
     
     // MARK: - Keyword & Entity Extraction
     
+    private static let keywordStopWords: Set<String> = [
+        "và", "của", "các", "những", "cho", "trong", "với", "tập", "full", "video",
+        "official", "lyrics", "audio", "nhạc", "bài", "hát", "trailer", "teaser",
+        "preview", "review", "mới", "nhất", "hôm", "nay", "2024", "2025", "2026",
+        "hd", "4k", "vietsub", "thuyết", "minh", "lồng", "tiếng", "trên", "tại",
+        "một", "người", "được", "không", "này", "khi", "làm", "thế", "nào", "gì",
+        "hay", "cực", "quá", "về", "như", "đã", "có", "sẽ", "phải", "đến", "chính",
+        "thức", "bởi", "từ", "nhiều", "lại", "ra", "vào", "ngày", "năm", "tháng",
+        "là", "thì", "mà", "để", "rồi", "cũng", "rất", "sau", "trước", "nhưng", "vì",
+        "the", "and", "for", "with", "you", "this", "that", "from", "how", "what",
+        "shorts", "short", "part", "ep", "live", "new"
+    ]
+    
+    /// Extracts topic keys from a title. Vietnamese words are mostly two syllables, so single
+    /// syllables ("công", "thẩm") carry no meaning — topics are therefore adjacent-word phrases,
+    /// plus standalone Latin words (brands / English terms such as "iphone", "macbook").
     private func extractKeywordsAndPhrases(from text: String) -> [String] {
-        let stopWords: Set<String> = [
-            "và", "của", "các", "những", "cho", "trong", "với", "tập", "full", "video",
-            "official", "lyrics", "audio", "nhạc", "bài", "hát", "trailer", "teaser",
-            "preview", "review", "mới", "nhất", "hôm", "nay", "2024", "2025", "2026",
-            "hd", "4k", "vietsub", "thuyết", "minh", "lồng", "tiếng", "trên", "tại",
-            "một", "người", "được", "không", "này", "khi", "làm", "thế", "nào", "gì",
-            "hay", "cực", "quá", "về", "như", "đã", "có", "sẽ", "phải", "đến", "chính",
-            "thức", "bởi", "từ", "nhiều", "lại", "ra", "vào", "ngày", "năm", "tháng"
-        ]
-        
-        let cleaned = text.lowercased()
-            .replacingOccurrences(of: "[^a-z0-9a-zà-ỹ\\s]", with: " ", options: .regularExpression)
-        
-        let tokens = cleaned.components(separatedBy: .whitespacesAndNewlines)
-            .map { $0.trimmingCharacters(in: .whitespaces) }
-            .filter { !$0.isEmpty }
-        
-        var results: [String] = []
-        
-        // 1. Single keywords
-        for token in tokens {
-            if token.count >= 3 && !stopWords.contains(token) && Double(token) == nil {
-                results.append(token)
-            }
+        let stopWords = Self.keywordStopWords
+        func isMeaningful(_ token: String) -> Bool {
+            token.count >= 2 && !stopWords.contains(token) && Double(token) == nil
         }
         
-        // 2. Recognized bigrams / tech phrases (e.g. "iphone 16", "apple watch", "vision pro")
-        if tokens.count >= 2 {
-            for i in 0..<(tokens.count - 1) {
-                let bi = "\(tokens[i]) \(tokens[i+1])"
-                if bi.contains("iphone") || bi.contains("macbook") || bi.contains("apple") ||
-                   bi.contains("samsung") || bi.contains("galaxy") || bi.contains("vision pro") ||
-                   bi.contains("tai nghe") || bi.contains("bàn phím") || bi.contains("pc gaming") {
-                    results.append(bi)
+        // Split on punctuation first so a phrase never straddles "|", "-", ":" …
+        let separators = CharacterSet(charactersIn: "|-–—:·•,.!?()[]{}\"“”/\\#")
+        let segments = text.precomposedStringWithCanonicalMapping.lowercased().components(separatedBy: separators)
+        
+        var results = Set<String>()
+        for segment in segments {
+            let cleaned = segment.replacingOccurrences(of: "[^a-z0-9à-ỹ\\s]", with: " ", options: .regularExpression)
+            let tokens = cleaned.split(whereSeparator: { $0.isWhitespace }).map(String.init)
+            for (i, token) in tokens.enumerated() {
+                guard isMeaningful(token) else { continue }
+                let isLatin = token.allSatisfy { $0.isASCII }
+                if isLatin && token.count >= 4 {
+                    results.insert(token)
+                }
+                guard i + 1 < tokens.count else { continue }
+                let next = tokens[i + 1]
+                if isMeaningful(next) || (isLatin && token.count >= 3 && Double(next) != nil) {
+                    results.insert("\(token) \(next)")
                 }
             }
         }
-        
-        return Array(Set(results))
+        return Array(results)
     }
     
     // MARK: - Smart Recommendation Algorithm
+    //
+    // Modeled on YouTube's two-stage recommender:
+    //   1. Candidate generation — several independent sources (watch-next graph of recent watches,
+    //      subscriptions, favourite channels, topic intent, trending, ecosystem exploration).
+    //   2. Ranking — one score per candidate from source strength, co-occurrence across sources,
+    //      time-decayed channel/topic affinity, freshness, popularity and impression fatigue.
+    //   3. Re-ranking — greedy diversity pass (channel + topic spread, reserved exploration slots).
     
-    /// Generates multi-stream recommendations balancing:
-    /// 1. Channel Loyalty (videos from favorite channels & related creators)
-    /// 2. Direct Topic Affinity (exact user search & watch interests)
-    /// 3. Semantic Ecosystem Expansion (e.g. iPhone -> accessories, cases, MacBooks, AR/VR glasses)
-    /// 4. Fresh Serendipitous Discovery (non-music quality content)
+    private enum CandidateSource {
+        case graph, subscription, channel, topic, trending, explore
+        
+        var prior: Double {
+            switch self {
+            case .graph: return 3.0
+            case .subscription: return 2.6
+            case .channel: return 2.2
+            case .topic: return 2.0
+            case .trending: return 1.2
+            case .explore: return 1.0
+            }
+        }
+        
+        var isDiscovery: Bool { self == .trending || self == .explore }
+    }
+    
+    private struct Candidate {
+        var video: Video
+        var source: CandidateSource
+        var rank: Int
+        var hits: Int
+    }
+    
+    /// Home feed ("Tất cả"): personalized when there is a profile, trending-based otherwise.
     public func fetchRecommendations() async -> [Video] {
         refreshProfileMetrics()
         
-        let history = PlayerManager.shared.historyVideos
-        let watchedIds = Set(history.prefix(200).map { $0.id })
+        let watchedIds = Set(PlayerManager.shared.historyVideos.prefix(200).map { $0.id })
         
-        let raw: [Video]
+        var candidates: [Candidate]
         if hasPersonalizedProfile {
-            raw = await fetchPersonalizedMultiStreamFeed(watchedIds: watchedIds)
+            candidates = await gatherPersonalizedCandidates(excluded: watchedIds)
         } else {
-            raw = await fetchDiverseColdStartFeed()
+            candidates = []
         }
-        let ranked = diversifyAndRank(raw)
+        if candidates.filter({ !$0.video.isShort }).count < 12 {
+            let trending = await fetchVietnamTrendingFeed(forceRefresh: false)
+            let known = Set(candidates.map { $0.video.id })
+            candidates += mergeCandidates([(.trending, trending)], excluded: watchedIds.union(known))
+        }
+        
+        let ranked = rankAndDiversify(candidates, limit: 72)
         recordImpressions(ranked.prefix(24))
+        if !ranked.isEmpty, let data = try? JSONEncoder().encode(Array(ranked.prefix(48))) {
+            UserDefaults.standard.set(data, forKey: homeFeedCacheKey)
+        }
+        return ranked
+    }
+    
+    /// Last computed home feed, for an instant first render before the fresh one arrives.
+    public func getCachedRecommendations() -> [Video] {
+        guard let data = UserDefaults.standard.data(forKey: homeFeedCacheKey),
+              let cached = try? JSONDecoder().decode([Video].self, from: data) else { return [] }
+        let watched = Set(PlayerManager.shared.historyVideos.prefix(200).map { $0.id })
+        return cached.filter { !watched.contains($0.id) }
+    }
+    
+    /// Next page for an endless home feed: expands the watch-next graph from what is already on
+    /// screen (plus one history seed), then ranks with the same scorer so it stays on-taste.
+    public func fetchMoreRecommendations(shown: [Video]) async -> [Video] {
+        let longShown = shown.filter { !$0.isShort }
+        let history = PlayerManager.shared.historyVideos.filter { !$0.isShort }
+        
+        var seeds: [Video] = []
+        seeds += longShown.suffix(12).shuffled().prefix(2)
+        seeds += longShown.prefix(12).shuffled().prefix(1)
+        seeds += history.prefix(20).shuffled().prefix(1)
+        var seenSeeds = Set<String>()
+        seeds = seeds.filter { seenSeeds.insert($0.id).inserted }
+        guard !seeds.isEmpty else { return [] }
+        
+        let lists = await relatedLists(for: seeds, perSeed: 18)
+        let excluded = Set(shown.map { $0.id }).union(history.prefix(200).map { $0.id })
+        let candidates = mergeCandidates(lists.map { (CandidateSource.graph, $0) }, excluded: excluded)
+        let ranked = rankAndDiversify(candidates, limit: 36).filter { !$0.isShort }
+        recordImpressions(ranked.prefix(12))
         return ranked
     }
     
@@ -348,45 +477,55 @@ public final class RecommendationService: ObservableObject {
         }
     }
     
-    /// Ranking stage, modeled on YouTube's two-stage recommender:
-    /// 1. Demote items already shown ≥2 times without a click (stale impressions).
-    /// 2. Channel diversity: max 2 per channel in the visible feed, never back-to-back same channel.
-    /// 3. Shorts are kept out of the main long-form grid (they have their own shelf).
-    private func diversifyAndRank(_ input: [Video]) -> [Video] {
-        var seen = Set<String>()
-        let likesMusic = userLikesMusic
-        let unique = input.filter { seen.insert($0.id).inserted && (likesMusic || !Self.isMusicCompilation($0)) }
-        
-        let fresh = unique.filter { (impressionCounts[$0.id] ?? 0) < 2 }
-        let stale = unique.filter { (impressionCounts[$0.id] ?? 0) >= 2 }
-        let longForm = fresh.filter { !$0.isShort }
-        let shorts = fresh.filter { $0.isShort }
-        
-        var result: [Video] = []
-        var perChannel: [String: Int] = [:]
-        var overflow: [Video] = []
-        var pool = longForm
-        
-        while !pool.isEmpty {
-            var pickedIndex: Int? = nil
-            for (idx, v) in pool.enumerated() {
-                let ch = v.uploader.lowercased()
-                let lastCh = result.last?.uploader.lowercased()
-                if (perChannel[ch] ?? 0) < 2 && ch != lastCh {
-                    pickedIndex = idx
-                    break
+    // MARK: - Candidate Generation
+    
+    private func relatedLists(for seeds: [Video], perSeed: Int) async -> [[Video]] {
+        await withTaskGroup(of: [Video].self) { group in
+            for seed in seeds {
+                let seedId = seed.id
+                group.addTask {
+                    let related = await YTDLPService.shared.fetchRelatedVideosViaInnerTube(videoId: seedId)
+                    return Array(related.prefix(perSeed))
                 }
             }
-            guard let idx = pickedIndex else {
-                overflow.append(contentsOf: pool)
-                break
-            }
-            let v = pool.remove(at: idx)
-            perChannel[v.uploader.lowercased(), default: 0] += 1
-            result.append(v)
+            var all: [[Video]] = []
+            for await list in group where !list.isEmpty { all.append(list) }
+            return all
         }
-        
-        return result + overflow + shorts + stale
+    }
+    
+    private func searchLists(queries: [String], limitPerQuery: Int) async -> [[Video]] {
+        await withTaskGroup(of: [Video].self) { group in
+            for q in queries {
+                group.addTask {
+                    await YTDLPService.shared.searchVideos(query: q, limit: limitPerQuery)
+                }
+            }
+            var all: [[Video]] = []
+            for await list in group where !list.isEmpty { all.append(list) }
+            return all
+        }
+    }
+    
+    /// Merges source lists into unique candidates. A video surfaced by several sources/seeds keeps
+    /// its strongest source and counts the extra hits (co-visitation = strong relevance evidence).
+    private func mergeCandidates(_ streams: [(CandidateSource, [Video])], excluded: Set<String>) -> [Candidate] {
+        var byId: [String: Candidate] = [:]
+        var order: [String] = []
+        for (source, videos) in streams {
+            for (rank, video) in videos.enumerated() where !excluded.contains(video.id) {
+                if var existing = byId[video.id] {
+                    existing.hits += 1
+                    if source.prior > existing.source.prior { existing.source = source }
+                    existing.rank = min(existing.rank, rank)
+                    byId[video.id] = existing
+                } else {
+                    byId[video.id] = Candidate(video: video, source: source, rank: rank, hits: 1)
+                    order.append(video.id)
+                }
+            }
+        }
+        return order.compactMap { byId[$0] }
     }
     
     /// Weighted random pick from a ranked interest list (exploit top interests, still explore the tail).
@@ -400,165 +539,192 @@ public final class RecommendationService: ObservableObject {
         return weighted.prefix(count).map { $0.0 }
     }
     
-    /// Multi-stream personalized recommendation engine
-    private func fetchPersonalizedMultiStreamFeed(watchedIds: Set<String>) async -> [Video] {
-        // Stream 1: Channel Loyalty & Peer Creators (30% weight)
-        var stream1Queries: [String] = []
+    private func gatherPersonalizedCandidates(excluded: Set<String>) async -> [Candidate] {
+        // Source 1 — watch-next graph. Seeds are recency-weighted: the latest watch always counts,
+        // the rest are sampled so every refresh explores a different part of the history.
+        let history = PlayerManager.shared.historyVideos.filter { !$0.isShort }
+        var seeds: [Video] = []
+        seeds += history.prefix(1)
+        seeds += history.dropFirst().prefix(5).shuffled().prefix(2)
+        seeds += history.dropFirst(6).prefix(20).shuffled().prefix(2)
         
-        // Favorite watched channels — sampled (not always the same top 2) for feed variety
+        // Source 2 — favourite channels (and known peer creators in the same niche)
+        var channelQueries: [String] = []
         for ch in sampleInterests(topChannels, count: 2) {
-            stream1Queries.append("\(ch) mới nhất")
-            // Peer creators in the same niche
-            if let peers = PeerCreatorGraph.findPeers(for: ch) {
-                stream1Queries.append("\(peers) mới nhất")
+            channelQueries.append("\(ch) mới nhất")
+            if channelQueries.count < 3, let peers = PeerCreatorGraph.findPeers(for: ch) {
+                channelQueries.append("\(peers) mới nhất")
             }
         }
         
-        // Subscriptions if available
-        let subs = ChannelSubscriptionManager.shared.subscribedChannels
-        if !subs.isEmpty && stream1Queries.count < 3 {
-            for sub in subs.prefix(2) {
-                let q = (sub.handle?.hasPrefix("@") == true) ? sub.handle! : sub.title
-                if !stream1Queries.contains(where: { $0.contains(q) }) {
-                    stream1Queries.append("\(q) mới nhất")
-                }
-            }
-        }
-        
-        // Stream 2: Direct Search & Topic Intent (25% weight)
-        var stream2Queries: [String] = []
+        // Source 3 — topic intent: the latest search plus sampled learned topics
+        var topicQueries: [String] = []
         if let latestSearch = recentSearches.first {
-            stream2Queries.append(latestSearch)
+            topicQueries.append(latestSearch)
         }
-        if let topKw = sampleInterests(topKeywords, count: 1).first {
-            stream2Queries.append(topKw)
-        }
-        if stream2Queries.isEmpty && recentSearches.count > 1 {
-            stream2Queries.append(recentSearches[1])
+        for kw in sampleInterests(topKeywords, count: 2) where !topicQueries.contains(where: { $0.caseInsensitiveCompare(kw) == .orderedSame }) {
+            topicQueries.append(kw)
         }
         
-        // Stream 3: Vietnam Market Trending Blend (25% weight)
-        // Dynamically blends what is trending right now in Vietnam with user topics
-        var stream3Queries: [String] = []
-        let seedKeywords = Array((recentSearches + topKeywords).prefix(3))
-        for seed in seedKeywords {
-            let matched = VietnamTrendingEngine.queries(for: seed)
-            if let first = matched.first, !stream3Queries.contains(first) {
-                stream3Queries.append(first)
+        // Source 4 — exploration: adjacent ecosystems of the user's interests (no generic filler)
+        var exploreQueries: [String] = []
+        for seed in (recentSearches + topKeywords).prefix(4) {
+            if let expanded = SemanticClusterEngine.expand(query: seed).randomElement(), !exploreQueries.contains(expanded) {
+                exploreQueries.append(expanded)
             }
-        }
-        // Always inject top viral Vietnam trending queries to catch hot national trends
-        for g in VietnamTrendingEngine.generalTrendingQueries {
-            if !stream3Queries.contains(g) && stream3Queries.count < 3 {
-                stream3Queries.append(g)
-            }
+            if exploreQueries.count >= 2 { break }
         }
         
-        // Stream 4: Semantic Ecosystem Expansion & Fresh Discovery (20% weight)
-        var stream4Queries: [String] = []
-        for seed in seedKeywords {
-            let expanded = SemanticClusterEngine.expand(query: seed)
-            for exp in expanded {
-                if !stream4Queries.contains(exp) && stream4Queries.count < 2 {
-                    stream4Queries.append(exp)
-                }
-            }
-            if stream4Queries.count >= 2 { break }
+        let graphSeeds = seeds
+        let channelQ = Array(channelQueries.prefix(3))
+        let topicQ = Array(topicQueries.prefix(3))
+        let exploreQ = exploreQueries
+        async let graphTask = relatedLists(for: graphSeeds, perSeed: 16)
+        async let channelTask = searchLists(queries: channelQ, limitPerQuery: 8)
+        async let topicTask = searchLists(queries: topicQ, limitPerQuery: 10)
+        async let exploreTask = searchLists(queries: exploreQ, limitPerQuery: 8)
+        async let trendingTask = fetchVietnamTrendingFeed(forceRefresh: false)
+        
+        let (graph, channels, topics, explore, trending) = await (graphTask, channelTask, topicTask, exploreTask, trendingTask)
+        
+        // Source 5 — newest uploads from subscriptions (already fetched by the Following tab)
+        let subscriptionFeed = Array(ChannelSubscriptionManager.shared.feedVideos.prefix(24))
+        
+        var streams: [(CandidateSource, [Video])] = []
+        streams += graph.map { (.graph, $0) }
+        streams.append((.subscription, subscriptionFeed))
+        streams += channels.map { (.channel, $0) }
+        streams += topics.map { (.topic, $0) }
+        streams += explore.map { (.explore, $0) }
+        streams.append((.trending, trending))
+        return mergeCandidates(streams, excluded: excluded)
+    }
+    
+    // MARK: - Ranking
+    
+    /// Approximate age in days from YouTube's relative date text ("3 ngày trước", "2 weeks ago").
+    nonisolated static func ageInDays(_ published: String?) -> Double? {
+        guard let p = published?.lowercased(),
+              let match = p.range(of: "\\d+", options: .regularExpression),
+              let n = Double(p[match]) else { return nil }
+        if p.contains("giây") || p.contains("second") || p.contains("phút") || p.contains("minute") || p.contains("giờ") || p.contains("hour") {
+            return 0.2
         }
-        if stream4Queries.isEmpty {
-            stream4Queries = [
-                "khám phá công nghệ tương lai việt nam triệu view",
-                "ký sự đời sống ẩm thực việt nam triệu view"
-            ]
+        if p.contains("ngày") || p.contains("day") { return n }
+        if p.contains("tuần") || p.contains("week") { return n * 7 }
+        if p.contains("tháng") || p.contains("month") { return n * 30 }
+        if p.contains("năm") || p.contains("year") { return n * 365 }
+        return nil
+    }
+    
+    private func score(_ c: Candidate, keywords: Set<String>) -> Double {
+        let v = c.video
+        var s = c.source.prior
+        
+        // Position inside its own source list, and agreement between sources/seeds
+        s -= 0.05 * Double(min(c.rank, 20))
+        s += 1.2 * Double(min(c.hits - 1, 3))
+        
+        // Channel affinity (log-damped so one binge doesn't own the feed)
+        let uploader = v.uploader.trimmingCharacters(in: .whitespacesAndNewlines)
+        if let aff = channelAffinity[uploader] {
+            s += min(2.5, log2(1 + aff) * 0.9)
         }
-        
-        // Assemble target search tasks (2 queries per stream = 8 parallel fast queries)
-        let s1 = Array(stream1Queries.prefix(2))
-        let s2 = Array(stream2Queries.prefix(2))
-        let s3 = Array(stream3Queries.prefix(2))
-        let s4 = Array(stream4Queries.prefix(2))
-        
-        // Stream 0: Item-to-item "Watch Next" graph — YouTube's strongest candidate source.
-        // Pull YouTube's own related-video graph for a random sample of recently watched videos.
-        let recentWatched = Array(PlayerManager.shared.historyVideos.filter { !$0.isShort }.prefix(8))
-        let seedVideos = Array(recentWatched.shuffled().prefix(3))
-        async let fetchGraph: [Video] = withTaskGroup(of: [Video].self) { group in
-            for seed in seedVideos {
-                group.addTask {
-                    let rel = await YTDLPService.shared.fetchRelatedVideosViaInnerTube(videoId: seed.id)
-                    return Array(rel.filter { !$0.isShort }.prefix(10))
-                }
-            }
-            var all: [[Video]] = []
-            for await r in group { all.append(r) }
-            // Round-robin across seeds so one seed doesn't dominate
-            var merged: [Video] = []
-            var idx = 0
-            while all.contains(where: { idx < $0.count }) {
-                for list in all where idx < list.count { merged.append(list[idx]) }
-                idx += 1
-            }
-            return merged
-        }
-        
-        // Concurrent multi-stream execution
-        async let fetchStream1 = fetchBatch(queries: s1, limitPerQuery: 8)
-        async let fetchStream2 = fetchBatch(queries: s2, limitPerQuery: 8)
-        async let fetchStream3 = fetchBatch(queries: s3, limitPerQuery: 8)
-        async let fetchStream4 = fetchBatch(queries: s4, limitPerQuery: 6)
-        
-        let (v0, v1, v2, v3, v4) = await (fetchGraph, fetchStream1, fetchStream2, fetchStream3, fetchStream4)
-        
-        // Weighted Interleaving: 2 from S1, 2 from S2, 2 from S3, 1 from S4
-        var combined: [Video] = []
-        var seenIds = Set<String>()
-        
-        var i0 = 0, i1 = 0, i2 = 0, i3 = 0, i4 = 0
-        let totalCount = v0.count + v1.count + v2.count + v3.count + v4.count
-        
-        func appendIfValid(_ video: Video) {
-            if !seenIds.contains(video.id) && !watchedIds.contains(video.id) {
-                seenIds.insert(video.id)
-                combined.append(video)
-            }
+        if ChannelSubscriptionManager.shared.isSubscribed(uploader) {
+            s += 1.0
         }
         
-        while combined.count < totalCount && (i0 < v0.count || i1 < v1.count || i2 < v2.count || i3 < v3.count || i4 < v4.count) {
-            // Pick from Stream 0 (Watch-next graph) — highest weight, like YouTube home
-            for _ in 0..<3 {
-                if i0 < v0.count { appendIfValid(v0[i0]); i0 += 1 }
+        // Topic affinity
+        var topic = 0.0
+        for kw in keywords {
+            if let aff = topicAffinity[kw] { topic += 0.5 * log2(1 + aff) }
+        }
+        s += min(2.0, topic)
+        
+        // Freshness
+        if let age = Self.ageInDays(v.publishedTime) {
+            switch age {
+            case ..<2: s += 1.2
+            case ..<7: s += 0.9
+            case ..<30: s += 0.5
+            case ..<365: break
+            case ..<1095: s -= 0.3
+            default: s -= 0.6
             }
-            // Pick from Stream 1 (Channel loyalty)
-            for _ in 0..<2 {
-                if i1 < v1.count { appendIfValid(v1[i1]); i1 += 1 }
+        }
+        
+        // Popularity as a mild quality prior
+        if let views = v.viewCount, views > 0 {
+            s += max(-0.3, min(0.8, (log10(Double(views)) - 4) * 0.25))
+        }
+        
+        // Impression fatigue: shown before but never clicked
+        let impressions = impressionCounts[v.id] ?? 0
+        s -= 0.9 * Double(min(impressions, 2))
+        if impressions >= 3 { s -= 3.0 }
+        
+        // Small jitter so two refreshes are never identical
+        s += Double.random(in: 0..<0.6)
+        return s
+    }
+    
+    /// Scores every candidate, then greedily builds the feed: each pick is the best remaining
+    /// item after penalising repeated channels and near-duplicate topics among recent picks.
+    /// Every 6th slot favours a discovery item so the feed never collapses into one bubble.
+    private func rankAndDiversify(_ candidates: [Candidate], limit: Int) -> [Video] {
+        let likesMusic = userLikesMusic
+        struct Scored {
+            let candidate: Candidate
+            let keywords: Set<String>
+            let score: Double
+        }
+        let scored: [Scored] = candidates
+            .filter { likesMusic || !Self.isMusicCompilation($0.video) }
+            .map { c in
+                let kws = Set(extractKeywordsAndPhrases(from: c.video.title))
+                return Scored(candidate: c, keywords: kws, score: score(c, keywords: kws))
             }
-            // Pick from Stream 2 (Direct intent)
-            for _ in 0..<2 {
-                if i2 < v2.count { appendIfValid(v2[i2]); i2 += 1 }
-            }
-            // Pick from Stream 3 (Vietnam Market Trending)
-            if i3 < v3.count { appendIfValid(v3[i3]); i3 += 1 }
-            // Pick from Stream 4 (Ecosystem & Discovery)
-            if i4 < v4.count { appendIfValid(v4[i4]); i4 += 1 }
+            .sorted { $0.score > $1.score }
+        
+        let shorts = scored.filter { $0.candidate.video.isShort }.map { $0.candidate.video }
+        var remaining = scored.filter { !$0.candidate.video.isShort }
+        
+        var picked: [Scored] = []
+        var perChannel: [String: Int] = [:]
+        
+        while !remaining.isEmpty && picked.count < limit {
+            let recent = picked.suffix(3)
+            let recentChannels = Set(recent.map { $0.candidate.video.uploader.lowercased() })
+            let wantsDiscovery = picked.count % 6 == 5
             
-            // Safety break if no advancement
-            if i0 >= v0.count && i1 >= v1.count && i2 >= v2.count && i3 >= v3.count && i4 >= v4.count {
-                break
-            }
-        }
-        
-        // If results are low, supplement with Vietnam Trending feed
-        if combined.count < 12 {
-            let fallback = await fetchVietnamTrendingFeed(forceRefresh: false)
-            for v in fallback {
-                if !seenIds.contains(v.id) && !watchedIds.contains(v.id) {
-                    seenIds.insert(v.id)
-                    combined.append(v)
+            var bestIndex = 0
+            var bestValue = -Double.infinity
+            for (i, item) in remaining.prefix(48).enumerated() {
+                var value = item.score
+                let channel = item.candidate.video.uploader.lowercased()
+                let count = perChannel[channel] ?? 0
+                value -= Double(count) * 1.5
+                if count >= 3 { value -= 100 }
+                if recentChannels.contains(channel) { value -= 2.5 }
+                if !item.keywords.isEmpty {
+                    for other in recent where !other.keywords.isEmpty {
+                        let overlap = Double(item.keywords.intersection(other.keywords).count)
+                        let union = Double(item.keywords.union(other.keywords).count)
+                        if overlap / union > 0.4 { value -= 1.0 }
+                    }
+                }
+                if wantsDiscovery && item.candidate.source.isDiscovery { value += 2.0 }
+                if value > bestValue {
+                    bestValue = value
+                    bestIndex = i
                 }
             }
+            let choice = remaining.remove(at: bestIndex)
+            perChannel[choice.candidate.video.uploader.lowercased(), default: 0] += 1
+            picked.append(choice)
         }
         
-        return combined
+        return picked.map { $0.candidate.video } + shorts
     }
     
     // MARK: - Intelligent Personalized Related Videos Engine
@@ -625,6 +791,29 @@ public final class RecommendationService: ObservableObject {
         }
         
         return related
+    }
+    
+    /// More related videos once the list is exhausted: second hop of the watch-next graph,
+    /// seeded from the top of what is already listed.
+    public func fetchMoreRelatedVideos(for video: Video, shown: [Video]) async -> [Video] {
+        let pool = shown.filter { $0.isShort == video.isShort }
+        let seeds = Array(pool.prefix(8).shuffled().prefix(2))
+        guard !seeds.isEmpty else { return [] }
+        let lists = await relatedLists(for: seeds, perSeed: 20)
+        var excluded = Set(shown.map { $0.id })
+        excluded.insert(video.id)
+        let candidates = mergeCandidates(lists.map { (CandidateSource.graph, $0) }, excluded: excluded)
+        return rankAndDiversify(candidates, limit: 24).filter { $0.isShort == video.isShort }
+    }
+    
+    /// Autoplay target: the best related long-form video the user has not just watched
+    /// (prevents A → B → A ping-pong loops).
+    public func pickUpNext(from related: [Video], current: Video) -> Video? {
+        let recentlyWatched = Set(PlayerManager.shared.historyVideos.prefix(30).map { $0.id })
+        let pool = related.filter { $0.id != current.id && $0.isShort == current.isShort }
+        return pool.first(where: { !recentlyWatched.contains($0.id) })
+            ?? pool.first
+            ?? related.first(where: { $0.id != current.id })
     }
     
     private func fetchBatch(queries: [String], limitPerQuery: Int) async -> [Video] {
@@ -793,11 +982,6 @@ public final class RecommendationService: ObservableObject {
         return combined
     }
     
-    /// Diverse multi-pillar feed for new users (delegates to Vietnam Trending)
-    private func fetchDiverseColdStartFeed() async -> [Video] {
-        return await fetchVietnamTrendingFeed(forceRefresh: false)
-    }
-    
     /// Targeted feed for category pills mapped to Vietnamese high-engagement content
     public func fetchVietnamCategoryFeed(category: String) async -> [Video] {
         let queries = VietnamTrendingEngine.queries(for: category)
@@ -910,11 +1094,8 @@ private struct SemanticClusterEngine {
             ]
         }
         
-        // Generic Tech / Gadget expansion
-        return [
-            "đồ chơi công nghệ review sản phẩm mới thông minh",
-            "top tiện ích thiết bị công nghệ đáng mua nhất"
-        ]
+        // No known ecosystem: no expansion (never pad the feed with unrelated filler)
+        return []
     }
     
     /// Suggest dynamic chip tag from keyword
@@ -1138,8 +1319,8 @@ extension RecommendationService {
     /// Re-ranks search results to boost creators and topics the user has demonstrated affinity for
     public func rankSearchResults(videos: [Video], query: String) -> [Video] {
         guard !videos.isEmpty else { return [] }
-        let channelCounts = UserDefaults.standard.dictionary(forKey: channelsKey) as? [String: Int] ?? [:]
-        let topicCounts = UserDefaults.standard.dictionary(forKey: topicsKey) as? [String: Int] ?? [:]
+        let channelCounts = channelAffinity
+        let topicCounts = topicAffinity
         let subManager = ChannelSubscriptionManager.shared
         
         // Calculate personalization score for each video
@@ -1153,14 +1334,14 @@ extension RecommendationService {
             
             // Frequently watched channels get proportional boost
             if let count = channelCounts[video.uploader] {
-                score += min(12.0, Double(count) * 2.5)
+                score += min(12.0, count * 2.5)
             }
             
             // Matching user topic keywords
             let keywords = extractKeywordsAndPhrases(from: video.title)
             for kw in keywords {
                 if let count = topicCounts[kw] {
-                    score += min(4.0, Double(count) * 0.8)
+                    score += min(4.0, count * 0.8)
                 }
             }
             

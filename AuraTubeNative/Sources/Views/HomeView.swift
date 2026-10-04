@@ -37,6 +37,8 @@ final class HomeViewModel: ObservableObject {
     @Published private(set) var channelRegularVideos: [Video] = []
     @Published private(set) var channelShortVideos: [Video] = []
     @Published var isLoading = true
+    @Published var isLoadingMore = false
+    var canLoadMore = true
     @Published var isChannelLoading = false
     
     let recommendedChannels: [RecommendedChannel] = [
@@ -672,6 +674,7 @@ public struct HomeView: View {
                                         onSelect: { onSelectVideo(video) },
                                         onSelectChannel: onSelectChannel
                                     )
+                                    .onAppear { loadMoreIfNeeded(after: video) }
                                 }
                             }
                             .padding(.horizontal, 24)
@@ -723,12 +726,20 @@ public struct HomeView: View {
                                                 onSelect: { onSelectVideo(video) },
                                                 onSelectChannel: onSelectChannel
                                             )
+                                            .onAppear { loadMoreIfNeeded(after: video) }
                                         }
                                     }
                                     .padding(.horizontal, 24)
                                 }
                             }
                         }
+                    }
+                    
+                    if vm.isLoadingMore {
+                        ProgressView()
+                            .controlSize(.small)
+                            .frame(maxWidth: .infinity)
+                            .padding(.top, 20)
                     }
                 }
             }
@@ -739,9 +750,33 @@ public struct HomeView: View {
         }
     }
     
+    /// Endless feed: when the last card scrolls into view, extend the feed with the next page.
+    private func loadMoreIfNeeded(after video: Video) {
+        guard vm.selectedTag == allTag || vm.selectedTag == trendingTag else { return }
+        guard !vm.isLoading, !vm.isLoadingMore, vm.canLoadMore else { return }
+        guard video.id == vm.regularVideos.last?.id, vm.regularVideos.count < 400 else { return }
+        
+        let tag = vm.selectedTag
+        vm.isLoadingMore = true
+        Task {
+            let more = await RecommendationService.shared.fetchMoreRecommendations(shown: vm.videos)
+            if vm.selectedTag == tag {
+                let known = Set(vm.videos.map { $0.id })
+                let fresh = more.filter { !known.contains($0.id) }
+                if fresh.isEmpty {
+                    vm.canLoadMore = false
+                } else {
+                    vm.videos.append(contentsOf: fresh)
+                }
+            }
+            vm.isLoadingMore = false
+        }
+    }
+    
     private func selectTag(_ tag: String) {
         vm.selectedTag = tag
         vm.selectedChannel = nil
+        vm.canLoadMore = true
         
         if tag == followingTag {
             Task {
@@ -790,6 +825,28 @@ public struct HomeView: View {
     }
     
     private func loadInitial() async {
+        // Returning users land on their personalized feed (like YouTube's home); the last feed is
+        // shown instantly from cache while a fresh one is ranked in the background.
+        if RecommendationService.shared.hasPersonalizedProfile && !PlayerManager.shared.historyVideos.isEmpty {
+            vm.selectedTag = allTag
+            let cachedFeed = RecommendationService.shared.getCachedRecommendations()
+            if !cachedFeed.isEmpty {
+                vm.videos = cachedFeed
+                vm.isLoading = false
+            } else {
+                vm.isLoading = true
+            }
+            let fresh = await RecommendationService.shared.fetchRecommendations()
+            if vm.selectedTag == allTag, !fresh.isEmpty {
+                vm.videos = fresh
+            }
+            vm.isLoading = false
+            if !subManager.subscribedChannels.isEmpty {
+                await subManager.fetchFeed()
+            }
+            return
+        }
+        
         let cached = RecommendationService.shared.getCachedTrending()
         if !cached.isEmpty {
             vm.videos = cached

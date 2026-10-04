@@ -1197,19 +1197,19 @@ struct ShortsCardPlayerView: NSViewRepresentable {
         config.mediaTypesRequiringUserActionForPlayback = []
         config.allowsAirPlayForMediaPlayback = true
         config.preferences.isElementFullscreenEnabled = true
-        config.preferences.setValue(false, forKey: "allowFileAccessFromFileURLs")
-        config.preferences.setValue(true, forKey: "fullScreenEnabled")
+        config.preferences.setValueIfSupported(false, forKey: "allowFileAccessFromFileURLs")
+        config.preferences.setValueIfSupported(true, forKey: "fullScreenEnabled")
         
-        config.setValue(false, forKey: "requiresUserActionForAudioPlayback")
-        config.setValue(false, forKey: "requiresUserActionForVideoPlayback")
-        config.setValue(true, forKey: "mainContentUserGestureOverrideEnabled")
-        config.setValue(false, forKey: "invisibleAutoplayNotPermitted")
+        config.setValueIfSupported(false, forKey: "requiresUserActionForAudioPlayback")
+        config.setValueIfSupported(false, forKey: "requiresUserActionForVideoPlayback")
+        config.setValueIfSupported(true, forKey: "mainContentUserGestureOverrideEnabled")
+        config.setValueIfSupported(false, forKey: "invisibleAutoplayNotPermitted")
         
         let pref = config.preferences
-        pref.setValue(false, forKey: "requiresUserGestureForAudioPlayback")
-        pref.setValue(false, forKey: "requiresUserGestureForVideoPlayback")
-        pref.setValue(true, forKey: "mainContentUserGestureOverrideEnabled")
-        pref.setValue(false, forKey: "invisibleMediaAutoplayNotPermitted")
+        pref.setValueIfSupported(false, forKey: "requiresUserGestureForAudioPlayback")
+        pref.setValueIfSupported(false, forKey: "requiresUserGestureForVideoPlayback")
+        pref.setValueIfSupported(true, forKey: "mainContentUserGestureOverrideEnabled")
+        pref.setValueIfSupported(false, forKey: "invisibleMediaAutoplayNotPermitted")
         
         let contentController = WKUserContentController()
         contentController.add(context.coordinator, contentWorld: .page, name: "playerBridge")
@@ -1231,7 +1231,7 @@ struct ShortsCardPlayerView: NSViewRepresentable {
         
         let webView = ScrollForwardingWKWebView(frame: .zero, configuration: config)
         webView.customUserAgent = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.4 Safari/605.1.15"
-        webView.setValue(false, forKey: "drawsBackground")
+        webView.setValueIfSupported(false, forKey: "drawsBackground")
         webView.navigationDelegate = context.coordinator
         context.coordinator.targetWebView = webView
         

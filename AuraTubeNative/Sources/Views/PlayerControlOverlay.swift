@@ -66,6 +66,8 @@ public struct PlayerControlOverlay: View {
                         .padding(.horizontal, isCompact ? 10 : 18)
                         .padding(.bottom, 8)
                 }
+                // Light scrim + soft shadow keeps the controls readable on bright frames
+                .shadow(color: .black.opacity(0.45), radius: 2.5, y: 0.5)
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
             }
             .frame(height: 68)
@@ -73,8 +75,8 @@ public struct PlayerControlOverlay: View {
                 LinearGradient(
                     stops: [
                         .init(color: .clear, location: 0.0),
-                        .init(color: Color.black.opacity(0.55), location: 0.3),
-                        .init(color: Color.black.opacity(0.95), location: 1.0)
+                        .init(color: Color.black.opacity(0.18), location: 0.45),
+                        .init(color: Color.black.opacity(0.42), location: 1.0)
                     ],
                     startPoint: .top,
                     endPoint: .bottom
