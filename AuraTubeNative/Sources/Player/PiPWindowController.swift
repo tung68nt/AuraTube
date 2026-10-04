@@ -788,27 +788,8 @@ public struct PiPFloatingContentView: View {
                 
                 // 3. Animated Center HUD Badge (Space / Mute / Seek feedback)
                 if hud.isHudVisible {
-                    VStack(spacing: 6) {
-                        Image(systemName: hud.hudIcon)
-                            .font(.system(size: 26, weight: .bold))
-                            .foregroundColor(.white)
-                        if !hud.hudText.isEmpty {
-                            Text(hud.hudText)
-                                .font(.system(size: 12, weight: .semibold))
-                                .foregroundColor(.white)
-                        }
-                    }
-                    .padding(.horizontal, 18)
-                    .padding(.vertical, 14)
-                    .background(
-                        RoundedRectangle(cornerRadius: 14, style: .continuous)
-                            .fill(Color.black.opacity(0.75))
-                            .overlay(
-                                RoundedRectangle(cornerRadius: 14, style: .continuous)
-                                    .strokeBorder(Color.white.opacity(0.2), lineWidth: 1)
-                            )
-                    )
-                    .transition(.scale(scale: 0.85).combined(with: .opacity))
+                    PlayerHUDBadge(icon: hud.hudIcon, text: hud.hudText, discSize: 50)
+                    .transition(.scale(scale: 0.85))
                     .allowsHitTesting(false)
                 }
             }

@@ -906,12 +906,8 @@ public struct ContentView: View {
                 }
                 .padding(.horizontal, 18)
                 .padding(.vertical, 10)
-                .background(
-                    Capsule()
-                        .fill(Color.black.opacity(0.88))
-                        .overlay(Capsule().strokeBorder(Color.white.opacity(0.24), lineWidth: 0.8))
-                        .shadow(color: Color.black.opacity(0.35), radius: 12, x: 0, y: 6)
-                )
+                .background(PlayerGlassShape(shape: Capsule(), tint: 0.42))
+                .shadow(color: Color.black.opacity(0.22), radius: 12, x: 0, y: 6)
                 .padding(.top, 58)
                 .transition(.move(edge: .top).combined(with: .opacity))
                 .zIndex(9999)
@@ -2157,24 +2153,8 @@ struct MiniPlayerPiPOverlay: View {
                 
                 // Center HUD Feedback Badge (Seek / Space feedback)
                 if hoverVm.isHudVisible {
-                    VStack(spacing: 4) {
-                        Image(systemName: hoverVm.hudIcon)
-                            .font(.system(size: 22, weight: .bold))
-                            .foregroundColor(.white)
-                        if !hoverVm.hudText.isEmpty {
-                            Text(hoverVm.hudText)
-                                .font(.system(size: 11, weight: .semibold))
-                                .foregroundColor(.white)
-                        }
-                    }
-                    .padding(.horizontal, 14)
-                    .padding(.vertical, 10)
-                    .background(
-                        RoundedRectangle(cornerRadius: 10, style: .continuous)
-                            .fill(Color.black.opacity(0.80))
-                    )
-                    .allowsHitTesting(false)
-                    .transition(.scale(scale: 0.85).combined(with: .opacity))
+                    PlayerHUDBadge(icon: hoverVm.hudIcon, text: hoverVm.hudText, discSize: 44)
+                    .transition(.scale(scale: 0.85))
                 }
                 
                 // Top Overlay on hover: Expand hint & close button

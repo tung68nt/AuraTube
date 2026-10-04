@@ -83,6 +83,34 @@ struct PlayerGlassBackground: View {
     }
 }
 
+/// Momentary feedback over the video (play/pause, seek, volume): the glyph in a glass disc,
+/// with the label beneath it on the video itself rather than inside a dark box.
+struct PlayerHUDBadge: View {
+    let icon: String
+    let text: String
+    var discSize: CGFloat = 54
+    
+    var body: some View {
+        VStack(spacing: 7) {
+            Image(systemName: icon)
+                .font(.system(size: discSize * 0.40, weight: .semibold))
+                .foregroundColor(.white)
+                .frame(width: discSize, height: discSize)
+                .background(PlayerGlassShape(shape: Circle(), tint: 0.16))
+            
+            if !text.isEmpty {
+                Text(text)
+                    .font(.system(size: 11.5, weight: .semibold))
+                    .foregroundColor(.white)
+                    .lineLimit(1)
+                    .shadow(color: .black.opacity(0.55), radius: 0.6, y: 0.5)
+                    .shadow(color: .black.opacity(0.35), radius: 4, y: 1)
+            }
+        }
+        .allowsHitTesting(false)
+    }
+}
+
 public struct PlayerControlOverlay: View {
     /// Corner radius of the player frame this bar sits in (see NativePlayerView(cornerRadius:)).
     static let playerFrameCornerRadius: CGFloat = 24
