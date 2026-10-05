@@ -141,7 +141,7 @@ public struct AboutView: View {
                             endPoint: .bottomTrailing
                         )
                     )
-                    .cornerRadius(8)
+                    .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
                     .shadow(color: Color.red.opacity(vm.isHoveringCheckUpdate ? 0.35 : 0.15), radius: 5, y: 2)
                 }
                 .buttonStyle(.plain)

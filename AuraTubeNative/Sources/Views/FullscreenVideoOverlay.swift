@@ -66,6 +66,9 @@ public struct FullscreenVideoOverlay: View {
                     NativePlayerView(cornerRadius: 0)
                         .frame(width: targetW, height: targetH)
                     
+                    PlayerHandoffCover()
+                        .frame(width: targetW, height: targetH)
+                    
                     // Click to play/pause, double click to exit fullscreen
                     Color.black.opacity(0.001)
                         .contentShape(Rectangle())
@@ -155,7 +158,7 @@ public struct FullscreenVideoOverlay: View {
                 if vm.isControlsVisible {
                     PlayerControlOverlay()
                         .frame(maxWidth: .infinity)
-                        .transition(.opacity)
+                        .transition(.identity)
                 }
             }
         }

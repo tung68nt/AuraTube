@@ -22,6 +22,20 @@ public final class MainWebPlayerPool {
     
     private init() {}
     
+    /// Boots the YouTube player before any video is chosen, so the first video starts with a
+    /// single loadVideoById instead of loading the whole player first.
+    public func prewarm() {
+        guard webView == nil, PlayerManager.shared.currentVideo == nil else { return }
+        let coord = coordinator ?? NativePlayerView.Coordinator()
+        coordinator = coord
+        let view = NativePlayerView.makeWebView(coordinator: coord)
+        view.frame = NSRect(x: 0, y: 0, width: 1280, height: 720)
+        let shell = Video(id: "", title: "", uploader: "")
+        view.loadHTMLString(NativePlayerView.generateHTML(for: shell, playerManager: PlayerManager.shared), baseURL: URL(string: "https://auratube.app"))
+        coord.currentLoadedVideoId = PlayerManager.idlePlayerVideoId
+        PlayerManager.shared.markPlayerIdle()
+    }
+    
     public func reset() {
         webView?.stopLoading()
         webView?.removeFromSuperview()
@@ -98,8 +112,33 @@ public final class ScrollForwardingWKWebView: WKWebView {
 // MARK: - Auto-resizing WebPlayerHostingView ensuring webView fills bounds 100% and syncs Retina scale
 public final class WebPlayerHostingView: NSView {
     public weak var hostedWebView: WKWebView?
+    private var lastCornerRadius: CGFloat = 0
+    private var lastMaskedCorners: CACornerMask = [.layerMinXMinYCorner, .layerMaxXMinYCorner, .layerMinXMaxYCorner, .layerMaxXMaxYCorner]
+    
+    /// Several hosts exist at once (watch page, fullscreen overlay, PiP panel) but there is one
+    /// shared web view. The PiP panel owns it while PiP is active, a main-window host otherwise.
+    /// Ownership must not depend on which SwiftUI view happened to re-render last.
+    private var isRightfulHost: Bool {
+        guard let win = window else { return true }
+        return (win is PiPPanel) == PlayerManager.shared.isPictureInPictureActive
+    }
+    
+    /// Takes the shared web view if this host should own it and the current owner should not.
+    private func claimWebViewIfNeeded() {
+        guard window != nil, isRightfulHost, let webView = MainWebPlayerPool.shared.webView else { return }
+        guard webView.superview !== self else { return }
+        if let owner = webView.superview as? WebPlayerHostingView, owner.window != nil, owner.isRightfulHost {
+            return
+        }
+        attach(webView: webView, cornerRadius: lastCornerRadius, maskedCorners: lastMaskedCorners)
+    }
     
     public func attach(webView: WKWebView, cornerRadius: CGFloat, maskedCorners: CACornerMask) {
+        lastCornerRadius = cornerRadius
+        lastMaskedCorners = maskedCorners
+        if webView.superview !== self && !isRightfulHost {
+            return
+        }
         if webView.superview !== self {
             webView.removeFromSuperview()
             addSubview(webView)
@@ -108,10 +147,12 @@ public final class WebPlayerHostingView: NSView {
         
         self.wantsLayer = true
         self.layer?.cornerRadius = cornerRadius
+        self.layer?.cornerCurve = .continuous
         self.layer?.maskedCorners = maskedCorners
         self.layer?.masksToBounds = cornerRadius > 0
         
         webView.wantsLayer = true
+        webView.layer?.cornerCurve = .continuous
         webView.layer?.cornerRadius = cornerRadius
         webView.layer?.maskedCorners = maskedCorners
         webView.layer?.masksToBounds = cornerRadius > 0
@@ -125,6 +166,10 @@ public final class WebPlayerHostingView: NSView {
         } else if let s = superview, s.bounds.width > 0 && s.bounds.height > 0 {
             targetFrame = s.bounds
         } else {
+            // No size yet (not laid out): keep the web view's current frame until layout()
+            // gives the real one. Collapsing it to zero made the player re-layout and
+            // re-buffer, which showed as 1-2s of black when the video came back from PiP.
+            // (The host's own size no longer depends on this frame: see sizeThatFits.)
             targetFrame = webView.frame
         }
         
@@ -154,6 +199,7 @@ public final class WebPlayerHostingView: NSView {
     
     public override func layout() {
         super.layout()
+        claimWebViewIfNeeded()
         guard let wv = hostedWebView, wv.superview === self else { return }
         if bounds.width > 0 && bounds.height > 0 {
             if wv.frame != bounds {
@@ -178,6 +224,7 @@ public final class WebPlayerHostingView: NSView {
     
     public override func viewDidMoveToWindow() {
         super.viewDidMoveToWindow()
+        claimWebViewIfNeeded()
         guard let wv = hostedWebView, wv.superview === self else { return }
         if let win = window {
             let scale = win.backingScaleFactor
@@ -214,15 +261,10 @@ public struct NativePlayerView: NSViewRepresentable {
         return coord
     }
     
-    private func getOrCreateWebView(context: Context) -> ScrollForwardingWKWebView {
-        if let existing = MainWebPlayerPool.shared.webView as? ScrollForwardingWKWebView {
-            existing.autoresizingMask = [.width, .height]
-            existing.translatesAutoresizingMaskIntoConstraints = true
-            context.coordinator.targetWebView = existing
-            setupBridgeCallbacks(for: existing)
-            return existing
-        }
-        
+    /// Creates the shared web view. Independent of any SwiftUI view so the player can be warmed
+    /// up before a video is chosen.
+    @MainActor
+    static func makeWebView(coordinator: Coordinator) -> ScrollForwardingWKWebView {
         let config = WKWebViewConfiguration()
         config.mediaTypesRequiringUserActionForPlayback = []
         config.allowsAirPlayForMediaPlayback = true
@@ -247,8 +289,8 @@ public struct NativePlayerView: NSViewRepresentable {
         pref.setValueIfSupported(false, forKey: "backgroundFetchAndProcessTimerThrottlingEnabled")
         
         let contentController = WKUserContentController()
-        contentController.add(context.coordinator, contentWorld: .page, name: "playerBridge")
-        contentController.add(context.coordinator, contentWorld: .defaultClient, name: "playerBridge")
+        contentController.add(coordinator, contentWorld: .page, name: "playerBridge")
+        contentController.add(coordinator, contentWorld: .defaultClient, name: "playerBridge")
         
         let cleanScript = NativePlayerView.cleanScriptSource
         let userScriptEnd = WKUserScript(source: cleanScript, injectionTime: .atDocumentEnd, forMainFrameOnly: false)
@@ -260,13 +302,29 @@ public struct NativePlayerView: NSViewRepresentable {
         webView.translatesAutoresizingMaskIntoConstraints = true
         webView.customUserAgent = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.4 Safari/605.1.15"
         webView.setValueIfSupported(false, forKey: "drawsBackground")
-        webView.navigationDelegate = context.coordinator
+        webView.navigationDelegate = coordinator
         
         MainWebPlayerPool.shared.webView = webView
-        context.coordinator.targetWebView = webView
-        setupBridgeCallbacks(for: webView)
-        
+        coordinator.targetWebView = webView
         return webView
+    }
+    
+    private func getOrCreateWebView(context: Context) -> ScrollForwardingWKWebView {
+        if let existing = MainWebPlayerPool.shared.webView as? ScrollForwardingWKWebView {
+            existing.autoresizingMask = [.width, .height]
+            existing.translatesAutoresizingMaskIntoConstraints = true
+            context.coordinator.targetWebView = existing
+            setupBridgeCallbacks(for: existing)
+            return existing
+        }
+        let webView = Self.makeWebView(coordinator: context.coordinator)
+        setupBridgeCallbacks(for: webView)
+        return webView
+    }
+    
+    /// The player always takes exactly the size it is offered; its content never dictates one.
+    public func sizeThatFits(_ proposal: ProposedViewSize, nsView: WebPlayerHostingView, context: Context) -> CGSize? {
+        proposal.replacingUnspecifiedDimensions(by: CGSize(width: 320, height: 180))
     }
     
     public func makeNSView(context: Context) -> WebPlayerHostingView {
@@ -437,22 +495,29 @@ public struct NativePlayerView: NSViewRepresentable {
         if !playerManager.hasActiveMainPlayer {
             playerManager.hasActiveMainPlayer = true
         }
-        guard let video = playerManager.currentVideo else { return }
+        Self.loadCurrentVideo(into: webView, coordinator: context.coordinator)
+    }
+    
+    /// Loads PlayerManager's current video into the web player if it is not the one already
+    /// loaded: a single loadVideoById on a warm player, a full page load on a cold one.
+    @MainActor
+    static func loadCurrentVideo(into webView: WKWebView, coordinator: Coordinator) {
+        guard let video = PlayerManager.shared.currentVideo else { return }
         
-        if context.coordinator.currentLoadedVideoId != video.id {
-            let wasLoaded = context.coordinator.currentLoadedVideoId != nil
-            context.coordinator.currentLoadedVideoId = video.id
-            context.coordinator.isActuallyPlaying = false
-            context.coordinator.didClickAutoPlay = false
-            context.coordinator.clickAttempts = 0
+        if coordinator.currentLoadedVideoId != video.id {
+            let wasLoaded = coordinator.currentLoadedVideoId != nil
+            coordinator.currentLoadedVideoId = video.id
+            coordinator.isActuallyPlaying = false
+            coordinator.didClickAutoPlay = false
+            coordinator.clickAttempts = 0
             
             if wasLoaded {
                 // Video switch: Use loadNewVideo with resume startSec and quality preference
-                let effectiveQ = (playerManager.selectedQuality != "auto") ? playerManager.selectedQuality : playerManager.resolvedOptimalQuality
-                let rate = playerManager.playbackRate
-                let startSec = Int(playerManager.currentTime)
+                let effectiveQ = (PlayerManager.shared.selectedQuality != "auto") ? PlayerManager.shared.selectedQuality : PlayerManager.shared.resolvedOptimalQuality
+                let rate = PlayerManager.shared.playbackRate
+                let startSec = Int(PlayerManager.shared.currentTime)
                 let js = "if (typeof window.loadNewVideo === 'function') { window.loadNewVideo('\(video.id)', \(startSec), '\(effectiveQ)', \(rate)); } else { location.reload(); }"
-                webView.evaluateJavaScript(js) { [weak webView, weak coord = context.coordinator] _, err in
+                webView.evaluateJavaScript(js) { [weak webView, weak coord = coordinator] _, err in
                     if err != nil {
                         guard let v = webView else { return }
                         let html = NativePlayerView.generateHTML(for: video, playerManager: PlayerManager.shared)
@@ -466,10 +531,10 @@ public struct NativePlayerView: NSViewRepresentable {
                 }
             } else {
                 // Initial load
-                let html = NativePlayerView.generateHTML(for: video, playerManager: playerManager)
+                let html = NativePlayerView.generateHTML(for: video, playerManager: PlayerManager.shared)
                 webView.loadHTMLString(html, baseURL: URL(string: "https://auratube.app"))
                 
-                let coord = context.coordinator
+                let coord = coordinator
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { [weak webView, weak coord] in
                     guard let v = webView, let c = coord else { return }
                     c.ensureAutoPlay(on: v)
@@ -1655,10 +1720,33 @@ public struct NativePlayerView: NSViewRepresentable {
         setTimeout(checkAndReportQualities, 800);
 
         var lastDimKey = '';
+        // When the frame and the video differ by a hair (sub-pixel rounding of the container),
+        // "contain" leaves a 1–2px black strip on two sides. Fill the frame in that case and
+        // only letterbox for a real aspect-ratio difference.
+        function fitVideoToFrame(v) {
+            try {
+                var cw = v.clientWidth, ch = v.clientHeight;
+                if (!cw || !ch) return;
+                var frameRatio = cw / ch;
+                var videoRatio = v.videoWidth / v.videoHeight;
+                var fit = (Math.abs(frameRatio - videoRatio) / videoRatio < 0.025) ? 'cover' : 'contain';
+                if (v.style.getPropertyValue('object-fit') !== fit) {
+                    v.style.setProperty('object-fit', fit, 'important');
+                }
+                // Many uploads carry a column or two of black at the left/right edge of the
+                // encoded frame, and sub-pixel layout can leave a hairline too. When the video
+                // fills the frame, overscan it by 0.6% so those edge columns fall outside.
+                var zoom = (fit === 'cover') ? 'translateZ(0) scale(1.006)' : 'translateZ(0)';
+                if (v.style.getPropertyValue('transform') !== zoom) {
+                    v.style.setProperty('transform', zoom, 'important');
+                }
+            } catch(e) {}
+        }
         function reportVideoDimensions(force) {
             try {
                 var v = document.querySelector('video');
                 if (v && v.videoWidth > 0 && v.videoHeight > 0) {
+                    fitVideoToFrame(v);
                     var dimKey = v.videoWidth + 'x' + v.videoHeight;
                     if (!force && dimKey === lastDimKey) return;
                     lastDimKey = dimKey;
@@ -2091,6 +2179,7 @@ public struct NativePlayerView: NSViewRepresentable {
                     if let playing = isPlaying, playing && currentTime > 0.05 {
                         self.isActuallyPlaying = true
                         self.didClickAutoPlay = true
+                        PlayerManager.shared.markFirstFramePlaying()
                     }
                     
                     PlayerManager.shared.updatePlaybackSync(

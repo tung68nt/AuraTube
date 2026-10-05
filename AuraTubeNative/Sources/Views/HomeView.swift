@@ -20,7 +20,7 @@ final class HomeViewModel: ObservableObject {
         didSet {
             regularVideos = videos.filter { !$0.isShort }
             shortVideos = videos.filter { $0.isShort }
-            AuraImageCache.shared.prefetchImages(for: videos.prefix(12).map { $0.thumbnail })
+            AuraImageCache.shared.prefetchImages(for: videos.suffix(60).map { $0.thumbnail } + videos.prefix(48).compactMap { $0.channelAvatarUrl })
         }
     }
     @Published private(set) var regularVideos: [Video] = []
@@ -119,9 +119,11 @@ public struct HomeView: View {
     private let trendingTag = "Thịnh hành"
     private let followingTag = "Đang theo dõi"
     private let allTag = "Tất cả"
+    private let recentTag = "Mới tải lên gần đây"
+    private let newToYouTag = "Đề xuất mới"
     
     private var allTags: [String] {
-        var list = [trendingTag, allTag, followingTag]
+        var list = [trendingTag, allTag, recentTag, newToYouTag, followingTag]
         for t in recService.dynamicInterestTags {
             if !list.contains(t) && t != trendingTag {
                 list.append(t)
@@ -156,6 +158,7 @@ public struct HomeView: View {
             VStack(alignment: .leading, spacing: 20) {
                 // 1. Tag Chips Bar with macOS HIG Styling
                 SmartHorizontalScrollView(showsIndicators: false) {
+                    GlassGroup {
                     HStack(spacing: 7) {
                         ForEach(allTags, id: \.self) { tag in
                             let isFollowedTag = (tag == followingTag)
@@ -191,6 +194,7 @@ public struct HomeView: View {
                     }
                     .padding(.horizontal, 24)
                     .padding(.top, 14)
+                    }
                 }
                 
                 // 2. Following Shelf (When user is on "Tất cả" or "Đang theo dõi")
@@ -717,10 +721,31 @@ public struct HomeView: View {
                                     onSelectShort: { onSelectVideo($0) }
                                 )
                                 
-                                // 3. Remaining regular videos (16:9 grid)
-                                if !remainingVideos.isEmpty {
+                                // 3. Next rows, then a second Shorts shelf like YouTube's home
+                                let hasSecondShelf = shortVideos.count > 14 && remainingVideos.count > 12
+                                if hasSecondShelf {
                                     LazyVGrid(columns: columns, alignment: .leading, spacing: 28) {
-                                        ForEach(remainingVideos) { video in
+                                        ForEach(Array(remainingVideos.prefix(12))) { video in
+                                            VideoCardView(
+                                                video: video,
+                                                onSelect: { onSelectVideo(video) },
+                                                onSelectChannel: onSelectChannel
+                                            )
+                                        }
+                                    }
+                                    .padding(.horizontal, 24)
+                                    
+                                    HomeShortsShelfView(
+                                        shorts: Array(shortVideos.dropFirst(14).prefix(14)),
+                                        onSelectShort: { onSelectVideo($0) }
+                                    )
+                                }
+                                
+                                // 4. Remaining regular videos (16:9 grid)
+                                let tailVideos = hasSecondShelf ? Array(remainingVideos.dropFirst(12)) : remainingVideos
+                                if !tailVideos.isEmpty {
+                                    LazyVGrid(columns: columns, alignment: .leading, spacing: 28) {
+                                        ForEach(tailVideos) { video in
                                             VideoCardView(
                                                 video: video,
                                                 onSelect: { onSelectVideo(video) },
@@ -789,6 +814,10 @@ public struct HomeView: View {
             vm.isLoading = true
             if tag == allTag {
                 vm.videos = await RecommendationService.shared.fetchRecommendations()
+            } else if tag == recentTag {
+                vm.videos = await RecommendationService.shared.fetchRecommendations(filter: .recentlyUploaded)
+            } else if tag == newToYouTag {
+                vm.videos = await RecommendationService.shared.fetchRecommendations(filter: .newToYou)
             } else if tag == trendingTag {
                 let feed = await RecommendationService.shared.fetchVietnamTrendingFeed(forceRefresh: true)
                 vm.videos = feed.isEmpty ? await RecommendationService.shared.fetchRecommendations() : feed
@@ -920,14 +949,13 @@ public struct VideoCardView: View {
                                     lineWidth: 0.75
                                 )
                         )
-                        .shadow(color: Color.black.opacity(colorScheme == .dark ? 0.25 : 0.08), radius: 4, y: 2)
                     
                     Text(video.durationFormatted)
                         .font(.system(size: 11.5, weight: .medium))
                         .padding(.horizontal, 5)
                         .padding(.vertical, 2.5)
                         .background(Color.black.opacity(0.85))
-                        .cornerRadius(4)
+                        .clipShape(RoundedRectangle(cornerRadius: 4, style: .continuous))
                         .foregroundColor(.white)
                         .padding(6)
                 }

@@ -92,9 +92,9 @@ public struct AutoplayCountdownOverlay: View {
                         }
                         .frame(width: 140, height: 80)
                         .clipped()
-                        .cornerRadius(8)
+                        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
                         .overlay(
-                            RoundedRectangle(cornerRadius: 8)
+                            RoundedRectangle(cornerRadius: 8, style: .continuous)
                                 .stroke(Color.white.opacity(0.12), lineWidth: 1)
                         )
                         
@@ -105,7 +105,7 @@ public struct AutoplayCountdownOverlay: View {
                                 .padding(.horizontal, 4)
                                 .padding(.vertical, 2)
                                 .background(Color.black.opacity(0.85))
-                                .cornerRadius(4)
+                                .clipShape(RoundedRectangle(cornerRadius: 4, style: .continuous))
                                 .padding(4)
                         }
                     }
@@ -134,7 +134,7 @@ public struct AutoplayCountdownOverlay: View {
                 }
                 .padding(10)
                 .background(Color.white.opacity(0.05))
-                .cornerRadius(10)
+                .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
                 
                 // Bottom Action Buttons
                 HStack(spacing: 12) {
@@ -148,10 +148,10 @@ public struct AutoplayCountdownOverlay: View {
                             .frame(height: 36)
                             .background(Color.white.opacity(0.08))
                             .overlay(
-                                RoundedRectangle(cornerRadius: 18)
+                                RoundedRectangle(cornerRadius: 18, style: .continuous)
                                     .stroke(Color.white.opacity(0.12), lineWidth: 1)
                             )
-                            .cornerRadius(18)
+                            .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
                     }
                     .buttonStyle(.plain)
                     
@@ -168,7 +168,7 @@ public struct AutoplayCountdownOverlay: View {
                         .frame(maxWidth: .infinity)
                         .frame(height: 36)
                         .background(Color.white)
-                        .cornerRadius(18)
+                        .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
                         .shadow(color: .white.opacity(0.2), radius: 6, y: 1)
                     }
                     .buttonStyle(.plain)
@@ -176,15 +176,8 @@ public struct AutoplayCountdownOverlay: View {
             }
             .padding(20)
             .frame(width: 420)
-            .background(
-                RoundedRectangle(cornerRadius: 16)
-                    .fill(Color(red: 0.1, green: 0.1, blue: 0.12).opacity(0.96))
-            )
-            .overlay(
-                RoundedRectangle(cornerRadius: 16)
-                    .stroke(Color.white.opacity(0.14), lineWidth: 1)
-            )
-            .shadow(color: .black.opacity(0.7), radius: 24, y: 10)
+            .background(PlayerGlassBackground(cornerRadius: 20, tint: 0.38))
+            .shadow(color: .black.opacity(0.35), radius: 24, y: 10)
         }
         .transition(.opacity.combined(with: .scale(scale: 0.96)))
     }

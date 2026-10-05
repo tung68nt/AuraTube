@@ -105,6 +105,187 @@ public struct VisualEffectBackground: NSViewRepresentable {
     }
 }
 
+public enum NativeGlass {
+    /// True where the system provides Liquid Glass (macOS 26+).
+    public static var isAvailable: Bool {
+        if #available(macOS 26.0, *) { return true }
+        return false
+    }
+}
+
+public extension View {
+    /// Puts the system Liquid Glass (regular, interactive) behind the view in `shape`.
+    /// No-op before macOS 26.
+    @ViewBuilder
+    func systemGlass<S: Shape>(in shape: S) -> some View {
+        if #available(macOS 26.0, *) {
+            self.glassEffect(.regular.interactive(), in: shape)
+        } else {
+            self
+        }
+    }
+}
+
+/// Groups nearby glass elements so the system renders them in one pass (cheaper while they
+/// scroll, and they blend with each other correctly). Plain pass-through before macOS 26.
+public struct GlassGroup<Content: View>: View {
+    @ViewBuilder public let content: () -> Content
+    
+    public init(@ViewBuilder content: @escaping () -> Content) {
+        self.content = content
+    }
+    
+    public var body: some View {
+        if #available(macOS 26.0, *) {
+            GlassEffectContainer { content() }
+        } else {
+            content()
+        }
+    }
+}
+
+// MARK: - Shared Glass Gloss
+/// The gloss every glass surface in the app shares, so they all read as the same material:
+/// a sheen across the upper half and a specular rim that is bright at the top-left, fades
+/// through the middle and returns faintly at the bottom-right.
+public struct GlassGloss<S: InsettableShape>: View {
+    public let shape: S
+    public var intensity: Double
+    
+    public init(shape: S, intensity: Double = 1.0) {
+        self.shape = shape
+        self.intensity = intensity
+    }
+    
+    public var body: some View {
+        ZStack {
+            shape
+                .fill(
+                    LinearGradient(
+                        stops: [
+                            .init(color: Color.white.opacity(0.20 * intensity), location: 0.0),
+                            .init(color: Color.white.opacity(0.05 * intensity), location: 0.38),
+                            .init(color: .clear, location: 0.62)
+                        ],
+                        startPoint: .top,
+                        endPoint: .bottom
+                    )
+                )
+            shape
+                .strokeBorder(
+                    LinearGradient(
+                        stops: [
+                            .init(color: Color.white.opacity(min(1, 0.70 * intensity)), location: 0.0),
+                            .init(color: Color.white.opacity(0.14 * intensity), location: 0.45),
+                            .init(color: Color.white.opacity(0.32 * intensity), location: 1.0)
+                        ],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    ),
+                    lineWidth: 1
+                )
+        }
+        .blendMode(.plusLighter)
+        .allowsHitTesting(false)
+    }
+}
+
+// MARK: - Native Liquid Glass Base
+/// The glass layer behind every Liquid Glass surface in the app: the system's Liquid Glass on
+/// macOS 26+ with the shared gloss, the frosted material it replaced on older systems.
+public struct NativeGlassFill<S: InsettableShape>: View {
+    public let shape: S
+    
+    public init(shape: S) {
+        self.shape = shape
+    }
+    
+    public var body: some View {
+        if #available(macOS 26.0, *) {
+            // System glass as-is: macOS draws the edge highlight and refraction itself
+            Color.clear.glassEffect(.regular.interactive(), in: shape)
+        } else {
+            shape.fill(.ultraThinMaterial)
+        }
+    }
+}
+
+// MARK: - Glass Panel (popups, sheets, menus)
+/// The one background for every popup-style surface, so sheets, menus and overlays share the
+/// same glass. Sheets are separate windows and must blur what is behind their window
+/// (`behindWindow: true`); in-window popups use the system glass directly.
+public struct GlassPanelBackground: View {
+    @Environment(\.colorScheme) private var colorScheme
+    public var cornerRadius: CGFloat
+    public var behindWindow: Bool
+    
+    public init(cornerRadius: CGFloat = 18, behindWindow: Bool = false) {
+        self.cornerRadius = cornerRadius
+        self.behindWindow = behindWindow
+    }
+    
+    private static let darkTop = Color(red: 0.125, green: 0.133, blue: 0.157)
+    private static let darkBottom = Color(red: 0.086, green: 0.090, blue: 0.110)
+    private static let lightBottom = Color(red: 0.973, green: 0.976, blue: 0.988)
+    
+    /// Light tint only: enough for text contrast, thin enough that the glass shows
+    private var tint: LinearGradient {
+        let colors: [Color]
+        if colorScheme == .dark {
+            colors = [Self.darkTop.opacity(0.40), Self.darkBottom.opacity(0.50)]
+        } else {
+            colors = [Color.white.opacity(0.48), Self.lightBottom.opacity(0.56)]
+        }
+        return LinearGradient(colors: colors, startPoint: .top, endPoint: .bottom)
+    }
+    
+    public var body: some View {
+        let shape = RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+        ZStack {
+            if behindWindow {
+                VisualEffectBackground(material: .popover, blendingMode: .behindWindow, state: .active)
+                    .clipShape(shape)
+            } else {
+                NativeGlassFill(shape: shape)
+            }
+            shape.fill(tint)
+            // Sheets blur behind their window with a plain material, which has no edge of its
+            // own; in-window panels already get the system glass rim
+            if behindWindow {
+                GlassGloss(shape: shape, intensity: 0.5)
+            }
+        }
+    }
+}
+
+// MARK: - Sheet Surface
+/// Surface for content presented with `.sheet`. On macOS 26+ the system sheet *is* the glass
+/// container (Apple's guidance: don't draw a second card inside it), so the content gets no
+/// background, border or shadow of its own and the sheet follows the content's size. A custom
+/// card inside the system sheet showed two nested borders whenever the content got shorter.
+/// Older systems keep the app's own glass card.
+public struct SheetSurfaceModifier: ViewModifier {
+    @Environment(\.colorScheme) private var colorScheme
+    public var cornerRadius: CGFloat = 18
+    
+    public func body(content: Content) -> some View {
+        if #available(macOS 26.0, *) {
+            content.presentationSizing(.fitted)
+        } else {
+            content
+                .background(GlassPanelBackground(cornerRadius: cornerRadius, behindWindow: true))
+                .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
+                .shadow(color: Color.black.opacity(colorScheme == .dark ? 0.42 : 0.16), radius: 26, y: 12)
+        }
+    }
+}
+
+public extension View {
+    func sheetSurface(cornerRadius: CGFloat = 18) -> some View {
+        modifier(SheetSurfaceModifier(cornerRadius: cornerRadius))
+    }
+}
+
 // MARK: - 2. Continuous Glass Container Modifier
 public struct LiquidGlassModifier: ViewModifier {
     @Environment(\.colorScheme) private var colorScheme
@@ -119,14 +300,22 @@ public struct LiquidGlassModifier: ViewModifier {
     }
     
     public func body(content: Content) -> some View {
+        if NativeGlass.isAvailable {
+            content.systemGlass(in: RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
+        } else {
+            legacyBody(content: content)
+        }
+    }
+    
+    @ViewBuilder
+    private func legacyBody(content: Content) -> some View {
         let isDark = (colorScheme == .dark)
         
         content
             .background(
                 ZStack {
                     // 1. Frosted Material Base (Native macOS blur)
-                    RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                        .fill(.ultraThinMaterial)
+                    NativeGlassFill(shape: RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
                     
                     // 2. Liquid Glass Ambient Tint
                     if isDark {
@@ -205,6 +394,15 @@ public struct LiquidGlassCapsuleModifier: ViewModifier {
     }
     
     public func body(content: Content) -> some View {
+        if NativeGlass.isAvailable && !isSelected {
+            content.systemGlass(in: Capsule())
+        } else {
+            legacyBody(content: content)
+        }
+    }
+    
+    @ViewBuilder
+    private func legacyBody(content: Content) -> some View {
         let isDark = (colorScheme == .dark)
         
         content
@@ -241,7 +439,7 @@ public struct LiquidGlassCapsuleModifier: ViewModifier {
                     } else {
                         // YouTube Inactive + Apple Frosted Vibrancy
                         if isDark {
-                            Capsule().fill(.ultraThinMaterial)
+                            NativeGlassFill(shape: Capsule())
                             Capsule()
                                 .fill(
                                     LinearGradient(
@@ -255,7 +453,7 @@ public struct LiquidGlassCapsuleModifier: ViewModifier {
                                 )
                         } else {
                             // Light Mode: Authentic Liquid Glass Capsule
-                            Capsule().fill(.ultraThinMaterial)
+                            NativeGlassFill(shape: Capsule())
                             Capsule()
                                 .fill(
                                     LinearGradient(
@@ -336,7 +534,22 @@ public struct LiquidGlassButton<Content: View>: View {
         self.content = content
     }
     
+    /// macOS 26+: a plain system glass button; the prominent variant keeps its colour fill.
     public var body: some View {
+        if NativeGlass.isAvailable && !isProminent {
+            Button(action: action) {
+                content()
+                    .contentShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
+                    .systemGlass(in: RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
+            }
+            .buttonStyle(.plain)
+        } else {
+            legacyBody
+        }
+    }
+    
+    @ViewBuilder
+    private var legacyBody: some View {
         let isDark = (colorScheme == .dark)
         
         Button(action: action) {
@@ -357,8 +570,7 @@ public struct LiquidGlassButton<Content: View>: View {
                                     )
                                 )
                         } else {
-                            RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                                .fill(.ultraThinMaterial)
+                            NativeGlassFill(shape: RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
                             
                             if isDark {
                                 RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
@@ -461,7 +673,22 @@ public struct LiquidGlassCapsuleButton<Content: View>: View {
         self.content = content
     }
     
+    /// macOS 26+: a plain system glass capsule; selected / prominent keep their solid fills.
     public var body: some View {
+        if NativeGlass.isAvailable && !isSelected && !isProminent {
+            Button(action: action) {
+                content()
+                    .contentShape(Capsule())
+                    .systemGlass(in: Capsule())
+            }
+            .buttonStyle(.plain)
+        } else {
+            legacyBody
+        }
+    }
+    
+    @ViewBuilder
+    private var legacyBody: some View {
         let isDark = (colorScheme == .dark)
         
         Button(action: action) {
@@ -503,7 +730,7 @@ public struct LiquidGlassCapsuleButton<Content: View>: View {
                                     )
                             } else {
                                 // Authentic Liquid Glass Material Base
-                                Capsule().fill(.ultraThinMaterial)
+                                NativeGlassFill(shape: Capsule())
                                 
                                 if isDark {
                                     Capsule()
@@ -652,7 +879,24 @@ public struct LiquidGlassCircleButton<Content: View>: View {
         self.content = content
     }
     
+    /// macOS 26+: a plain system glass button. The hand-drawn tints, bevels, rims and shadows
+    /// below are only for older systems and for the coloured "active" state.
     public var body: some View {
+        if NativeGlass.isAvailable && !isActive {
+            Button(action: action) {
+                content()
+                    .frame(width: size, height: size)
+                    .contentShape(Circle())
+                    .systemGlass(in: Circle())
+            }
+            .buttonStyle(.plain)
+        } else {
+            legacyBody
+        }
+    }
+    
+    @ViewBuilder
+    private var legacyBody: some View {
         let isDark = (colorScheme == .dark)
         
         Button(action: action) {
@@ -661,7 +905,7 @@ public struct LiquidGlassCircleButton<Content: View>: View {
                 .background(
                     ZStack {
                         // 1. Frosted Material (Hardware-accelerated macOS blur)
-                        Circle().fill(.ultraThinMaterial)
+                        NativeGlassFill(shape: Circle())
                         
                         // 2. Liquid Glass Ambient Tint
                         if isActive {
@@ -805,6 +1049,15 @@ public struct LiquidGlassSearchBarModifier: ViewModifier {
     public var isHovered: Bool = false
     
     public func body(content: Content) -> some View {
+        if NativeGlass.isAvailable {
+            content.systemGlass(in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+        } else {
+            legacyBody(content: content)
+        }
+    }
+    
+    @ViewBuilder
+    private func legacyBody(content: Content) -> some View {
         let isDark = (colorScheme == .dark)
         
         content
@@ -812,14 +1065,12 @@ public struct LiquidGlassSearchBarModifier: ViewModifier {
                 ZStack {
                     if isDark {
                         // YouTube Dark Translucent Search Bar
-                        RoundedRectangle(cornerRadius: 16, style: .continuous)
-                            .fill(.ultraThinMaterial)
+                        NativeGlassFill(shape: RoundedRectangle(cornerRadius: 16, style: .continuous))
                         RoundedRectangle(cornerRadius: 16, style: .continuous)
                             .fill(Color.white.opacity(isHovered ? 0.12 : 0.075))
                     } else {
                         // YouTube Light Liquid Glass Search Bar
-                        RoundedRectangle(cornerRadius: 16, style: .continuous)
-                            .fill(.ultraThinMaterial)
+                        NativeGlassFill(shape: RoundedRectangle(cornerRadius: 16, style: .continuous))
                         RoundedRectangle(cornerRadius: 16, style: .continuous)
                             .fill(
                                 LinearGradient(
@@ -927,15 +1178,15 @@ public struct LiquidGlassMenuContainer<Content: View>: View {
             .padding(8)
             .background(
                 ZStack {
-                    VisualEffectBackground(material: .popover, blendingMode: .withinWindow)
+                    NativeGlassFill(shape: RoundedRectangle(cornerRadius: 14, style: .continuous))
                     
                     if isDark {
                         RoundedRectangle(cornerRadius: 14, style: .continuous)
                             .fill(
                                 LinearGradient(
                                     colors: [
-                                        Color(white: 0.12).opacity(0.85),
-                                        Color(white: 0.06).opacity(0.92)
+                                        Color(white: 0.12).opacity(NativeGlass.isAvailable ? 0.45 : 0.85),
+                                        Color(white: 0.06).opacity(NativeGlass.isAvailable ? 0.55 : 0.92)
                                     ],
                                     startPoint: .top,
                                     endPoint: .bottom
@@ -1526,8 +1777,8 @@ public struct PiPLiquidGlassSettingsCard: View {
         .frame(width: 304)
         .background(
             ZStack {
-                // 1. Ultra-thin hardware vibrancy
-                VisualEffectBackground(material: .popover, blendingMode: .withinWindow)
+                // 1. Glass base
+                NativeGlassFill(shape: RoundedRectangle(cornerRadius: 18, style: .continuous))
                 
                 // 2. Translucent Ambient Glass Tint
                 if isDark {
@@ -1535,8 +1786,8 @@ public struct PiPLiquidGlassSettingsCard: View {
                         .fill(
                             LinearGradient(
                                 colors: [
-                                    Color(red: 24/255, green: 26/255, blue: 34/255).opacity(0.86),
-                                    Color(red: 14/255, green: 16/255, blue: 22/255).opacity(0.92)
+                                    Color(red: 24/255, green: 26/255, blue: 34/255).opacity(NativeGlass.isAvailable ? 0.45 : 0.86),
+                                    Color(red: 14/255, green: 16/255, blue: 22/255).opacity(NativeGlass.isAvailable ? 0.55 : 0.92)
                                 ],
                                 startPoint: .topLeading,
                                 endPoint: .bottomTrailing
@@ -1643,7 +1894,7 @@ public struct LiquidGlassPiPButton: View {
         }
         .background(
             ZStack {
-                Capsule().fill(.ultraThinMaterial)
+                NativeGlassFill(shape: Capsule())
                 
                 if isActive {
                     Capsule()

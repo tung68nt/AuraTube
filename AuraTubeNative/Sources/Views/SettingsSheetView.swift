@@ -211,64 +211,7 @@ public struct SettingsSheetView: View {
             .padding(.bottom, 20)
         }
         .frame(width: 640)
-        .background(
-            ZStack {
-                // 1. Hardware Optical Blur
-                VisualEffectBackground(material: .popover, blendingMode: .behindWindow, state: .active)
-                
-                // 2. Translucent Optical Glass Tint (Dark: 32,34,40 @ 0.65; Light: white @ 0.75)
-                RoundedRectangle(cornerRadius: 18, style: .continuous)
-                    .fill(
-                        isDark ?
-                            LinearGradient(
-                                colors: [
-                                    Color(red: 32/255, green: 34/255, blue: 40/255).opacity(0.65),
-                                    Color(red: 22/255, green: 23/255, blue: 28/255).opacity(0.72)
-                                ],
-                                startPoint: .top,
-                                endPoint: .bottom
-                            ) :
-                            LinearGradient(
-                                colors: [
-                                    Color.white.opacity(0.75),
-                                    Color(red: 248/255, green: 249/255, blue: 252/255).opacity(0.78)
-                                ],
-                                startPoint: .top,
-                                endPoint: .bottom
-                            )
-                    )
-                
-                // 3. Specular Ambient Top Sheen
-                RoundedRectangle(cornerRadius: 18, style: .continuous)
-                    .fill(
-                        LinearGradient(
-                            colors: [
-                                Color.white.opacity(isDark ? 0.08 : 0.25),
-                                Color.clear
-                            ],
-                            startPoint: .top,
-                            endPoint: .center
-                        )
-                    )
-            }
-        )
-        .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
-        .overlay(
-            // 4. Specular Rim Hairline (0.75pt)
-            RoundedRectangle(cornerRadius: 18, style: .continuous)
-                .strokeBorder(
-                    LinearGradient(
-                        colors: [
-                            Color.white.opacity(isDark ? 0.30 : 0.80),
-                            Color.white.opacity(isDark ? 0.08 : 0.25)
-                        ],
-                        startPoint: .top,
-                        endPoint: .bottom
-                    ),
-                    lineWidth: 0.75
-                )
-        )
-        .shadow(color: Color.black.opacity(isDark ? 0.42 : 0.16), radius: 26, y: 12)
+        .sheetSurface()
     }
     
     // MARK: - Tab Bar Button Component
@@ -761,7 +704,7 @@ public struct SettingsSheetView: View {
                         .padding(.horizontal, 10)
                         .padding(.vertical, 5)
                         .background(isDark ? Color.white.opacity(0.10) : Color.black.opacity(0.06))
-                        .cornerRadius(6)
+                        .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
                     }
                     .buttonStyle(.plain)
                     .disabled(speedService.isTesting)

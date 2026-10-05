@@ -906,12 +906,8 @@ public struct ContentView: View {
                 }
                 .padding(.horizontal, 18)
                 .padding(.vertical, 10)
-                .background(
-                    Capsule()
-                        .fill(Color.black.opacity(0.88))
-                        .overlay(Capsule().strokeBorder(Color.white.opacity(0.24), lineWidth: 0.8))
-                        .shadow(color: Color.black.opacity(0.35), radius: 12, x: 0, y: 6)
-                )
+                .background(PlayerGlassShape(shape: Capsule(), tint: 0.42))
+                .shadow(color: Color.black.opacity(0.22), radius: 12, x: 0, y: 6)
                 .padding(.top, 58)
                 .transition(.move(edge: .top).combined(with: .opacity))
                 .zIndex(9999)
@@ -1124,7 +1120,7 @@ public struct ContentView: View {
                                 .padding(.horizontal, 14)
                                 .padding(.vertical, 6)
                                 .background(
-                                    RoundedRectangle(cornerRadius: 8)
+                                    RoundedRectangle(cornerRadius: 8, style: .continuous)
                                         .fill(vm.selectedChannel?.id == channel.id ? ThemeColor.sidebarHover(for: colorScheme) : Color.clear)
                                 )
                             }
@@ -1663,7 +1659,7 @@ struct DownloadListView: View {
                             .padding(.horizontal, 12)
                             .padding(.vertical, 6)
                             .background(Color.white.opacity(0.06))
-                            .cornerRadius(8)
+                            .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
                             .foregroundColor(ThemeColor.textSecondary(for: colorScheme))
                         }
                         .buttonStyle(.plain)
@@ -1678,8 +1674,8 @@ struct DownloadListView: View {
                         .padding(.horizontal, 14)
                         .padding(.vertical, 6)
                         .background(ThemeColor.buttonBackground(for: colorScheme, isHovered: false))
-                        .cornerRadius(8)
-                        .overlay(RoundedRectangle(cornerRadius: 8).strokeBorder(ThemeColor.buttonBorder(for: colorScheme, isHovered: false), lineWidth: 0.75))
+                        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                        .overlay(RoundedRectangle(cornerRadius: 8, style: .continuous).strokeBorder(ThemeColor.buttonBorder(for: colorScheme, isHovered: false), lineWidth: 0.75))
                         .foregroundColor(ThemeColor.textPrimary(for: colorScheme))
                     }
                     .buttonStyle(.plain)
@@ -1728,7 +1724,7 @@ struct DownloadRowCard: View {
             ZStack {
                 CachedAsyncThumbnail(url: item.thumbnail, maxPixelSize: 192, placeholderColor: Color(white: 0.15))
                 .frame(width: 96, height: 54)
-                .cornerRadius(6)
+                .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
                 .clipped()
                 
                 if item.isAudioOnly {
@@ -1757,7 +1753,7 @@ struct DownloadRowCard: View {
                         .padding(.horizontal, 7)
                         .padding(.vertical, 2)
                         .background(Color.white.opacity(0.08))
-                        .cornerRadius(4)
+                        .clipShape(RoundedRectangle(cornerRadius: 4, style: .continuous))
                         .foregroundColor(ThemeColor.textSecondary(for: colorScheme))
                 }
                 
@@ -1765,9 +1761,9 @@ struct DownloadRowCard: View {
                 if !item.isComplete && !item.isError {
                     GeometryReader { geo in
                         ZStack(alignment: .leading) {
-                            RoundedRectangle(cornerRadius: 3)
+                            RoundedRectangle(cornerRadius: 3, style: .continuous)
                                 .fill(Color.white.opacity(0.08))
-                            RoundedRectangle(cornerRadius: 3)
+                            RoundedRectangle(cornerRadius: 3, style: .continuous)
                                 .fill(LinearGradient(colors: [Color(red: 0.1, green: 0.6, blue: 1.0), Color(red: 0.4, green: 0.85, blue: 1.0)], startPoint: .leading, endPoint: .trailing))
                                 .frame(width: max(4, geo.size.width * CGFloat(min(1.0, max(0.0, item.progress)))))
                                 .animation(.linear(duration: 0.2), value: item.progress)
@@ -1827,7 +1823,7 @@ struct DownloadRowCard: View {
                         .padding(.horizontal, 10)
                         .padding(.vertical, 5)
                         .background(Color.white.opacity(0.08))
-                        .cornerRadius(6)
+                        .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
                         .foregroundColor(ThemeColor.textPrimary(for: colorScheme))
                     }
                     .buttonStyle(.plain)
@@ -1841,7 +1837,7 @@ struct DownloadRowCard: View {
                             .padding(.horizontal, 10)
                             .padding(.vertical, 5)
                             .background(Color.red.opacity(0.12))
-                            .cornerRadius(6)
+                            .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
                     }
                     .buttonStyle(.plain)
                 }
@@ -1861,11 +1857,11 @@ struct DownloadRowCard: View {
         }
         .padding(12)
         .background(
-            RoundedRectangle(cornerRadius: 10)
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
                 .fill(ThemeColor.cardBackground(for: colorScheme))
         )
         .overlay(
-            RoundedRectangle(cornerRadius: 10)
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
                 .strokeBorder(ThemeColor.cardBorder(for: colorScheme), lineWidth: 0.75)
         )
     }
@@ -1883,7 +1879,7 @@ struct FloatingDownloadHUD: View {
             ZStack {
                 CachedAsyncThumbnail(url: item.thumbnail, maxPixelSize: 108, placeholderColor: Color(white: 0.15))
                 .frame(width: 54, height: 36)
-                .cornerRadius(6)
+                .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
                 .clipped()
                 
                 if item.isAudioOnly {
@@ -1915,10 +1911,10 @@ struct FloatingDownloadHUD: View {
                 // Progress Bar
                 GeometryReader { geo in
                     ZStack(alignment: .leading) {
-                        RoundedRectangle(cornerRadius: 2.5)
+                        RoundedRectangle(cornerRadius: 2.5, style: .continuous)
                             .fill(Color.white.opacity(0.12))
                         
-                        RoundedRectangle(cornerRadius: 2.5)
+                        RoundedRectangle(cornerRadius: 2.5, style: .continuous)
                             .fill(
                                 item.isComplete ?
                                     LinearGradient(colors: [Color.green, Color(red: 0.2, green: 0.85, blue: 0.4)], startPoint: .leading, endPoint: .trailing) :
@@ -1993,15 +1989,10 @@ struct FloatingDownloadHUD: View {
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 10)
-        .background(
-            ZStack {
-                VisualEffectBackground(material: .popover, blendingMode: .withinWindow)
-                (colorScheme == .dark ? Color.black.opacity(0.7) : Color.white.opacity(0.85))
-            }
-        )
-        .cornerRadius(12)
+        .background(GlassPanelBackground(cornerRadius: 12))
+        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
         .overlay(
-            RoundedRectangle(cornerRadius: 12)
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
                 .strokeBorder(ThemeColor.divider(for: colorScheme), lineWidth: 0.75)
         )
         .shadow(color: Color.black.opacity(colorScheme == .dark ? 0.4 : 0.15), radius: 16, x: 0, y: 8)
@@ -2045,12 +2036,12 @@ struct MiniPlayerInteractiveProgressBar: View {
             
             ZStack(alignment: .leading) {
                 // Background Track
-                Rectangle()
-                    .fill(Color.white.opacity(barVm.isHovered || barVm.isDragging ? 0.32 : 0.18))
-                    .frame(height: barVm.isHovered || barVm.isDragging ? 5 : 2.5)
+                Capsule()
+                    .fill(Color.white.opacity(barVm.isHovered || barVm.isDragging ? 0.42 : 0.30))
+                    .frame(height: barVm.isHovered || barVm.isDragging ? 5 : 3.5)
                 
                 // Played Progress (YouTube Red gradient)
-                Rectangle()
+                Capsule()
                     .fill(
                         LinearGradient(
                             colors: [Color.red, Color(red: 1.0, green: 0.25, blue: 0.25)],
@@ -2058,7 +2049,7 @@ struct MiniPlayerInteractiveProgressBar: View {
                             endPoint: .trailing
                         )
                     )
-                    .frame(width: max(2, geo.size.width * CGFloat(progress)), height: barVm.isHovered || barVm.isDragging ? 5 : 2.5)
+                    .frame(width: max(2, geo.size.width * CGFloat(progress)), height: barVm.isHovered || barVm.isDragging ? 5 : 3.5)
                 
                 // Scrub thumb circle
                 if barVm.isHovered || barVm.isDragging {
@@ -2132,6 +2123,9 @@ struct MiniPlayerPiPOverlay: View {
                     .frame(width: pipWidth, height: videoHeight)
                     .background(Color.black)
                 
+                PlayerHandoffCover()
+                    .frame(width: pipWidth, height: videoHeight)
+                
                 // Double tap gestures for seeking left/right + single tap for play/pause
                 HStack(spacing: 0) {
                     Color.black.opacity(0.001)
@@ -2162,31 +2156,15 @@ struct MiniPlayerPiPOverlay: View {
                 
                 // Center HUD Feedback Badge (Seek / Space feedback)
                 if hoverVm.isHudVisible {
-                    VStack(spacing: 4) {
-                        Image(systemName: hoverVm.hudIcon)
-                            .font(.system(size: 22, weight: .bold))
-                            .foregroundColor(.white)
-                        if !hoverVm.hudText.isEmpty {
-                            Text(hoverVm.hudText)
-                                .font(.system(size: 11, weight: .semibold))
-                                .foregroundColor(.white)
-                        }
-                    }
-                    .padding(.horizontal, 14)
-                    .padding(.vertical, 10)
-                    .background(
-                        RoundedRectangle(cornerRadius: 10, style: .continuous)
-                            .fill(Color.black.opacity(0.80))
-                    )
-                    .allowsHitTesting(false)
-                    .transition(.scale(scale: 0.85).combined(with: .opacity))
+                    PlayerHUDBadge(icon: hoverVm.hudIcon, text: hoverVm.hudText, discSize: 44)
+                    .transition(.scale(scale: 0.85))
                 }
                 
                 // Top Overlay on hover: Expand hint & close button
                 if hoverVm.isHovered {
                     ZStack(alignment: .top) {
                         LinearGradient(
-                            colors: [Color.black.opacity(0.65), Color.clear],
+                            colors: [Color.black.opacity(0.25), Color.clear],
                             startPoint: .top,
                             endPoint: .bottom
                         )
@@ -2204,8 +2182,7 @@ struct MiniPlayerPiPOverlay: View {
                                 .foregroundColor(.white)
                                 .padding(.horizontal, 8)
                                 .padding(.vertical, 4.5)
-                                .background(Color.black.opacity(0.75))
-                                .cornerRadius(6)
+                                .background(PlayerGlassShape(shape: Capsule()))
                             }
                             .buttonStyle(.plain)
                             .help("Phóng to video vào giao diện xem chính")
@@ -2222,8 +2199,7 @@ struct MiniPlayerPiPOverlay: View {
                                 .foregroundColor(.white)
                                 .padding(.horizontal, 8)
                                 .padding(.vertical, 4.5)
-                                .background(Color.black.opacity(0.75))
-                                .cornerRadius(6)
+                                .background(PlayerGlassShape(shape: Capsule()))
                             }
                             .buttonStyle(.plain)
                             .help("Chuyển video sang cửa sổ nổi Picture-in-Picture (P)")
@@ -2235,8 +2211,7 @@ struct MiniPlayerPiPOverlay: View {
                                     .font(.system(size: 10.5, weight: .bold))
                                     .foregroundColor(.white)
                                     .frame(width: 24, height: 24)
-                                    .background(Color.black.opacity(0.75))
-                                    .clipShape(Circle())
+                                    .background(PlayerGlassShape(shape: Circle()))
                             }
                             .buttonStyle(.plain)
                             .help("Đóng phát")
@@ -2244,12 +2219,18 @@ struct MiniPlayerPiPOverlay: View {
                         .padding(8)
                     }
                     .frame(width: pipWidth, height: videoHeight, alignment: .top)
+                    .transition(.identity)
                 }
             }
             .frame(width: pipWidth, height: videoHeight)
-            
-            // 2. Interactive High-Precision Progress Scrubber (Click & Drag to Seek)
+            // Controls float over the video in one glass bar, exactly like the floating PiP:
+            // shown on hover, timeline on top, buttons below.
+            .overlay(alignment: .bottom) {
+                if hoverVm.isHovered {
+                VStack(spacing: 2) {
             MiniPlayerInteractiveProgressBar()
+                .padding(.horizontal, 10)
+                .padding(.top, 6)
             
             // 3. Bottom Controls & Metadata Bar
             HStack(spacing: 6) {
@@ -2261,9 +2242,10 @@ struct MiniPlayerPiPOverlay: View {
                         .lineLimit(1)
                     Text(video.uploader)
                         .font(.system(size: 10.5))
-                        .foregroundColor(Color(white: 0.72))
+                        .foregroundColor(Color.white.opacity(0.78))
                         .lineLimit(1)
                 }
+                .shadow(color: .black.opacity(0.35), radius: 1.5, y: 0.5)
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .contentShape(Rectangle())
                 .onTapGesture {
@@ -2279,7 +2261,8 @@ struct MiniPlayerPiPOverlay: View {
                         .font(.system(size: 11.5, weight: .semibold))
                         .foregroundColor(Color.white.opacity(0.85))
                         .frame(width: 26, height: 26)
-                        .background(Circle().fill(Color.white.opacity(0.08)))
+                        .background(Circle().fill(Color.white.opacity(0.14)))
+                        .overlay(Circle().strokeBorder(Color.white.opacity(0.22), lineWidth: 0.5))
                 }
                 .buttonStyle(.plain)
                 .help("Lùi 10 giây (← / J)")
@@ -2294,7 +2277,9 @@ struct MiniPlayerPiPOverlay: View {
                 }) {
                     ZStack {
                         Circle()
-                            .fill(Color.white.opacity(0.20))
+                            .fill(Color.white.opacity(0.26))
+                        Circle()
+                            .strokeBorder(Color.white.opacity(0.35), lineWidth: 0.5)
                         Image(systemName: playerManager.isPlaying ? "pause.fill" : "play.fill")
                             .font(.system(size: 11.5, weight: .bold))
                             .foregroundColor(.white)
@@ -2313,7 +2298,8 @@ struct MiniPlayerPiPOverlay: View {
                         .font(.system(size: 11.5, weight: .semibold))
                         .foregroundColor(Color.white.opacity(0.85))
                         .frame(width: 26, height: 26)
-                        .background(Circle().fill(Color.white.opacity(0.08)))
+                        .background(Circle().fill(Color.white.opacity(0.14)))
+                        .overlay(Circle().strokeBorder(Color.white.opacity(0.22), lineWidth: 0.5))
                 }
                 .buttonStyle(.plain)
                 .help("Tua tiếp 10 giây (→ / L)")
@@ -2322,7 +2308,9 @@ struct MiniPlayerPiPOverlay: View {
                 Button(action: onClose) {
                     ZStack {
                         Circle()
-                            .fill(Color.white.opacity(0.08))
+                            .fill(Color.white.opacity(0.14))
+                        Circle()
+                            .strokeBorder(Color.white.opacity(0.22), lineWidth: 0.5)
                         Image(systemName: "xmark")
                             .font(.system(size: 10, weight: .semibold))
                             .foregroundColor(Color.white.opacity(0.85))
@@ -2333,17 +2321,19 @@ struct MiniPlayerPiPOverlay: View {
                 .help("Đóng phát")
             }
             .padding(.horizontal, 10)
-            .frame(width: pipWidth, height: 50)
-            .background(Color(red: 0.11, green: 0.11, blue: 0.13))
+            .frame(height: 40)
+                }
+                .background(PlayerGlassBackground(cornerRadius: 10))
+                .padding(8)
+                .transition(.identity)
+                }
+            }
         }
         .frame(width: pipWidth)
-        .background(
-            RoundedRectangle(cornerRadius: 14, style: .continuous)
-                .fill(Color(red: 0.10, green: 0.10, blue: 0.12))
-        )
-        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .background(Color.black)
+        .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
         .overlay(
-            RoundedRectangle(cornerRadius: 14, style: .continuous)
+            RoundedRectangle(cornerRadius: 18, style: .continuous)
                 .strokeBorder(
                     LinearGradient(
                         colors: [
@@ -2356,7 +2346,7 @@ struct MiniPlayerPiPOverlay: View {
                     lineWidth: 1
                 )
         )
-        .shadow(color: Color.black.opacity(0.55), radius: hoverVm.isHovered ? 24 : 16, x: 0, y: 10)
+        .shadow(color: Color.black.opacity(0.32), radius: hoverVm.isHovered ? 26 : 18, x: 0, y: 10)
         .animation(.spring(response: 0.35, dampingFraction: 0.8), value: isVertical)
         .onHover { hovering in
             withAnimation(.easeInOut(duration: 0.15)) {
@@ -2476,7 +2466,7 @@ struct UpdateNotificationBanner: View {
                         .padding(.vertical, 1.5)
                         .background(Color.green.opacity(colorScheme == .dark ? 0.25 : 0.15))
                         .foregroundColor(colorScheme == .dark ? .green : Color(red: 0.1, green: 0.6, blue: 0.25))
-                        .cornerRadius(4)
+                        .clipShape(RoundedRectangle(cornerRadius: 4, style: .continuous))
                 }
                 
                 Text("Vui lòng cập nhật ngay để khắc phục triệt để lỗi âm thanh và tận hưởng trải nghiệm mượt mà nhất.")
@@ -2518,7 +2508,7 @@ struct UpdateNotificationBanner: View {
         .padding(.vertical, 11)
         .liquidGlass(cornerRadius: 14, elevation: 6)
         .overlay(
-            RoundedRectangle(cornerRadius: 14)
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
                 .strokeBorder(ThemeColor.cardBorder(for: colorScheme), lineWidth: 0.75)
         )
         .frame(maxWidth: 780)

@@ -405,7 +405,7 @@ public struct WatchView: View {
                                                 .padding(.horizontal, 7)
                                                 .padding(.vertical, 3.5)
                                                 .background(ThemeColor.buttonBackground(for: colorScheme, isHovered: false))
-                                                .cornerRadius(6)
+                                                .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
                                             }
                                             .menuStyle(BorderlessButtonMenuStyle())
                                         }
@@ -542,7 +542,7 @@ public struct WatchView: View {
                                             .padding(.horizontal, 16)
                                             .padding(.vertical, 8)
                                             .background(ThemeColor.buttonBackground(for: colorScheme, isHovered: false))
-                                            .cornerRadius(8)
+                                            .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
                                         }
                                         .buttonStyle(.plain)
                                         .frame(maxWidth: .infinity, alignment: .center)
@@ -586,9 +586,9 @@ public struct WatchView: View {
                                         }
                                         .frame(width: 156, height: 88)
                                         .clipped()
-                                        .cornerRadius(10)
+                                        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
                                         .overlay(
-                                            RoundedRectangle(cornerRadius: 10)
+                                            RoundedRectangle(cornerRadius: 10, style: .continuous)
                                                 .strokeBorder(
                                                     LinearGradient(
                                                         colors: colorScheme == .dark
@@ -614,7 +614,7 @@ public struct WatchView: View {
                                                 }
                                             }
                                             .frame(width: 156, height: 88)
-                                            .cornerRadius(10)
+                                            .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
                                             .allowsHitTesting(false)
                                         }
                                         
@@ -630,7 +630,7 @@ public struct WatchView: View {
                                         .padding(.horizontal, 4)
                                         .padding(.vertical, 2)
                                         .background(Color.black.opacity(0.85))
-                                        .cornerRadius(4)
+                                        .clipShape(RoundedRectangle(cornerRadius: 4, style: .continuous))
                                         .foregroundColor(.white)
                                         .padding(4)
                                     }
@@ -1223,12 +1223,14 @@ struct WatchPlayerContainerView: View {
                     .aspectRatio(16/9, contentMode: .fit)
             }
         }
-        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
         .overlay(
-            RoundedRectangle(cornerRadius: 16, style: .continuous)
+            RoundedRectangle(cornerRadius: 24, style: .continuous)
                 .stroke(Color.white.opacity(0.12), lineWidth: 1)
         )
-        .shadow(color: .black.opacity(0.35), radius: 16, y: 6)
+        // The shadow-casting shape sits 2pt inside the frame: at the frame's antialiased edge a
+        // black shape of the same size showed through as a dark hairline around bright video.
+        .background(RoundedRectangle(cornerRadius: 22, style: .continuous).fill(Color.black).padding(2).shadow(color: .black.opacity(0.35), radius: 16, y: 6))
     }
     
     // MARK: - Vertical Player (Strict 9:16 Centered Card, No Horizontal Zoom Fit)
@@ -1242,7 +1244,10 @@ struct WatchPlayerContainerView: View {
             
             ZStack(alignment: .bottom) {
                 // Centered 9:16 Video Player
-                NativePlayerView(cornerRadius: 16)
+                NativePlayerView(cornerRadius: 24)
+                    .frame(width: playerWidth, height: playerHeight)
+                
+                PlayerHandoffCover()
                     .frame(width: playerWidth, height: playerHeight)
                 
                 // Click to play/pause, double click for fullscreen
@@ -1273,11 +1278,13 @@ struct WatchPlayerContainerView: View {
                 }
                 
                 // Bottom Controls fitted to the 9:16 player frame
-                PlayerControlOverlay()
-                    .frame(width: playerWidth)
-                    .opacity(vm.isControlsVisible ? 1.0 : 0.0)
-                    .animation(.easeInOut(duration: 0.18), value: vm.isControlsVisible)
-                    .allowsHitTesting(vm.isControlsVisible)
+                // Inserted/removed outright, never faded: glass under a fading ancestor is
+                // drawn as a flat frosted fill and stays that way until the next redraw
+                if vm.isControlsVisible {
+                    PlayerControlOverlay()
+                        .frame(width: playerWidth)
+                        .transition(.identity)
+                }
                 
                 // Top Corner Badge for Vertical Video
                 VStack {
@@ -1307,12 +1314,14 @@ struct WatchPlayerContainerView: View {
                 .animation(.easeInOut(duration: 0.18), value: vm.isControlsVisible)
             }
             .frame(width: playerWidth, height: playerHeight)
-            .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+            .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
             .overlay(
-                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                RoundedRectangle(cornerRadius: 24, style: .continuous)
                     .stroke(Color.white.opacity(0.14), lineWidth: 1)
             )
-            .shadow(color: .black.opacity(0.45), radius: 18, y: 6)
+            // The shadow-casting shape sits 2pt inside the frame: at the frame's antialiased edge a
+        // black shape of the same size showed through as a dark hairline around bright video.
+        .background(RoundedRectangle(cornerRadius: 22, style: .continuous).fill(Color.black).padding(2).shadow(color: .black.opacity(0.45), radius: 18, y: 6))
             
             Spacer(minLength: 0)
         }
@@ -1322,7 +1331,9 @@ struct WatchPlayerContainerView: View {
     // MARK: - Horizontal 16:9 Player
     private var horizontalPlayer: some View {
         ZStack(alignment: .bottom) {
-            NativePlayerView(cornerRadius: 16)
+            NativePlayerView(cornerRadius: 24)
+            
+            PlayerHandoffCover()
             
             // Click to play/pause, double click for fullscreen
             Color.black.opacity(0.001)
@@ -1346,10 +1357,12 @@ struct WatchPlayerContainerView: View {
             centerPlayPauseOverlay
             
             // Bottom Controls with YouTube Auto-Hide
-            PlayerControlOverlay()
-                .opacity(vm.isControlsVisible ? 1.0 : 0.0)
-                .animation(.easeInOut(duration: 0.18), value: vm.isControlsVisible)
-                .allowsHitTesting(vm.isControlsVisible)
+            // Inserted/removed outright, never faded: glass under a fading ancestor is drawn
+            // as a flat frosted fill and stays that way until the next redraw
+            if vm.isControlsVisible {
+                PlayerControlOverlay()
+                    .transition(.identity)
+            }
             
             // Autoplay Countdown Overlay
             if playerManager.autoplayCountdown != nil, let next = playerManager.nextVideo {
@@ -1384,18 +1397,20 @@ struct WatchPlayerContainerView: View {
             }
         }
         .aspectRatio(16/9, contentMode: .fit)
-        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
         .overlay(
-            RoundedRectangle(cornerRadius: 16, style: .continuous)
+            RoundedRectangle(cornerRadius: 24, style: .continuous)
                 .stroke(Color.white.opacity(0.12), lineWidth: 1)
         )
-        .shadow(color: .black.opacity(0.35), radius: 16, y: 6)
+        // The shadow-casting shape sits 2pt inside the frame: at the frame's antialiased edge a
+        // black shape of the same size showed through as a dark hairline around bright video.
+        .background(RoundedRectangle(cornerRadius: 22, style: .continuous).fill(Color.black).padding(2).shadow(color: .black.opacity(0.35), radius: 16, y: 6))
     }
     
     // MARK: - Center Play / Pause & Buffering Recovery Indicator
     private var centerPlayPauseOverlay: some View {
         Group {
-            if playerManager.showBufferingIndicator {
+            if playerManager.showBufferingIndicator && !playerManager.isAwaitingFirstFrame {
                 VStack(spacing: 10) {
                     ProgressView()
                         .controlSize(.regular)
@@ -1415,11 +1430,7 @@ struct WatchPlayerContainerView: View {
                         .foregroundColor(.white)
                         .padding(.horizontal, 12)
                         .padding(.vertical, 6)
-                        .background(Color.black.opacity(0.68))
-                        .clipShape(Capsule())
-                        .overlay(
-                            Capsule().strokeBorder(Color.white.opacity(0.25), lineWidth: 0.8)
-                        )
+                        .background(PlayerGlassShape(shape: Capsule(), tint: 0.2))
                     }
                     .buttonStyle(.plain)
                     .help("Bấm để làm mới luồng video khi mạng chập chờn (R)")
@@ -1433,33 +1444,24 @@ struct WatchPlayerContainerView: View {
                 Button(action: {
                     playerManager.togglePlayPause()
                 }) {
-                    ZStack {
-                        Circle()
-                            .fill(Color.black.opacity(0.62))
-                            .frame(width: 68, height: 68)
-                            .overlay(
-                                Circle()
-                                    .strokeBorder(
-                                        LinearGradient(
-                                            colors: [Color.white.opacity(0.4), Color.white.opacity(0.12)],
-                                            startPoint: .topLeading,
-                                            endPoint: .bottomTrailing
-                                        ),
-                                        lineWidth: 1.2
-                                    )
-                            )
-                            .shadow(color: .black.opacity(0.5), radius: 12, x: 0, y: 4)
-                        
-                        Image(systemName: "play.fill")
-                            .font(.system(size: 26, weight: .bold))
-                            .foregroundColor(.white)
-                            .offset(x: 2)
-                    }
+                    // Same clear glass disc as the PiP feedback badge. The glass is only in the
+                    // hierarchy while visible and is never faded (fading draws glass frosted).
+                    Image(systemName: "play.fill")
+                        .font(.system(size: 26, weight: .semibold))
+                        .foregroundColor(.white)
+                        .offset(x: 2)
+                        .frame(width: 68, height: 68)
+                        .background {
+                            if vm.isControlsVisible {
+                                PlayerGlassShape(shape: Circle(), tint: 0.16)
+                            }
+                        }
+                        .contentShape(Circle())
                 }
                 .buttonStyle(.plain)
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
                 .opacity(vm.isControlsVisible ? 1.0 : 0.0)
-                .animation(.easeInOut(duration: 0.18), value: vm.isControlsVisible)
+                .transaction { $0.animation = nil }
                 .allowsHitTesting(vm.isControlsVisible)
             }
         }

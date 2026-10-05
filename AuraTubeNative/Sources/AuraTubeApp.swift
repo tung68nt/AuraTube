@@ -37,6 +37,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         }
         
         // Auto-check for updates after app launch if enabled
+        // Warm the web player once the window is up, so the first video starts quickly
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
+            MainWebPlayerPool.shared.prewarm()
+        }
+        
         if UpdateService.shared.autoCheckEnabled {
             DispatchQueue.main.asyncAfter(deadline: .now() + 3.0) {
                 Task { @MainActor in
@@ -45,17 +50,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             }
         }
         
-        // Automatically return PiP to main player when user clicks/focuses the main application window
+        // Return PiP to the main player when the user comes back to AuraTube from another app.
+        // Keyed on app activation, not on the main window becoming key: opening PiP from inside
+        // the app shuffles key status between the panel and the main window, and treating that
+        // as "user returned" pulled the panel back to the main player's frame right after it opened.
         NotificationCenter.default.addObserver(
-            forName: NSWindow.didBecomeKeyNotification,
+            forName: NSApplication.didBecomeActiveNotification,
             object: nil,
             queue: .main
-        ) { notification in
+        ) { _ in
             Task { @MainActor in
-                guard let window = notification.object as? NSWindow else { return }
                 let pm = PlayerManager.shared
-                
-                // Only act if PiP is currently active and autoReturnPiPOnAppFocus is enabled
                 guard pm.isPictureInPictureActive, pm.autoReturnPiPOnAppFocus else { return }
                 
                 // Debounce to prevent immediate exit right after entering PiP
@@ -65,12 +70,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
                 // Dragging / clicking the PiP (or hiding it to audio-only) is not "back to the app"
                 guard !PiPWindowController.shared.isUserInteractingWithPiP else { return }
                 
-                // Verify that this is the main application window (not the PiP floating panel, not an auxiliary panel)
-                if !PiPWindowController.shared.isPipWindow(window),
-                   !(window is NSPanel),
-                   window.canBecomeMain {
-                    pm.exitPictureInPicture()
-                }
+                pm.exitPictureInPicture()
             }
         }
     }

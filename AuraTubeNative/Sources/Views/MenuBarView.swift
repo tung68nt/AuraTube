@@ -135,12 +135,11 @@ public struct MenuBarView: View {
                     .padding(.vertical, 4.5)
                     .foregroundColor(textPrimary)
                     .background(
-                        Capsule()
-                            .fill(isDark ? Color.white.opacity(0.10) : Color.black.opacity(0.06))
+                        NativeGlassFill(shape: Capsule())
                     )
                     .overlay(
                         Capsule()
-                            .strokeBorder(isDark ? Color.white.opacity(0.14) : Color.black.opacity(0.08), lineWidth: 0.75)
+                            .strokeBorder(isDark ? Color.white.opacity(0.12) : Color.black.opacity(0.06), lineWidth: NativeGlass.isAvailable ? 0 : 0.75)
                     )
                 }
                 .buttonStyle(.plain)
@@ -213,7 +212,7 @@ public struct MenuBarView: View {
                                 .transition(.scale(scale: 1.15).combined(with: .opacity))
                             }
                         }
-                        .contentShape(RoundedRectangle(cornerRadius: 10))
+                        .contentShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
                     }
                     .buttonStyle(.plain)
                     .onHover { hovering in
@@ -252,12 +251,11 @@ public struct MenuBarView: View {
                                 .foregroundColor(playerManager.canPlayPrevious ? textPrimary : textSecondary.opacity(0.35))
                                 .frame(width: 28, height: 28)
                                 .background(
-                                    Circle()
-                                        .fill(isDark ? Color.white.opacity(0.08) : Color.black.opacity(0.05))
+                                    NativeGlassFill(shape: Circle())
                                 )
                                 .overlay(
                                     Circle()
-                                        .strokeBorder(isDark ? Color.white.opacity(0.12) : Color.black.opacity(0.06), lineWidth: 0.75)
+                                        .strokeBorder(isDark ? Color.white.opacity(0.12) : Color.black.opacity(0.06), lineWidth: NativeGlass.isAvailable ? 0 : 0.75)
                                 )
                         }
                         .buttonStyle(.plain)
@@ -271,12 +269,11 @@ public struct MenuBarView: View {
                                 .foregroundColor(textPrimary)
                                 .frame(width: 28, height: 28)
                                 .background(
-                                    Circle()
-                                        .fill(isDark ? Color.white.opacity(0.08) : Color.black.opacity(0.05))
+                                    NativeGlassFill(shape: Circle())
                                 )
                                 .overlay(
                                     Circle()
-                                        .strokeBorder(isDark ? Color.white.opacity(0.12) : Color.black.opacity(0.06), lineWidth: 0.75)
+                                        .strokeBorder(isDark ? Color.white.opacity(0.12) : Color.black.opacity(0.06), lineWidth: NativeGlass.isAvailable ? 0 : 0.75)
                                 )
                         }
                         .buttonStyle(.plain)
@@ -309,12 +306,11 @@ public struct MenuBarView: View {
                                 .foregroundColor(textPrimary)
                                 .frame(width: 28, height: 28)
                                 .background(
-                                    Circle()
-                                        .fill(isDark ? Color.white.opacity(0.08) : Color.black.opacity(0.05))
+                                    NativeGlassFill(shape: Circle())
                                 )
                                 .overlay(
                                     Circle()
-                                        .strokeBorder(isDark ? Color.white.opacity(0.12) : Color.black.opacity(0.06), lineWidth: 0.75)
+                                        .strokeBorder(isDark ? Color.white.opacity(0.12) : Color.black.opacity(0.06), lineWidth: NativeGlass.isAvailable ? 0 : 0.75)
                                 )
                         }
                         .buttonStyle(.plain)
@@ -327,12 +323,11 @@ public struct MenuBarView: View {
                                 .foregroundColor(textPrimary)
                                 .frame(width: 28, height: 28)
                                 .background(
-                                    Circle()
-                                        .fill(isDark ? Color.white.opacity(0.08) : Color.black.opacity(0.05))
+                                    NativeGlassFill(shape: Circle())
                                 )
                                 .overlay(
                                     Circle()
-                                        .strokeBorder(isDark ? Color.white.opacity(0.12) : Color.black.opacity(0.06), lineWidth: 0.75)
+                                        .strokeBorder(isDark ? Color.white.opacity(0.12) : Color.black.opacity(0.06), lineWidth: NativeGlass.isAvailable ? 0 : 0.75)
                                 )
                         }
                         .buttonStyle(.plain)
@@ -359,12 +354,11 @@ public struct MenuBarView: View {
                                 .padding(.horizontal, 6)
                                 .frame(height: 26)
                                 .background(
-                                    Capsule()
-                                        .fill(isDark ? Color.white.opacity(0.08) : Color.black.opacity(0.05))
+                                    NativeGlassFill(shape: Capsule())
                                 )
                                 .overlay(
                                     Capsule()
-                                        .strokeBorder(isDark ? Color.white.opacity(0.12) : Color.black.opacity(0.06), lineWidth: 0.75)
+                                        .strokeBorder(isDark ? Color.white.opacity(0.12) : Color.black.opacity(0.06), lineWidth: NativeGlass.isAvailable ? 0 : 0.75)
                                 )
                         }
                         .menuStyle(.borderlessButton)
@@ -378,12 +372,11 @@ public struct MenuBarView: View {
                                 .foregroundColor(playerManager.isMuted ? Color.red : textPrimary)
                                 .frame(width: 28, height: 28)
                                 .background(
-                                    Circle()
-                                        .fill(isDark ? Color.white.opacity(0.08) : Color.black.opacity(0.05))
+                                    NativeGlassFill(shape: Circle())
                                 )
                                 .overlay(
                                     Circle()
-                                        .strokeBorder(isDark ? Color.white.opacity(0.12) : Color.black.opacity(0.06), lineWidth: 0.75)
+                                        .strokeBorder(isDark ? Color.white.opacity(0.12) : Color.black.opacity(0.06), lineWidth: NativeGlass.isAvailable ? 0 : 0.75)
                                 )
                         }
                         .buttonStyle(.plain)
@@ -410,59 +403,9 @@ public struct MenuBarView: View {
         .padding(.horizontal, 16)
         .padding(.vertical, 14)
         .frame(width: playerManager.isCurrentVideoVertical ? 300 : 320)
-        .background(
-            ZStack {
-                // Native ultra-thin glass material base
-                RoundedRectangle(cornerRadius: 14, style: .continuous)
-                    .fill(.ultraThinMaterial)
-                
-                // Adaptive rich surface tint
-                RoundedRectangle(cornerRadius: 14, style: .continuous)
-                    .fill(
-                        isDark ?
-                        LinearGradient(
-                            colors: [
-                                Color(red: 24/255, green: 24/255, blue: 28/255).opacity(0.92),
-                                Color(red: 16/255, green: 16/255, blue: 20/255).opacity(0.94)
-                            ],
-                            startPoint: .top,
-                            endPoint: .bottom
-                        ) :
-                        LinearGradient(
-                            colors: [
-                                Color.white.opacity(0.96),
-                                Color(red: 248/255, green: 248/255, blue: 250/255).opacity(0.96)
-                            ],
-                            startPoint: .top,
-                            endPoint: .bottom
-                        )
-                    )
-            }
-        )
-        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
-        .overlay(
-            RoundedRectangle(cornerRadius: 14, style: .continuous)
-                .strokeBorder(
-                    isDark ?
-                    LinearGradient(
-                        colors: [Color.white.opacity(0.18), Color.white.opacity(0.06)],
-                        startPoint: .topLeading,
-                        endPoint: .bottomTrailing
-                    ) :
-                    LinearGradient(
-                        colors: [Color.black.opacity(0.10), Color.black.opacity(0.04)],
-                        startPoint: .topLeading,
-                        endPoint: .bottomTrailing
-                    ),
-                    lineWidth: 1
-                )
-        )
-        .shadow(
-            color: Color.black.opacity(isDark ? 0.40 : 0.12),
-            radius: 12,
-            x: 0,
-            y: 4
-        )
+        // macOS 26+: the popover itself is the glass surface (drawing a second rounded card
+        // inside it showed two borders with different corner radii). Older systems keep the card.
+        .modifier(MenuBarCardSurface(isDark: isDark))
         .preferredColorScheme(themeManager.colorScheme)
         .animation(.spring(response: 0.35, dampingFraction: 0.8), value: playerManager.isCurrentVideoVertical)
     }
@@ -579,6 +522,71 @@ struct MenuBarTimelineView: View {
             return String(format: "%d:%02d:%02d", h, m, s)
         } else {
             return String(format: "%d:%02d", m, s)
+        }
+    }
+}
+
+/// The app-drawn glass card for the menu bar popover, used only before macOS 26.
+private struct MenuBarCardSurface: ViewModifier {
+    let isDark: Bool
+    
+    func body(content: Content) -> some View {
+        if NativeGlass.isAvailable {
+            content
+        } else {
+            content
+    .background(
+                ZStack {
+                    // Native ultra-thin glass material base
+                    NativeGlassFill(shape: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                    
+                    // Adaptive rich surface tint
+                    RoundedRectangle(cornerRadius: 14, style: .continuous)
+                        .fill(
+                            isDark ?
+                            LinearGradient(
+                                colors: [
+                                    Color(red: 24/255, green: 24/255, blue: 28/255).opacity(NativeGlass.isAvailable ? 0.35 : 0.92),
+                                    Color(red: 16/255, green: 16/255, blue: 20/255).opacity(NativeGlass.isAvailable ? 0.40 : 0.94)
+                                ],
+                                startPoint: .top,
+                                endPoint: .bottom
+                            ) :
+                            LinearGradient(
+                                colors: [
+                                    Color.white.opacity(NativeGlass.isAvailable ? 0.38 : 0.96),
+                                    Color(red: 248/255, green: 248/255, blue: 250/255).opacity(NativeGlass.isAvailable ? 0.30 : 0.96)
+                                ],
+                                startPoint: .top,
+                                endPoint: .bottom
+                            )
+                        )
+                }
+            )
+            .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                    .strokeBorder(
+                        isDark ?
+                        LinearGradient(
+                            colors: [Color.white.opacity(0.18), Color.white.opacity(0.06)],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        ) :
+                        LinearGradient(
+                            colors: [Color.black.opacity(0.10), Color.black.opacity(0.04)],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        ),
+                        lineWidth: NativeGlass.isAvailable ? 0 : 1
+                    )
+            )
+            .shadow(
+                color: Color.black.opacity(isDark ? 0.40 : 0.12),
+                radius: 12,
+                x: 0,
+                y: 4
+            )
         }
     }
 }

@@ -393,7 +393,7 @@ public final class RecommendationService: ObservableObject {
         var prior: Double {
             switch self {
             case .graph: return 3.0
-            case .subscription: return 2.6
+            case .subscription: return 2.0
             case .channel: return 2.2
             case .topic: return 2.0
             case .trending: return 1.2
@@ -412,6 +412,40 @@ public final class RecommendationService: ObservableObject {
     }
     
     /// Home feed ("Tất cả"): personalized when there is a profile, trending-based otherwise.
+    public enum HomeFeedFilter {
+        case all
+        /// Uploaded within the last week
+        case recentlyUploaded
+        /// From channels the user has never watched and is not subscribed to
+        case newToYou
+    }
+    
+    public func fetchRecommendations(filter: HomeFeedFilter) async -> [Video] {
+        guard filter != .all else { return await fetchRecommendations() }
+        refreshProfileMetrics()
+        let watchedIds = Set(PlayerManager.shared.historyVideos.prefix(200).map { $0.id })
+        var candidates = hasPersonalizedProfile ? await gatherPersonalizedCandidates(excluded: watchedIds) : []
+        let trending = await fetchVietnamTrendingFeed(forceRefresh: false)
+        let known = Set(candidates.map { $0.video.id })
+        candidates += mergeCandidates([(.trending, trending)], excluded: watchedIds.union(known))
+        
+        switch filter {
+        case .recentlyUploaded:
+            candidates = candidates.filter { (Self.ageInDays($0.video.publishedTime) ?? 999) <= 7 }
+        case .newToYou:
+            let watchedChannels = Set(PlayerManager.shared.historyVideos.map { $0.uploader.lowercased() })
+            candidates = candidates.filter { c in
+                let channel = c.video.uploader.trimmingCharacters(in: .whitespacesAndNewlines)
+                return channelAffinity[channel] == nil
+                    && !watchedChannels.contains(channel.lowercased())
+                    && !ChannelSubscriptionManager.shared.isSubscribed(channel)
+            }
+        case .all:
+            break
+        }
+        return rankAndDiversify(candidates, limit: 60)
+    }
+    
     public func fetchRecommendations() async -> [Video] {
         refreshProfileMetrics()
         
@@ -575,9 +609,13 @@ public final class RecommendationService: ObservableObject {
             if exploreQueries.count >= 2 { break }
         }
         
+        if userLikesMusic, let musicQuery = VietnamTrendingEngine.musicTrendingQueries.randomElement() {
+            topicQueries.append(musicQuery)
+        }
+        
         let graphSeeds = seeds
         let channelQ = Array(channelQueries.prefix(3))
-        let topicQ = Array(topicQueries.prefix(3))
+        let topicQ = Array(topicQueries.prefix(4))
         let exploreQ = exploreQueries
         async let graphTask = relatedLists(for: graphSeeds, perSeed: 16)
         async let channelTask = searchLists(queries: channelQ, limitPerQuery: 8)
@@ -631,7 +669,7 @@ public final class RecommendationService: ObservableObject {
             s += min(2.5, log2(1 + aff) * 0.9)
         }
         if ChannelSubscriptionManager.shared.isSubscribed(uploader) {
-            s += 1.0
+            s += 0.4
         }
         
         // Topic affinity
@@ -641,21 +679,34 @@ public final class RecommendationService: ObservableObject {
         }
         s += min(2.0, topic)
         
-        // Freshness
+        // Freshness: a real YouTube home feed is ~80% videos from the last week and has
+        // almost nothing older than a few months
         if let age = Self.ageInDays(v.publishedTime) {
             switch age {
-            case ..<2: s += 1.2
-            case ..<7: s += 0.9
-            case ..<30: s += 0.5
-            case ..<365: break
-            case ..<1095: s -= 0.3
-            default: s -= 0.6
+            case ..<2: s += 1.6
+            case ..<7: s += 1.3
+            case ..<30: s += 0.6
+            case ..<90: break
+            case ..<365: s -= 0.5
+            case ..<1095: s -= 0.9
+            default: s -= 1.2
             }
         }
         
-        // Popularity as a mild quality prior
+        // Popularity only guards against dead uploads; it saturates at ~100K views so
+        // mid-size creators that match the user's taste are not outranked by viral videos
         if let views = v.viewCount, views > 0 {
-            s += max(-0.3, min(0.8, (log10(Double(views)) - 4) * 0.25))
+            s += max(-0.3, min(0.3, (log10(Double(views)) - 4) * 0.3))
+        }
+        
+        // Length: home feeds are dominated by 5–60 minute videos
+        let seconds = v.totalDurationSeconds
+        if seconds > 0 && !v.isShort {
+            if seconds < 300 {
+                s -= 0.5
+            } else if seconds <= 3600 {
+                s += 0.2
+            }
         }
         
         // Impression fatigue: shown before but never clicked
@@ -696,6 +747,10 @@ public final class RecommendationService: ObservableObject {
             let recent = picked.suffix(3)
             let recentChannels = Set(recent.map { $0.candidate.video.uploader.lowercased() })
             let wantsDiscovery = picked.count % 6 == 5
+            // Music lovers get roughly every fourth slot as music (mixes, playlists, MVs) and
+            // no more than that, instead of leaving the share to chance
+            let wantsMusic = likesMusic && picked.count % 4 == 2
+            let isFirstScreen = picked.count < 24
             
             var bestIndex = 0
             var bestValue = -Double.infinity
@@ -704,7 +759,13 @@ public final class RecommendationService: ObservableObject {
                 let channel = item.candidate.video.uploader.lowercased()
                 let count = perChannel[channel] ?? 0
                 value -= Double(count) * 1.5
-                if count >= 3 { value -= 100 }
+                // No channel twice on the first screen; at most three overall
+                if count >= (isFirstScreen ? 1 : 3) { value -= 100 }
+                if likesMusic {
+                    let isMusic = Self.isMusicVideo(item.candidate.video)
+                    if wantsMusic && isMusic { value += 2.5 }
+                    if !wantsMusic && isMusic { value -= 1.5 }
+                }
                 if recentChannels.contains(channel) { value -= 2.5 }
                 if !item.keywords.isEmpty {
                     for other in recent where !other.keywords.isEmpty {
@@ -844,6 +905,15 @@ public final class RecommendationService: ObservableObject {
         if ch.contains(" mix") || ch.hasSuffix("mix") || ch.contains("music") || ch.contains("remix") { return true }
         let musicHint = t.contains("nhạc") || t.contains("music") || t.contains("mv") || t.contains("official")
         return musicHint && video.totalDurationSeconds > 1800
+    }
+    
+    /// Music content in general (MVs, live sets, playlists, mixes), not only compilations.
+    nonisolated public static func isMusicVideo(_ video: Video) -> Bool {
+        if isMusicCompilation(video) { return true }
+        let t = video.title.lowercased()
+        let hints = ["official mv", "music video", " mv ", "lyrics", "lyric video", "acoustic",
+                     "nhạc", "bài hát", "ca khúc", "medley", "fancam", "concert", "liveshow"]
+        return hints.contains { t.contains($0) }
     }
     
     /// True only if the user's own behavior shows interest in music.

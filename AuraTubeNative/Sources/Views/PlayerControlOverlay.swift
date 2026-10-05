@@ -21,7 +21,139 @@ final class PlayerControlViewModel: ObservableObject {
     @Published var hoverX: CGFloat = 0
 }
 
+/// Fallback glass for systems without Liquid Glass: a see-through blur of what is behind.
+private struct PlayerGlassBlur: NSViewRepresentable {
+    let opacity: CGFloat
+    
+    func makeNSView(context: Context) -> NSVisualEffectView {
+        let view = NSVisualEffectView()
+        view.material = .hudWindow
+        view.blendingMode = .withinWindow
+        view.state = .active
+        view.appearance = NSAppearance(named: .vibrantDark)
+        view.alphaValue = opacity
+        return view
+    }
+    
+    func updateNSView(_ nsView: NSVisualEffectView, context: Context) {
+        nsView.alphaValue = opacity
+    }
+}
+
+/// Clear glass in any shape for player chrome: the system Liquid Glass exactly as macOS draws
+/// it (its own edge refraction and highlight, nothing layered on top). `tint` is how much black
+/// is mixed in so white controls stay readable; `blur` adds a frosted layer under the glass.
+struct PlayerGlassShape<S: InsettableShape>: View {
+    let shape: S
+    var tint: Double = 0.08
+    var blur: Double = 0
+    
+    var body: some View {
+        if #available(macOS 26.0, *) {
+            ZStack {
+                if blur > 0 {
+                    PlayerGlassBlur(opacity: blur).clipShape(shape)
+                }
+                Color.clear
+                    .glassEffect(.clear.tint(Color.black.opacity(tint)).interactive(), in: shape)
+            }
+            // macOS draws glass flatter and more frosted in windows that are not active. Player
+            // chrome should look the same whether or not AuraTube is the frontmost app.
+            .environment(\.controlActiveState, .key)
+        } else {
+            PlayerGlassBlur(opacity: min(1.0, 0.45 + blur))
+                .clipShape(shape)
+                .overlay(shape.strokeBorder(Color.white.opacity(0.18), lineWidth: 0.75))
+        }
+    }
+}
+
+/// Rounded glass panel for player chrome (control bar, mini player toolbar, PiP controls).
+struct PlayerGlassBackground: View {
+    var cornerRadius: CGFloat = 16
+    var tint: Double = 0.08
+    var blur: Double = 0
+    
+    var body: some View {
+        PlayerGlassShape(
+            shape: RoundedRectangle(cornerRadius: cornerRadius, style: .continuous),
+            tint: tint,
+            blur: blur
+        )
+    }
+}
+
+/// Poster shown over the player whenever it has nothing to draw yet, so the frame is never
+/// black: the video's own thumbnail with a spinner while a newly chosen video loads, and the
+/// same thumbnail (no spinner) for the instant the video changes windows.
+struct PlayerHandoffCover: View {
+    @ObservedObject private var playerManager = PlayerManager.shared
+    
+    var body: some View {
+        let isLoading = playerManager.isAwaitingFirstFrame
+        if isLoading || playerManager.isHandoffCoverVisible, let video = playerManager.currentVideo {
+            GeometryReader { geo in
+                ZStack {
+                    CachedAsyncThumbnail(
+                        url: video.thumbnail,
+                        maxPixelSize: 640,
+                        contentMode: .fill,
+                        placeholderColor: .black
+                    )
+                    .frame(width: geo.size.width, height: geo.size.height)
+                    // The thumbnail is far smaller than the player: a soft blur hides the upscaling
+                    .blur(radius: isLoading ? 8 : 14)
+                    .clipped()
+                    
+                    if isLoading {
+                        Color.black.opacity(0.18)
+                        ProgressView()
+                            .controlSize(.regular)
+                            .colorScheme(.dark)
+                            .frame(width: 58, height: 58)
+                            .background(Circle().fill(Color.black.opacity(0.28)))
+                    }
+                }
+            }
+            .background(Color.black)
+            .allowsHitTesting(false)
+            .transition(.opacity)
+        }
+    }
+}
+
+/// Momentary feedback over the video (play/pause, seek, volume): the glyph in a glass disc,
+/// with the label beneath it on the video itself rather than inside a dark box.
+struct PlayerHUDBadge: View {
+    let icon: String
+    let text: String
+    var discSize: CGFloat = 54
+    
+    var body: some View {
+        VStack(spacing: 7) {
+            Image(systemName: icon)
+                .font(.system(size: discSize * 0.40, weight: .semibold))
+                .foregroundColor(.white)
+                .frame(width: discSize, height: discSize)
+                .background(PlayerGlassShape(shape: Circle(), tint: 0.16))
+            
+            if !text.isEmpty {
+                Text(text)
+                    .font(.system(size: 11.5, weight: .semibold))
+                    .foregroundColor(.white)
+                    .lineLimit(1)
+                    .shadow(color: .black.opacity(0.55), radius: 0.6, y: 0.5)
+                    .shadow(color: .black.opacity(0.35), radius: 4, y: 1)
+            }
+        }
+        .allowsHitTesting(false)
+    }
+}
+
 public struct PlayerControlOverlay: View {
+    /// Corner radius of the player frame this bar sits in (see NativePlayerView(cornerRadius:)).
+    static let playerFrameCornerRadius: CGFloat = 24
+
     @ObservedObject private var playerManager = PlayerManager.shared
     @ObservedObject private var clock = PlaybackClock.shared
     @ObservedObject private var speedService = NetworkSpeedService.shared
@@ -55,33 +187,34 @@ public struct PlayerControlOverlay: View {
             
             GeometryReader { geo in
                 let isCompact = geo.size.width < 460 || playerManager.isCurrentVideoVertical
+                // Same gap to the left, right and bottom edges of the video, and corners concentric
+                // with the player frame's: bar radius = frame radius − gap, both continuous, so
+                // the band between the two curves keeps a constant width around the corner.
+                let barInset: CGFloat = 10
+                let barRadius: CGFloat = Self.playerFrameCornerRadius - barInset
                 
                 VStack(spacing: isCompact ? 6 : 8) {
                     // 1. Scrubber Timeline Bar (Thanh tua với các phân đoạn)
                     scrubberBar
-                        .padding(.horizontal, isCompact ? 10 : 16)
+                        .padding(.horizontal, isCompact ? 8 : 14)
                     
                     // 2. Control Buttons, Chapter title & Time Display
                     controlButtonsRow(isCompact: isCompact)
-                        .padding(.horizontal, isCompact ? 10 : 18)
+                        .padding(.horizontal, isCompact ? 8 : 12)
                         .padding(.bottom, 8)
                 }
-                // Light scrim + soft shadow keeps the controls readable on bright frames
-                .shadow(color: .black.opacity(0.45), radius: 2.5, y: 0.5)
+                .padding(.top, 10)
+                .environment(\.colorScheme, .dark)
+                // Tight + soft shadow pair: glyph edges stay crisp over busy, bright frames
+                .shadow(color: .black.opacity(0.45), radius: 0.6, y: 0.5)
+                .shadow(color: .black.opacity(0.25), radius: 3, y: 1)
+                .frame(width: max(0, geo.size.width - barInset * 2))
+                .background(PlayerGlassBackground(cornerRadius: barRadius))
+                .padding(.horizontal, barInset)
+                .padding(.bottom, barInset)
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
             }
-            .frame(height: 68)
-            .background(
-                LinearGradient(
-                    stops: [
-                        .init(color: .clear, location: 0.0),
-                        .init(color: Color.black.opacity(0.18), location: 0.45),
-                        .init(color: Color.black.opacity(0.42), location: 1.0)
-                    ],
-                    startPoint: .top,
-                    endPoint: .bottom
-                )
-            )
+            .frame(height: 108)
         }
         .frame(maxWidth: .infinity)
     }
@@ -172,9 +305,9 @@ public struct PlayerControlOverlay: View {
                         .padding(.horizontal, 8)
                         .padding(.vertical, 4)
                         .background(Color.black.opacity(0.88))
-                        .cornerRadius(5)
+                        .clipShape(RoundedRectangle(cornerRadius: 5, style: .continuous))
                         .overlay(
-                            RoundedRectangle(cornerRadius: 5)
+                            RoundedRectangle(cornerRadius: 5, style: .continuous)
                                 .stroke(Color.white.opacity(0.2), lineWidth: 0.8)
                         )
                         .shadow(color: .black.opacity(0.4), radius: 3, y: 1)
@@ -297,8 +430,8 @@ public struct PlayerControlOverlay: View {
                 // Backward 10s
                 Button(action: { playerManager.seekRelative(-10) }) {
                     Image(systemName: "gobackward.10")
-                        .font(.system(size: 14, weight: .medium))
-                        .foregroundColor(Color(white: 0.9))
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundColor(.white)
                         .frame(width: 26, height: 26)
                 }
                 .buttonStyle(.plain)
@@ -307,8 +440,8 @@ public struct PlayerControlOverlay: View {
                 // Forward 10s
                 Button(action: { playerManager.seekRelative(10) }) {
                     Image(systemName: "goforward.10")
-                        .font(.system(size: 14, weight: .medium))
-                        .foregroundColor(Color(white: 0.9))
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundColor(.white)
                         .frame(width: 26, height: 26)
                 }
                 .buttonStyle(.plain)
@@ -319,7 +452,7 @@ public struct PlayerControlOverlay: View {
             Button(action: { playerManager.toggleMute() }) {
                 Image(systemName: playerManager.isMuted ? "speaker.slash.fill" : (playerManager.volume > 0.5 ? "speaker.wave.2.fill" : "speaker.wave.1.fill"))
                     .font(.system(size: isCompact ? 12 : 13, weight: .medium))
-                    .foregroundColor(Color(white: 0.9))
+                    .foregroundColor(.white)
                     .frame(width: isCompact ? 22 : 26, height: isCompact ? 22 : 26)
             }
             .buttonStyle(.plain)
@@ -331,32 +464,34 @@ public struct PlayerControlOverlay: View {
                     .font(.system(size: isCompact ? 10.5 : 12, weight: .medium).monospacedDigit())
                     .foregroundColor(.white)
                     .lineLimit(1)
+                    .fixedSize()
                 Text("/")
                     .font(.system(size: isCompact ? 9.5 : 11, weight: .regular))
-                    .foregroundColor(Color(white: 0.5))
+                    .foregroundColor(.white.opacity(0.5))
                     .lineLimit(1)
                 Text(formatTime(playerManager.duration))
                     .font(.system(size: isCompact ? 10.5 : 12, weight: .medium).monospacedDigit())
-                    .foregroundColor(Color(white: 0.7))
+                    .foregroundColor(.white.opacity(0.72))
                     .lineLimit(1)
+                    .fixedSize()
                 
                 // Display Current Chapter Title next to time (like YouTube)
                 if !isCompact && !playerManager.isCurrentVideoVertical, let ch = playerManager.currentChapter {
                     Text("•")
                         .font(.system(size: 11, weight: .regular))
-                        .foregroundColor(Color(white: 0.4))
+                        .foregroundColor(.white.opacity(0.5))
                         .padding(.horizontal, 3)
                         .lineLimit(1)
                     Text(ch.title)
                         .font(.system(size: 12, weight: .semibold))
-                        .foregroundColor(Color(white: 0.92))
+                        .foregroundColor(.white)
                         .lineLimit(1)
                         .truncationMode(.tail)
-                        .frame(maxWidth: 240, alignment: .leading)
+                        .frame(minWidth: 0, maxWidth: 240, alignment: .leading)
+                        .layoutPriority(-1)
                 }
             }
             .lineLimit(1)
-            .fixedSize(horizontal: true, vertical: false)
             .padding(.leading, isCompact ? 0 : 2)
             
             Spacer(minLength: 4)
@@ -433,16 +568,19 @@ public struct PlayerControlOverlay: View {
                     Text(displayQualityBadge(isCompact: isCompact))
                         .font(.system(size: isCompact ? 10 : 11, weight: .bold))
                         .foregroundColor(.white)
-                    Image(systemName: "chevron.up.chevron.down")
-                        .font(.system(size: isCompact ? 6 : 7, weight: .semibold))
-                        .foregroundColor(Color(white: 0.7))
+                    Image(systemName: "chevron.down")
+                        .font(.system(size: isCompact ? 7 : 8, weight: .bold))
+                        .foregroundColor(.white.opacity(0.85))
                 }
                 .padding(.horizontal, isCompact ? 5 : 7)
                 .padding(.vertical, isCompact ? 3 : 3.5)
                 .background(Color.white.opacity(0.18))
-                .cornerRadius(4)
+                .clipShape(Capsule())
+                .contentShape(Capsule())
             }
-            .menuStyle(.borderlessButton)
+            .menuStyle(.button)
+            .buttonStyle(.plain)
+            .menuIndicator(.hidden)
             .fixedSize()
             .help("Chọn độ phân giải video")
             
@@ -463,16 +601,19 @@ public struct PlayerControlOverlay: View {
                     Text(displaySpeedBadge)
                         .font(.system(size: isCompact ? 10 : 11, weight: .bold))
                         .foregroundColor(.white)
-                    Image(systemName: "chevron.up.chevron.down")
-                        .font(.system(size: isCompact ? 6 : 7, weight: .semibold))
-                        .foregroundColor(Color(white: 0.7))
+                    Image(systemName: "chevron.down")
+                        .font(.system(size: isCompact ? 7 : 8, weight: .bold))
+                        .foregroundColor(.white.opacity(0.85))
                 }
                 .padding(.horizontal, isCompact ? 5 : 7)
                 .padding(.vertical, isCompact ? 3 : 3.5)
                 .background(Color.white.opacity(0.18))
-                .cornerRadius(4)
+                .clipShape(Capsule())
+                .contentShape(Capsule())
             }
-            .menuStyle(.borderlessButton)
+            .menuStyle(.button)
+            .buttonStyle(.plain)
+            .menuIndicator(.hidden)
             .fixedSize()
             .help("Tốc độ phát video (Shift + < / >)")
             
@@ -481,20 +622,23 @@ public struct PlayerControlOverlay: View {
                 Button(action: {
                     playerManager.toggleAutoplay()
                 }) {
+                    // Quiet switch in the bar's white palette: no accent colour. On = brighter
+                    // track with a solid knob on the right; off = faint track, dimmer knob on the left.
                     ZStack(alignment: playerManager.isAutoplayEnabled ? .trailing : .leading) {
                         Capsule()
-                            .fill(playerManager.isAutoplayEnabled ? Color.white : Color(white: 0.28))
-                            .frame(width: 32, height: 16)
+                            .fill(Color.white.opacity(playerManager.isAutoplayEnabled ? 0.42 : 0.16))
+                            .frame(width: 34, height: 18)
                         
                         Circle()
-                            .fill(playerManager.isAutoplayEnabled ? Color.black : Color(white: 0.75))
-                            .frame(width: 12, height: 12)
-                            .padding(.horizontal, 2)
+                            .fill(Color.white.opacity(playerManager.isAutoplayEnabled ? 1.0 : 0.7))
+                            .frame(width: 14, height: 14)
                             .overlay(
                                 Image(systemName: playerManager.isAutoplayEnabled ? "play.fill" : "pause.fill")
-                                    .font(.system(size: 6, weight: .bold))
-                                    .foregroundColor(playerManager.isAutoplayEnabled ? .white : .black)
+                                    .font(.system(size: 6.5, weight: .black))
+                                    .foregroundColor(Color.black.opacity(0.5))
+                                    .offset(x: playerManager.isAutoplayEnabled ? 0.5 : 0)
                             )
+                            .padding(.horizontal, 2)
                     }
                     .animation(.easeInOut(duration: 0.18), value: playerManager.isAutoplayEnabled)
                 }
