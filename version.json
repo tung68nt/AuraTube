@@ -1,9 +1,9 @@
 {
-  "version": "2.1.3",
-  "build": 104,
-  "title": "AuraTube v2.1.3 (Vào video nhanh gấp đôi, PiP hết đen và đúng kích thước, giao diện Liquid Glass, feed sát sở thích hơn)",
-  "releaseNotes": "• Vào video nhanh hơn: Trình phát được khởi động sẵn khi mở app và giữ sẵn sau khi đóng video; thời gian tới khung hình đầu giảm từ khoảng 2,4 giây xuống khoảng 1,2 giây. Trong lúc chờ, player hiện ảnh bìa kèm vòng xoay thay cho màn hình đen.\n• PiP: Sửa lỗi PiP đen vài giây, mở sai kích thước (luôn to nhất), không kéo được và nút tai nghe không hoạt động. Vào/ra PiP mượt hơn, không còn giật khi thu về.\n• Tiết kiệm băng thông: Ở chế độ Auto, độ phân giải theo đúng kích thước PiP; khi chỉ nghe (ẩn hình) video tụt xuống mức thấp nhất, âm thanh giữ nguyên.\n• Giao diện Liquid Glass (macOS 26 trở lên): thanh điều khiển, PiP, mini player, nút và ô tìm kiếm dùng kính của hệ thống; các bảng Cài đặt/Tải xuống/Cập nhật và popup menu bar không còn hai lớp viền. Bo góc liên tục trên toàn app.\n• Trang chủ sát sở thích hơn: mỗi kênh một video trên màn đầu, ưu tiên video mới và kênh cỡ vừa hợp gu, dành chỗ cho nhạc nếu bạn hay nghe; thêm hai bộ lọc \"Mới tải lên gần đây\" và \"Đề xuất mới\", thêm kệ Shorts thứ hai.\n• Hình ảnh: Hết vạch đen mảnh ở mép video; cuộn danh sách nhẹ hơn.\n• Lưu ý: PiP giờ chỉ tự thu về khi bạn quay lại AuraTube từ app khác; hiệu ứng mờ dần thay cho hiệu ứng thu phóng cửa sổ.",
-  "downloadUrl": "https://github.com/tung68nt/AuraTube/releases/download/v2.1.3/AuraTube-v2.1.3.dmg",
+  "version": "2.1.4",
+  "build": 105,
+  "title": "AuraTube v2.1.4 (Mép mini player và PiP mượt, hết viền đen)",
+  "releaseNotes": "• Mini player trong app và cửa sổ PiP: mép bo góc không còn răng cưa và không còn viền đen mảnh quanh video.",
+  "downloadUrl": "https://github.com/tung68nt/AuraTube/releases/download/v2.1.4/AuraTube-v2.1.4.dmg",
   "publishedAt": "2026-10-05",
   "minOSVersion": "13.0",
   "fileSize": "6.0 MB"
