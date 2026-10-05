@@ -743,7 +743,10 @@ public struct PiPFloatingContentView: View {
             let h = geo.size.height
             
             ZStack {
-                Color.black
+                // 2pt inside the frame, so no black shows at the antialiased rounded edge
+                RoundedRectangle(cornerRadius: 18, style: .continuous)
+                    .fill(Color.black)
+                    .padding(2)
                 
                 // 1. Full-bleed edge-to-edge Native Video Player
                 if playerManager.isPictureInPictureActive {

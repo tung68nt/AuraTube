@@ -2119,9 +2119,16 @@ struct MiniPlayerPiPOverlay: View {
         VStack(spacing: 0) {
             // 1. Video Frame (Edge-to-edge with 0 inner corner radius, naturally clipped by outer container)
             ZStack(alignment: .center) {
-                NativePlayerView(cornerRadius: 0)
+                // The web view rounds its own corners (a Core Animation corner is antialiased
+                // cleanly; a SwiftUI clip over an AppKit view is not, which made the edge jagged).
+                // The black behind it sits 2pt inside the card so it cannot show at the edge.
+                NativePlayerView(cornerRadius: 18)
                     .frame(width: pipWidth, height: videoHeight)
-                    .background(Color.black)
+                    .background(
+                        RoundedRectangle(cornerRadius: 16, style: .continuous)
+                            .fill(Color.black)
+                            .padding(2)
+                    )
                 
                 PlayerHandoffCover()
                     .frame(width: pipWidth, height: videoHeight)
@@ -2330,7 +2337,6 @@ struct MiniPlayerPiPOverlay: View {
             }
         }
         .frame(width: pipWidth)
-        .background(Color.black)
         .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
         .overlay(
             RoundedRectangle(cornerRadius: 18, style: .continuous)
