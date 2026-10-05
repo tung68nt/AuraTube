@@ -1228,7 +1228,9 @@ struct WatchPlayerContainerView: View {
             RoundedRectangle(cornerRadius: 24, style: .continuous)
                 .stroke(Color.white.opacity(0.12), lineWidth: 1)
         )
-        .background(RoundedRectangle(cornerRadius: 24, style: .continuous).fill(Color.black).shadow(color: .black.opacity(0.35), radius: 16, y: 6))
+        // The shadow-casting shape sits 2pt inside the frame: at the frame's antialiased edge a
+        // black shape of the same size showed through as a dark hairline around bright video.
+        .background(RoundedRectangle(cornerRadius: 22, style: .continuous).fill(Color.black).padding(2).shadow(color: .black.opacity(0.35), radius: 16, y: 6))
     }
     
     // MARK: - Vertical Player (Strict 9:16 Centered Card, No Horizontal Zoom Fit)
@@ -1317,7 +1319,9 @@ struct WatchPlayerContainerView: View {
                 RoundedRectangle(cornerRadius: 24, style: .continuous)
                     .stroke(Color.white.opacity(0.14), lineWidth: 1)
             )
-            .background(RoundedRectangle(cornerRadius: 24, style: .continuous).fill(Color.black).shadow(color: .black.opacity(0.45), radius: 18, y: 6))
+            // The shadow-casting shape sits 2pt inside the frame: at the frame's antialiased edge a
+        // black shape of the same size showed through as a dark hairline around bright video.
+        .background(RoundedRectangle(cornerRadius: 22, style: .continuous).fill(Color.black).padding(2).shadow(color: .black.opacity(0.45), radius: 18, y: 6))
             
             Spacer(minLength: 0)
         }
@@ -1398,7 +1402,9 @@ struct WatchPlayerContainerView: View {
             RoundedRectangle(cornerRadius: 24, style: .continuous)
                 .stroke(Color.white.opacity(0.12), lineWidth: 1)
         )
-        .background(RoundedRectangle(cornerRadius: 24, style: .continuous).fill(Color.black).shadow(color: .black.opacity(0.35), radius: 16, y: 6))
+        // The shadow-casting shape sits 2pt inside the frame: at the frame's antialiased edge a
+        // black shape of the same size showed through as a dark hairline around bright video.
+        .background(RoundedRectangle(cornerRadius: 22, style: .continuous).fill(Color.black).padding(2).shadow(color: .black.opacity(0.35), radius: 16, y: 6))
     }
     
     // MARK: - Center Play / Pause & Buffering Recovery Indicator
