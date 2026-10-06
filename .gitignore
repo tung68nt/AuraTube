@@ -10,3 +10,10 @@ AuraTube.app/
 .DS_Store
 *.log
 *~
+
+# Safeguards
+.env
+.env.local
+venv/
+.venv/
+.agents/
