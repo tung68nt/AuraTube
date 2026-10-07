@@ -1468,12 +1468,12 @@ public struct LiquidGlassSegmentedSizePicker: View {
                 }) {
                     HStack(spacing: 3) {
                         Text(item.label)
-                            .font(.system(size: 11.5, weight: isSelected ? .bold : .medium))
+                            .font(.system(size: 11.5, weight: .semibold))
                         Text("•")
                             .font(.system(size: 8))
                             .opacity(0.6)
                         Text(item.sub)
-                            .font(.system(size: 10, weight: isSelected ? .semibold : .regular))
+                            .font(.system(size: 10, weight: .medium))
                             .opacity(isSelected ? 0.95 : 0.7)
                     }
                     .frame(maxWidth: .infinity)
