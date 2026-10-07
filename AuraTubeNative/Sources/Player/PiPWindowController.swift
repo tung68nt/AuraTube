@@ -315,6 +315,8 @@ public final class PiPWindowController: NSObject, ObservableObject, NSWindowDele
     public func close() {
         isPiPHiddenKeepAudio = false
         guard let panel = pipWindow else { return }
+        panel.hasShadow = false
+        panel.invalidateShadow()
         NSAnimationContext.runAnimationGroup({ context in
             context.duration = 0.18
             context.timingFunction = CAMediaTimingFunction(controlPoints: 0.16, 1.0, 0.3, 1.0)
@@ -336,18 +338,19 @@ public final class PiPWindowController: NSObject, ObservableObject, NSWindowDele
         PlayerManager.shared.reevaluateAndApplyOptimalQuality()
         PiPOverlayState.shared.triggerHUD(icon: "headphones", text: "Đang phát âm thanh trong nền 🎧")
         
-        // The panel stays on screen but fully transparent and click-through: ordering it out
-        // would detach the web view from a visible window and WebKit suspends its media.
+        // Strip shadow and mouse interaction immediately to prevent ghosting
         panel.ignoresMouseEvents = true
         panel.hasShadow = false
+        panel.invalidateShadow()
+        
         NSAnimationContext.runAnimationGroup({ context in
-            context.duration = 0.22
+            context.duration = 0.20
             context.timingFunction = CAMediaTimingFunction(controlPoints: 0.16, 1.0, 0.3, 1.0)
-            // Not exactly 0: a fully transparent window counts as occluded
-            panel.animator().alphaValue = 0.01
+            panel.animator().alphaValue = 0.0
         }, completionHandler: { [weak panel] in
             Task { @MainActor [weak panel] in
                 panel?.resignKey()
+                panel?.invalidateShadow()
             }
         })
     }
@@ -417,6 +420,8 @@ public final class PiPWindowController: NSObject, ObservableObject, NSWindowDele
         // player's frame re-laid out the playing video on every frame of the animation, which
         // was the stutter on the way back.
         ScrollForwardingWKWebView.isTransitioning = false
+        panel.hasShadow = false
+        panel.invalidateShadow()
         NSAnimationContext.runAnimationGroup({ context in
             context.duration = 0.14
             context.timingFunction = CAMediaTimingFunction(name: .easeOut)
@@ -732,9 +737,10 @@ public final class PiPWindowController: NSObject, ObservableObject, NSWindowDele
 public struct PiPFloatingContentView: View {
     @ObservedObject private var playerManager = PlayerManager.shared
     @ObservedObject private var hud = PiPOverlayState.shared
+    @ObservedObject private var pipController = PiPWindowController.shared
     
     private var controlsVisible: Bool {
-        hud.isHovering || hud.isMenuOpen
+        (hud.isHovering || hud.isMenuOpen) && !pipController.isPiPHiddenKeepAudio
     }
     
     public var body: some View {
@@ -747,6 +753,7 @@ public struct PiPFloatingContentView: View {
                 RoundedRectangle(cornerRadius: 18, style: .continuous)
                     .fill(Color.black)
                     .padding(2)
+                    .opacity(pipController.isPiPHiddenKeepAudio ? 0 : 1)
                 
                 // 1. Full-bleed edge-to-edge Native Video Player
                 if playerManager.isPictureInPictureActive {
@@ -820,10 +827,11 @@ public struct PiPFloatingContentView: View {
         .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
         .overlay(
             RoundedRectangle(cornerRadius: 20, style: .continuous)
-                .strokeBorder(Color.white.opacity(0.18), lineWidth: 1)
+                .strokeBorder(Color.white.opacity(pipController.isPiPHiddenKeepAudio ? 0 : 0.18), lineWidth: 1)
         )
+        .opacity(pipController.isPiPHiddenKeepAudio ? 0 : 1)
         .onHover { hovering in
-            if !hud.isMenuOpen {
+            if !hud.isMenuOpen && !pipController.isPiPHiddenKeepAudio {
                 hud.isHovering = hovering
             }
         }
