@@ -1,9 +1,9 @@
 {
-  "version": "2.1.6",
-  "build": 107,
-  "title": "AuraTube v2.1.6 (Khắc phục hoàn toàn bóng mờ PiP ở chế độ chỉ nghe)",
-  "releaseNotes": "• Khắc phục hoàn toàn hiện tượng bóng mờ và viền mờ của PiP ở góc màn hình khi chuyển sang chế độ Chỉ nghe (Audio-only).\n• Tối ưu giải phóng bộ đệm bóng đổ (shadow buffer) của cửa sổ PiP ngay khi ẩn và khi thu hồi về cửa sổ chính.",
-  "downloadUrl": "https://github.com/tung68nt/AuraTube/releases/download/v2.1.6/AuraTube-v2.1.6.dmg",
+  "version": "2.1.7",
+  "build": 108,
+  "title": "AuraTube v2.1.7 (Mượt mà hóa chuyển Tab Cài đặt & Khắc phục trễ chữ in đậm)",
+  "releaseNotes": "• Khắc phục hoàn toàn hiện tượng chữ in đậm bị trễ/khựng so với hiệu ứng nút khi chuyển Tab Cài đặt.\n• Tích hợp hiệu ứng trượt kính (Fluid Sliding Pill) và hiệu ứng rê chuột (Hover) mượt mà cho thanh điều hướng Cài đặt.",
+  "downloadUrl": "https://github.com/tung68nt/AuraTube/releases/download/v2.1.7/AuraTube-v2.1.7.dmg",
   "publishedAt": "2026-10-07",
   "minOSVersion": "13.0",
   "fileSize": "6.0 MB"
