@@ -78,7 +78,8 @@ public struct AboutView: View {
                         .blur(radius: 10)
                         .offset(y: 3)
                     
-                    if let icon = NSApp.applicationIconImage {
+                    let icon = NSImage(contentsOfFile: "/Users/admin/Documents/Code/AuraTube/assets/icon.png") ?? NSApplication.shared.applicationIconImage
+                    if let icon = icon {
                         Image(nsImage: icon)
                             .resizable()
                             .aspectRatio(contentMode: .fit)

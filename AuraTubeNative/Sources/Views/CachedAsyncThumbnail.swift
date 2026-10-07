@@ -9,8 +9,8 @@ public struct CachedAsyncThumbnail<Content: View, Placeholder: View>: View {
     let content: (Image) -> Content
     let placeholder: () -> Placeholder
     
-    @State private var loadedImage: NSImage?
-    @State private var loadTask: Task<Void, Never>?
+    @LocalState private var loadedImage: NSImage?
+    @LocalState private var loadTask: Task<Void, Never>?
     
     public init(
         url: String,
@@ -24,7 +24,7 @@ public struct CachedAsyncThumbnail<Content: View, Placeholder: View>: View {
         self.placeholder = placeholder
         
         // Fast synchronous RAM cache initialization on first render
-        _loadedImage = State(initialValue: AuraImageCache.shared.imageFromMemory(for: url))
+        _loadedImage = LocalState(initialValue: AuraImageCache.shared.imageFromMemory(for: url))
     }
     
     public var body: some View {

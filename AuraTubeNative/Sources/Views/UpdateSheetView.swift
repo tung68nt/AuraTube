@@ -13,10 +13,22 @@ public struct UpdateSheetView: View {
     }
     
     private var appIcon: NSImage? {
+        if let img = NSImage(contentsOfFile: "/Users/admin/Documents/Code/AuraTube/assets/icon.png") {
+            return img
+        }
         if let img = NSImage(contentsOfFile: "/Users/tungnguyen/Code/Youtube/assets/icon.png") {
             return img
         }
-        return NSApp.applicationIconImage
+        return NSApplication.shared.applicationIconImage
+    }
+    
+    private var sheetWidth: CGFloat {
+        switch updateService.status {
+        case .available:
+            return 540
+        default:
+            return 460
+        }
     }
     
     public var body: some View {
@@ -39,7 +51,8 @@ public struct UpdateSheetView: View {
             }
         }
         .padding(24)
-        .frame(width: 540)
+        .frame(width: sheetWidth)
+        .animation(.spring(response: 0.32, dampingFraction: 0.82), value: sheetWidth)
         .sheetSurface()
     }
     

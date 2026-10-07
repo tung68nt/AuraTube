@@ -5,14 +5,14 @@ public struct OpenYouTubeURLSheet: View {
     @Environment(\.colorScheme) private var colorScheme
     @Environment(\.dismiss) private var dismiss
     
-    @State private var urlText: String = ""
-    @State private var parsedResult: YouTubeURLParseResult? = nil
-    @State private var hasCheckedClipboard: Bool = false
+    @LocalState private var urlText: String = ""
+    @LocalState private var parsedResult: YouTubeURLParseResult? = nil
+    @LocalState private var hasCheckedClipboard: Bool = false
     
     let onPlay: (YouTubeURLParseResult) -> Void
     
     public init(initialURL: String = "", onPlay: @escaping (YouTubeURLParseResult) -> Void) {
-        self._urlText = State(initialValue: initialURL)
+        self._urlText = LocalState(initialValue: initialURL)
         self.onPlay = onPlay
     }
     

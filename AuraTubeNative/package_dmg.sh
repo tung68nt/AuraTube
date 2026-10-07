@@ -1,17 +1,20 @@
 #!/bin/bash
 set -e
 
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+ROOT_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
+
 APP_NAME="AuraTube"
-SOURCE_DIR="/Users/tungnguyen/Code/Youtube/AuraTubeNative"
-ASSETS_DIR="/Users/tungnguyen/Code/Youtube/assets"
-OUTPUT_DIR="/Users/tungnguyen/Code/Youtube"
+SOURCE_DIR="${SCRIPT_DIR}"
+ASSETS_DIR="${ROOT_DIR}/assets"
+OUTPUT_DIR="${ROOT_DIR}"
 
 if [ -f "${OUTPUT_DIR}/version.json" ]; then
     VERSION=$(grep '"version":' "${OUTPUT_DIR}/version.json" | head -n1 | sed -E 's/.*"version": "([^"]+)".*/\1/')
     BUILD=$(grep '"build":' "${OUTPUT_DIR}/version.json" | head -n1 | sed -E 's/.*"build": ([0-9]+).*/\1/')
 fi
-VERSION="${VERSION:-2.0.28}"
-BUILD="${BUILD:-29}"
+VERSION="${VERSION:-2.1.5}"
+BUILD="${BUILD:-106}"
 
 FINAL_DMG="${OUTPUT_DIR}/${APP_NAME}-v${VERSION}.dmg"
 LATEST_DMG="${OUTPUT_DIR}/${APP_NAME}.dmg"
@@ -19,7 +22,11 @@ APP_BUNDLE="/Applications/${APP_NAME}.app"
 TOOL_NAME="Huong Dan Mo Khoa (Doc Khi Bi Bao Loi).txt"
 
 echo "==> 1. Building release bundle for AuraTube v${VERSION} (Build ${BUILD})..."
-DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer xcrun swift build --package-path "${SOURCE_DIR}" -c release && bash "${SOURCE_DIR}/bundle.sh"
+if [ -d "/Applications/Xcode.app/Contents/Developer" ]; then
+    DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer xcrun swift build --package-path "${SOURCE_DIR}" -c release && bash "${SOURCE_DIR}/bundle.sh"
+else
+    swift build --package-path "${SOURCE_DIR}" -c release && bash "${SOURCE_DIR}/bundle.sh"
+fi
 
 # Prepare staging temporary directory
 STAGING_DIR="/tmp/auratube_dmg_staging_$$"

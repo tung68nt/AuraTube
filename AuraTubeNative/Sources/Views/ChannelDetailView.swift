@@ -11,8 +11,8 @@ public struct ChannelDetailView: View {
     let onSelectVideo: (Video) -> Void
     let onLoadMore: () -> Void
     
-    @State private var selectedFilter: String = "Tất cả"
-    @State private var isDescriptionExpanded: Bool = false
+    @LocalState private var selectedFilter: String = "Tất cả"
+    @LocalState private var isDescriptionExpanded: Bool = false
     @ObservedObject private var subManager = ChannelSubscriptionManager.shared
     
     private let filterOptions = ["Tất cả", "Video", "Shorts"]
@@ -312,7 +312,7 @@ struct ChannelVideoCardView: View {
     @Environment(\.colorScheme) private var colorScheme
     let video: Video
     let onSelect: () -> Void
-    @State private var isHovered = false
+    @LocalState private var isHovered = false
     
     var body: some View {
         Button(action: onSelect) {
