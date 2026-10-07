@@ -22,6 +22,7 @@ public enum SettingsTab: String, CaseIterable, Identifiable {
 @MainActor
 public final class SettingsViewState: ObservableObject {
     @Published public var selectedTab: SettingsTab
+    @Published public var hoveredTab: SettingsTab? = nil
     public init(initialTab: SettingsTab = .appearance) {
         self.selectedTab = initialTab
     }
@@ -36,6 +37,7 @@ public struct SettingsSheetView: View {
     @ObservedObject private var speedService = NetworkSpeedService.shared
     
     @StateObject private var viewState: SettingsViewState
+    @Namespace private var tabNamespace
     
     public init(initialTab: SettingsTab = .appearance) {
         _viewState = StateObject(wrappedValue: SettingsViewState(initialTab: initialTab))
@@ -44,6 +46,11 @@ public struct SettingsSheetView: View {
     private var selectedTab: SettingsTab {
         get { viewState.selectedTab }
         nonmutating set { viewState.selectedTab = newValue }
+    }
+    
+    private var hoveredTab: SettingsTab? {
+        get { viewState.hoveredTab }
+        nonmutating set { viewState.hoveredTab = newValue }
     }
     
     private var isDark: Bool {
@@ -235,42 +242,64 @@ public struct SettingsSheetView: View {
     @ViewBuilder
     private func tabButton(tab: SettingsTab) -> some View {
         let isSelected = selectedTab == tab
-        let fontWeight: Font.Weight = isSelected ? .bold : .medium
-        let textColor = isSelected ? (isDark ? Color.white : Color.black) : ThemeColor.textSecondary(for: colorScheme)
+        let isHovered = hoveredTab == tab
+        let textColor: Color = {
+            if isSelected {
+                return isDark ? Color.white : Color.black
+            } else if isHovered {
+                return ThemeColor.textPrimary(for: colorScheme)
+            } else {
+                return ThemeColor.textSecondary(for: colorScheme)
+            }
+        }()
         
         Button(action: {
-            withAnimation(.spring(response: 0.26, dampingFraction: 0.78)) {
+            withAnimation(.spring(response: 0.24, dampingFraction: 0.78)) {
                 selectedTab = tab
             }
         }) {
             HStack(spacing: 6) {
                 Image(systemName: tab.iconName)
-                    .font(.system(size: 11.5, weight: fontWeight))
+                    .font(.system(size: 11.5, weight: .semibold))
                 Text(tab.rawValue)
-                    .font(.system(size: 12, weight: fontWeight))
+                    .font(.system(size: 12, weight: .semibold))
                     .lineLimit(1)
                     .fixedSize(horizontal: true, vertical: false)
             }
             .padding(.horizontal, 14)
             .padding(.vertical, 7)
             .foregroundColor(textColor)
-            .background(tabButtonBackground(isSelected: isSelected))
+            .background(tabButtonBackground(isSelected: isSelected, isHovered: isHovered))
             .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
             .overlay(tabButtonBorder(isSelected: isSelected))
+            .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+        .onHover { hovering in
+            withAnimation(.easeInOut(duration: 0.12)) {
+                if hovering {
+                    hoveredTab = tab
+                } else if hoveredTab == tab {
+                    hoveredTab = nil
+                }
+            }
+        }
     }
     
     @ViewBuilder
-    private func tabButtonBackground(isSelected: Bool) -> some View {
+    private func tabButtonBackground(isSelected: Bool, isHovered: Bool) -> some View {
         if isSelected {
             RoundedRectangle(cornerRadius: 8, style: .continuous)
                 .fill(
                     isDark ?
                         LinearGradient(colors: [Color.white.opacity(0.18), Color.white.opacity(0.10)], startPoint: .top, endPoint: .bottom) :
-                        LinearGradient(colors: [Color.white.opacity(0.95), Color(white: 0.90)], startPoint: .top, endPoint: .bottom)
+                        LinearGradient(colors: [Color.white.opacity(0.96), Color(white: 0.90)], startPoint: .top, endPoint: .bottom)
                 )
                 .shadow(color: Color.black.opacity(isDark ? 0.22 : 0.10), radius: 4, y: 1.5)
+                .matchedGeometryEffect(id: "selectedTabPill", in: tabNamespace)
+        } else if isHovered {
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .fill(isDark ? Color.white.opacity(0.08) : Color.black.opacity(0.05))
         }
     }
     
@@ -289,6 +318,7 @@ public struct SettingsSheetView: View {
                     ),
                     lineWidth: 0.75
                 )
+                .matchedGeometryEffect(id: "selectedTabPillBorder", in: tabNamespace)
         }
     }
     
