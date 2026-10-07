@@ -1,10 +1,10 @@
 {
-  "version": "2.1.4",
-  "build": 105,
-  "title": "AuraTube v2.1.4 (Mép mini player và PiP mượt, hết viền đen)",
-  "releaseNotes": "• Mini player trong app và cửa sổ PiP: mép bo góc không còn răng cưa và không còn viền đen mảnh quanh video.",
-  "downloadUrl": "https://github.com/tung68nt/AuraTube/releases/download/v2.1.4/AuraTube-v2.1.4.dmg",
-  "publishedAt": "2026-10-05",
+  "version": "2.1.5",
+  "build": 106,
+  "title": "AuraTube v2.1.5 (Tối ưu khoảng trống giao diện popup Cài đặt & Cập nhật)",
+  "releaseNotes": "• Cân đối khoảng trống trong popup Cài đặt: bổ sung cài đặt Autoplay & Scroll Boost 2.5x, tinh chỉnh chiều cao và đệm lề hài hòa giữa cả 4 tab.\n• Đồng bộ công tắc điều khiển sang phong cách Liquid Glass Luxury Switch cao cấp.\n• Tối ưu kích thước popup Cập nhật: co gọn bề ngang từ 540pt về 460pt cho các bước Cài đặt & Khởi động lại, loại bỏ khoảng trống thừa bên trái nút bấm.\n• Sửa lỗi hiển thị icon ứng dụng trong popup Giới thiệu (About).",
+  "downloadUrl": "https://github.com/tung68nt/AuraTube/releases/download/v2.1.5/AuraTube-v2.1.5.dmg",
+  "publishedAt": "2026-10-07",
   "minOSVersion": "13.0",
   "fileSize": "6.0 MB"
 }
