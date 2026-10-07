@@ -1682,10 +1682,10 @@ struct ShortsTimelineBarView: View {
     let cardWidth: CGFloat
     let onSeek: (Double) -> Void
     
-    @State private var isHovering: Bool = false
-    @State private var isDragging: Bool = false
-    @State private var dragProgress: Double? = nil
-    @State private var hoverLocationX: CGFloat? = nil
+    @LocalState private var isHovering: Bool = false
+    @LocalState private var isDragging: Bool = false
+    @LocalState private var dragProgress: Double? = nil
+    @LocalState private var hoverLocationX: CGFloat? = nil
     
     private var effectiveDuration: Double {
         duration > 0 ? duration : 15.0
@@ -1839,7 +1839,7 @@ struct ShortFeedRowView: View {
     let onGoNext: () -> Void
     let onTapCard: () -> Void
     
-    @State private var isVideoReady: Bool = false
+    @LocalState private var isVideoReady: Bool = false
     @Environment(\.colorScheme) private var colorScheme
     
     var body: some View {

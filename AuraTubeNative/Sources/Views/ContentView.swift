@@ -452,8 +452,8 @@ public struct ContentView: View {
     
     @AppStorage("isSidebarCollapsedByUser") private var isSidebarCollapsedByUser: Bool = false
     @FocusState private var isSearchFocused: Bool
-    @State private var showSettingsSheet: Bool = false
-    @State private var searchKeyMonitor: Any? = nil
+    @LocalState private var showSettingsSheet: Bool = false
+    @LocalState private var searchKeyMonitor: Any? = nil
     
     public init() {}
     
@@ -2931,7 +2931,7 @@ struct SearchQuickURLBar: View {
     @Environment(\.colorScheme) private var colorScheme
     let onOpenSheet: () -> Void
     let onPasteAndPlay: () -> Void
-    @State private var isHovered = false
+    @LocalState private var isHovered = false
     
     var body: some View {
         HStack(spacing: 12) {
@@ -3311,7 +3311,7 @@ struct SearchChannelCardView: View {
     @Environment(\.colorScheme) private var colorScheme
     let channel: ChannelInfo
     var onSelect: (() -> Void)? = nil
-    @State private var isHovered = false
+    @LocalState private var isHovered = false
     
     var body: some View {
         HStack(spacing: 24) {
@@ -3419,7 +3419,7 @@ struct SearchVideoRowView: View {
     var isSelected: Bool = false
     let onSelect: () -> Void
     var onSelectChannel: ((ChannelInfo) -> Void)? = nil
-    @State private var isHovered = false
+    @LocalState private var isHovered = false
     
     var body: some View {
         HStack(alignment: .top, spacing: 18) {
@@ -3628,7 +3628,7 @@ struct SearchShortCardView: View {
     @Environment(\.colorScheme) private var colorScheme
     let video: Video
     let onSelect: () -> Void
-    @State private var isHovered = false
+    @LocalState private var isHovered = false
     
     var body: some View {
         Button(action: onSelect) {

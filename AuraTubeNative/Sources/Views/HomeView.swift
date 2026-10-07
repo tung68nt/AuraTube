@@ -59,7 +59,7 @@ private struct FrequentChannelItem: View {
     let onSelect: () -> Void
     
     @Environment(\.colorScheme) private var colorScheme
-    @State private var isHovered = false
+    @LocalState private var isHovered = false
     
     var body: some View {
         Button(action: onSelect) {
@@ -904,7 +904,7 @@ public struct VideoCardView: View {
     let onSelect: () -> Void
     var onSelectChannel: ((ChannelInfo) -> Void)? = nil
     @Environment(\.colorScheme) private var colorScheme
-    @State private var isHovered = false
+    @LocalState private var isHovered = false
     
     public var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -1108,7 +1108,7 @@ struct HomeShortsShelfView: View {
     @Environment(\.colorScheme) private var colorScheme
     let shorts: [Video]
     let onSelectShort: (Video) -> Void
-    @State private var currentShortIndex: Int = 0
+    @LocalState private var currentShortIndex: Int = 0
     
     var body: some View {
         ScrollViewReader { proxy in

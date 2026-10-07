@@ -19,6 +19,14 @@ public enum SettingsTab: String, CaseIterable, Identifiable {
     }
 }
 
+@MainActor
+public final class SettingsViewState: ObservableObject {
+    @Published public var selectedTab: SettingsTab
+    public init(initialTab: SettingsTab = .appearance) {
+        self.selectedTab = initialTab
+    }
+}
+
 public struct SettingsSheetView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.colorScheme) private var colorScheme
@@ -27,10 +35,15 @@ public struct SettingsSheetView: View {
     @ObservedObject private var updateService = UpdateService.shared
     @ObservedObject private var speedService = NetworkSpeedService.shared
     
-    @State private var selectedTab: SettingsTab
+    @StateObject private var viewState: SettingsViewState
     
     public init(initialTab: SettingsTab = .appearance) {
-        _selectedTab = State(initialValue: initialTab)
+        _viewState = StateObject(wrappedValue: SettingsViewState(initialTab: initialTab))
+    }
+    
+    private var selectedTab: SettingsTab {
+        get { viewState.selectedTab }
+        nonmutating set { viewState.selectedTab = newValue }
     }
     
     private var isDark: Bool {
@@ -38,10 +51,13 @@ public struct SettingsSheetView: View {
     }
     
     private var appIcon: NSImage? {
+        if let img = NSImage(contentsOfFile: "/Users/admin/Documents/Code/AuraTube/assets/icon.png") {
+            return img
+        }
         if let img = NSImage(contentsOfFile: "/Users/tungnguyen/Code/Youtube/assets/icon.png") {
             return img
         }
-        return NSApp.applicationIconImage
+        return NSApplication.shared.applicationIconImage
     }
     
     public var body: some View {
@@ -121,7 +137,7 @@ public struct SettingsSheetView: View {
             .padding(.bottom, 16)
             
             // MARK: - 3. Tab Content Area with Recessed Frosted Plates (ALG-DS Section 3.3)
-            VStack(spacing: 14) {
+            VStack(spacing: 10) {
                 switch selectedTab {
                 case .appearance:
                     appearanceTabContent
@@ -134,7 +150,8 @@ public struct SettingsSheetView: View {
                 }
             }
             .padding(.horizontal, 24)
-            .frame(height: 310, alignment: .top)
+            .frame(height: 255, alignment: .top)
+            .animation(.easeInOut(duration: 0.22), value: selectedTab)
             
             // MARK: - 4. Bottom Action Footer (Apple HIG: Right-aligned dismiss)
             HStack {
@@ -207,8 +224,8 @@ public struct SettingsSheetView: View {
                 .keyboardShortcut(.cancelAction)
             }
             .padding(.horizontal, 24)
-            .padding(.top, 16)
-            .padding(.bottom, 20)
+            .padding(.top, 14)
+            .padding(.bottom, 18)
         }
         .frame(width: 640)
         .sheetSurface()
@@ -278,34 +295,78 @@ public struct SettingsSheetView: View {
     // MARK: - Tab 1: Appearance Content
     @ViewBuilder
     private var appearanceTabContent: some View {
-        recessedPlate(title: "Chế độ hiển thị (Theme)") {
-            VStack(alignment: .leading, spacing: 10) {
-                Text("Chọn giao diện màu sắc phù hợp với sở thích hoặc tự động đồng bộ theo hệ thống macOS.")
-                    .font(.system(size: 12))
-                    .foregroundColor(ThemeColor.textSecondary(for: colorScheme))
-                    .lineSpacing(2)
-                
-                HStack(spacing: 12) {
-                    themeOptionCard(
-                        theme: .system,
-                        title: "Tự động",
-                        subtitle: "Đồng bộ macOS",
-                        icon: "circle.lefthalf.filled"
-                    )
+        VStack(spacing: 9) {
+            recessedPlate(title: "Chế độ hiển thị (Theme)") {
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("Chọn giao diện màu sắc phù hợp với sở thích hoặc tự động đồng bộ theo hệ thống macOS.")
+                        .font(.system(size: 11))
+                        .foregroundColor(ThemeColor.textSecondary(for: colorScheme))
+                        .lineSpacing(1.5)
                     
-                    themeOptionCard(
-                        theme: .light,
-                        title: "Sáng",
-                        subtitle: "Kính sữa trong suốt",
-                        icon: "sun.max.fill"
-                    )
+                    HStack(spacing: 10) {
+                        themeOptionCard(
+                            theme: .system,
+                            title: "Tự động",
+                            subtitle: "Đồng bộ macOS",
+                            icon: "circle.lefthalf.filled"
+                        )
+                        
+                        themeOptionCard(
+                            theme: .light,
+                            title: "Sáng",
+                            subtitle: "Kính sữa trong suốt",
+                            icon: "sun.max.fill"
+                        )
+                        
+                        themeOptionCard(
+                            theme: .dark,
+                            title: "Tối",
+                            subtitle: "Obsidian sâu thẳm",
+                            icon: "moon.fill"
+                        )
+                    }
+                }
+            }
+            
+            recessedPlate(title: "Trải nghiệm cuộn trang & Tự động phát") {
+                VStack(spacing: 8) {
+                    HStack {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Tự động phát video tiếp theo (Autoplay)")
+                                .font(.system(size: 12, weight: .medium))
+                                .foregroundColor(ThemeColor.textPrimary(for: colorScheme))
+                            Text("Tự động chuyển bài tiếp theo trong danh sách đề xuất khi xem hết video")
+                                .font(.system(size: 10.5))
+                                .foregroundColor(ThemeColor.textSecondary(for: colorScheme))
+                        }
+                        Spacer()
+                        LiquidGlassLuxurySwitch(isOn: $playerManager.isAutoplayEnabled)
+                    }
                     
-                    themeOptionCard(
-                        theme: .dark,
-                        title: "Tối",
-                        subtitle: "Obsidian sâu thẳm",
-                        icon: "moon.fill"
-                    )
+                    Divider()
+                        .opacity(isDark ? 0.2 : 0.4)
+                    
+                    HStack {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Tăng tốc độ cuộn mượt (Scroll Boost)")
+                                .font(.system(size: 12, weight: .medium))
+                                .foregroundColor(ThemeColor.textPrimary(for: colorScheme))
+                            Text("Tối ưu hóa gia tốc cuộn chuột và trackpad lướt danh sách video siêu nhạy")
+                                .font(.system(size: 10.5))
+                                .foregroundColor(ThemeColor.textSecondary(for: colorScheme))
+                        }
+                        Spacer()
+                        
+                        Text("2.5x")
+                            .font(.system(size: 11, weight: .bold, design: .rounded))
+                            .foregroundColor(Color.accentColor)
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 2.5)
+                            .background(
+                                Capsule()
+                                    .fill(isDark ? Color.white.opacity(0.08) : Color.black.opacity(0.05))
+                            )
+                    }
                 }
             }
         }
@@ -356,15 +417,16 @@ public struct SettingsSheetView: View {
                 
                 VStack(alignment: .leading, spacing: 2) {
                     Text(title)
-                        .font(.system(size: 13, weight: .bold))
+                        .font(.system(size: 12.5, weight: .bold))
                         .foregroundColor(ThemeColor.textPrimary(for: colorScheme))
                     
                     Text(subtitle)
-                        .font(.system(size: 11))
+                        .font(.system(size: 10.5))
                         .foregroundColor(ThemeColor.textSecondary(for: colorScheme))
                 }
             }
-            .padding(12)
+            .padding(.horizontal, 10)
+            .padding(.vertical, 8)
             .frame(maxWidth: .infinity, alignment: .leading)
             .background(
                 ZStack {
@@ -713,8 +775,8 @@ public struct SettingsSheetView: View {
             
             // Plate 2: Quality & Escalation Policy
             recessedPlate(title: "Tối ưu hóa độ phân giải video") {
-                VStack(spacing: 10) {
-                    Toggle(isOn: $playerManager.preferMaxQuality) {
+                VStack(spacing: 8) {
+                    HStack {
                         VStack(alignment: .leading, spacing: 2) {
                             Text("Luôn ưu tiên độ phân giải cao nhất (Max 4K/2K)")
                                 .font(.system(size: 12, weight: .medium))
@@ -723,11 +785,12 @@ public struct SettingsSheetView: View {
                                 .font(.system(size: 10.5))
                                 .foregroundColor(ThemeColor.textSecondary(for: colorScheme))
                         }
+                        Spacer()
+                        LiquidGlassLuxurySwitch(isOn: $playerManager.preferMaxQuality)
                     }
-                    .toggleStyle(.switch)
                     
                     Divider()
-                        .opacity(0.5)
+                        .opacity(isDark ? 0.2 : 0.4)
                     
                     HStack {
                         VStack(alignment: .leading, spacing: 2) {
@@ -742,14 +805,14 @@ public struct SettingsSheetView: View {
                         Spacer()
                         
                         Picker("", selection: $playerManager.selectedQuality) {
-                            Text("Tự động theo mạng (Khuyên dùng)").tag("auto")
-                            Text("2160p (4K Ultra HD)").tag("2160")
-                            Text("1440p (2K Quad HD)").tag("1440")
+                            Text("Tự động theo mạng").tag("auto")
+                            Text("2160p (4K)").tag("2160")
+                            Text("1440p (2K)").tag("1440")
                             Text("1080p (Full HD)").tag("1080")
                             Text("720p (HD)").tag("720")
                         }
                         .labelsHidden()
-                        .frame(width: 190)
+                        .frame(width: 170)
                         .onChange(of: playerManager.selectedQuality) { newQ in
                             playerManager.setQuality(newQ)
                         }
@@ -762,14 +825,15 @@ public struct SettingsSheetView: View {
     // MARK: - Recessed Frosted Plate Component (ALG-DS Section 3.3)
     @ViewBuilder
     private func recessedPlate<Content: View>(title: String, @ViewBuilder content: () -> Content) -> some View {
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: 7) {
             Text(title)
-                .font(.system(size: 12, weight: .semibold))
+                .font(.system(size: 11.5, weight: .semibold))
                 .foregroundColor(ThemeColor.textPrimary(for: colorScheme).opacity(0.85))
             
             content()
         }
-        .padding(12)
+        .padding(.horizontal, 14)
+        .padding(.vertical, 9)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(
             RoundedRectangle(cornerRadius: 12, style: .continuous)

@@ -7,6 +7,9 @@ CONTENTS_DIR="${BUNDLE_DIR}/Contents"
 MACOS_DIR="${CONTENTS_DIR}/MacOS"
 RESOURCES_DIR="${CONTENTS_DIR}/Resources"
 
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+ROOT_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
+
 echo "==> Stopping any running instances..."
 pkill -9 -f "${APP_NAME}" || true
 sleep 1
@@ -17,25 +20,25 @@ mkdir -p "${MACOS_DIR}"
 mkdir -p "${RESOURCES_DIR}"
 
 echo "==> Copying native binary..."
-cp /Users/tungnguyen/Code/Youtube/AuraTubeNative/.build/release/AuraTube "${MACOS_DIR}/${APP_NAME}"
+cp "${SCRIPT_DIR}/.build/release/AuraTube" "${MACOS_DIR}/${APP_NAME}"
 chmod +x "${MACOS_DIR}/${APP_NAME}"
 
 echo "==> Copying app icons..."
-if [ -f "/Users/tungnguyen/Code/Youtube/assets/icon.icns" ]; then
-    cp "/Users/tungnguyen/Code/Youtube/assets/icon.icns" "${RESOURCES_DIR}/AppIcon.icns"
+if [ -f "${ROOT_DIR}/assets/icon.icns" ]; then
+    cp "${ROOT_DIR}/assets/icon.icns" "${RESOURCES_DIR}/AppIcon.icns"
 fi
 
 echo "==> Copying custom fonts..."
-if [ -d "/Users/tungnguyen/Code/Youtube/AuraTubeNative/Resources/Fonts" ]; then
+if [ -d "${SCRIPT_DIR}/Resources/Fonts" ]; then
     mkdir -p "${RESOURCES_DIR}/Fonts"
-    cp -R /Users/tungnguyen/Code/Youtube/AuraTubeNative/Resources/Fonts/* "${RESOURCES_DIR}/Fonts/"
+    cp -R "${SCRIPT_DIR}/Resources/Fonts/"* "${RESOURCES_DIR}/Fonts/"
 fi
 
-VERSION="2.0.61"
-BUILD="62"
-if [ -f "/Users/tungnguyen/Code/Youtube/version.json" ]; then
-    V_PARSED=$(grep '"version":' "/Users/tungnguyen/Code/Youtube/version.json" | head -n1 | sed -E 's/.*"version": "([^"]+)".*/\1/')
-    B_PARSED=$(grep '"build":' "/Users/tungnguyen/Code/Youtube/version.json" | head -n1 | sed -E 's/.*"build": ([0-9]+).*/\1/')
+VERSION="2.1.5"
+BUILD="106"
+if [ -f "${ROOT_DIR}/version.json" ]; then
+    V_PARSED=$(grep '"version":' "${ROOT_DIR}/version.json" | head -n1 | sed -E 's/.*"version": "([^"]+)".*/\1/')
+    B_PARSED=$(grep '"build":' "${ROOT_DIR}/version.json" | head -n1 | sed -E 's/.*"build": ([0-9]+).*/\1/')
     if [ -n "$V_PARSED" ]; then VERSION="$V_PARSED"; fi
     if [ -n "$B_PARSED" ]; then BUILD="$B_PARSED"; fi
 fi

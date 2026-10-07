@@ -657,9 +657,9 @@ public struct LiquidGlassCapsuleButton<Content: View>: View {
     public var isProminent: Bool = false
     @ViewBuilder public let content: () -> Content
     
-    @State private var isHovered: Bool = false
-    @State private var isPressed: Bool = false
-    @State private var mouseLocation: CGPoint = .zero
+    @LocalState private var isHovered: Bool = false
+    @LocalState private var isPressed: Bool = false
+    @LocalState private var mouseLocation: CGPoint = .zero
     
     public init(
         action: @escaping () -> Void,
@@ -861,9 +861,9 @@ public struct LiquidGlassCircleButton<Content: View>: View {
     public var activeTint: Color? = nil
     @ViewBuilder public let content: () -> Content
     
-    @State private var isHovered: Bool = false
-    @State private var isPressed: Bool = false
-    @State private var mouseLocation: CGPoint = .zero
+    @LocalState private var isHovered: Bool = false
+    @LocalState private var isPressed: Bool = false
+    @LocalState private var mouseLocation: CGPoint = .zero
     
     public init(
         action: @escaping () -> Void,
@@ -1261,7 +1261,7 @@ public struct LiquidGlassMenuRow: View {
     public var shortcut: String? = nil
     public let action: () -> Void
     
-    @State private var isHovered: Bool = false
+    @LocalState private var isHovered: Bool = false
     
     public init(
         title: String,
@@ -1859,7 +1859,7 @@ public struct PiPLiquidGlassSettingsCard: View {
 public struct LiquidGlassPiPButton: View {
     @ObservedObject private var playerManager = PlayerManager.shared
     @Environment(\.colorScheme) private var colorScheme
-    @State private var isHovered: Bool = false
+    @LocalState private var isHovered: Bool = false
     
     public init() {}
     
