@@ -1410,7 +1410,43 @@ struct WatchPlayerContainerView: View {
     // MARK: - Center Play / Pause & Buffering Recovery Indicator
     private var centerPlayPauseOverlay: some View {
         Group {
-            if playerManager.showBufferingIndicator && !playerManager.isAwaitingFirstFrame {
+            if let message = playerManager.errorMessage {
+                VStack(spacing: 10) {
+                    Image(systemName: "exclamationmark.triangle.fill")
+                        .font(.system(size: 24, weight: .semibold))
+                        .foregroundColor(.white.opacity(0.9))
+                    Text(message)
+                        .font(.system(size: 13, weight: .medium))
+                        .foregroundColor(.white)
+                        .multilineTextAlignment(.center)
+                        .padding(.horizontal, 24)
+                    HStack(spacing: 8) {
+                        Button(action: { playerManager.reloadCurrentVideo() }) {
+                            Label("Thử lại", systemImage: "arrow.clockwise")
+                                .font(.system(size: 11.5, weight: .semibold))
+                                .foregroundColor(.white)
+                                .padding(.horizontal, 12)
+                                .padding(.vertical, 6)
+                                .background(PlayerGlassShape(shape: Capsule(), tint: 0.2))
+                        }
+                        .buttonStyle(.plain)
+                        if let id = playerManager.currentVideo?.id, let url = URL(string: "https://www.youtube.com/watch?v=\(id)") {
+                            Button(action: { NSWorkspace.shared.open(url) }) {
+                                Label("Mở trên YouTube", systemImage: "arrow.up.right.square")
+                                    .font(.system(size: 11.5, weight: .semibold))
+                                    .foregroundColor(.white)
+                                    .padding(.horizontal, 12)
+                                    .padding(.vertical, 6)
+                                    .background(PlayerGlassShape(shape: Capsule(), tint: 0.2))
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
+                .background(Color.black.opacity(0.55))
+                .transition(.opacity)
+            } else if playerManager.showBufferingIndicator && !playerManager.isAwaitingFirstFrame {
                 VStack(spacing: 10) {
                     ProgressView()
                         .controlSize(.regular)
