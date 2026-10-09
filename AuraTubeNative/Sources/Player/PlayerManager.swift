@@ -81,6 +81,19 @@ public final class PlayerManager: ObservableObject {
     private var bufferingIndicatorWork: DispatchWorkItem?
     private var reloadHintWork: DispatchWorkItem?
     
+    /// The embedded YouTube player reported it cannot play the video (embed blocked, unavailable, config error).
+    public func handlePlayerError(code: Int) {
+        let message: String
+        switch code {
+        case 100: message = "Video không còn tồn tại hoặc đã bị đặt riêng tư."
+        case 101, 150: message = "Chủ video không cho phép phát trong ứng dụng khác."
+        case 152, 153: message = "YouTube từ chối phát video này trong app (lỗi cấu hình trình phát)."
+        default: message = "Không thể phát video này (mã lỗi \(code))."
+        }
+        handleBufferingChange(isBuffering: false)
+        self.errorMessage = message
+    }
+    
     public func handleBufferingChange(isBuffering: Bool) {
         guard self.isBuffering != isBuffering else { return }
         self.isBuffering = isBuffering
@@ -191,6 +204,11 @@ public final class PlayerManager: ObservableObject {
         firstFrameTimeoutWork?.cancel()
         withAnimation(.easeOut(duration: 0.22)) {
             isAwaitingFirstFrame = false
+        }
+        // First frame is up at the low start quality: lift the ABR cap so it ramps up with the network
+        if selectedQuality == "auto" {
+            lastAppliedAutoCap = nil
+            reevaluateAndApplyOptimalQuality()
         }
     }
     private var handoffCoverWork: DispatchWorkItem?
@@ -1009,11 +1027,12 @@ public final class PlayerManager: ObservableObject {
         let q = self.selectedQuality
         let rate = self.playbackRate
         
+        self.errorMessage = nil
         handleBufferingChange(isBuffering: true)
         
         // 1. Direct JS call to reloadPlayer if webView is active
         if let webView = MainWebPlayerPool.shared.webView {
-            let effectiveQ = (q != "auto") ? q : resolvedOptimalQuality
+            let effectiveQ = (q != "auto") ? q : "144"
             let js = """
             if (typeof window.reloadPlayer === 'function') {
                 window.reloadPlayer(\(Int(currentPos)));

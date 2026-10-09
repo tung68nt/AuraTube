@@ -513,7 +513,7 @@ public struct NativePlayerView: NSViewRepresentable {
             
             if wasLoaded {
                 // Video switch: Use loadNewVideo with resume startSec and quality preference
-                let effectiveQ = (PlayerManager.shared.selectedQuality != "auto") ? PlayerManager.shared.selectedQuality : PlayerManager.shared.resolvedOptimalQuality
+                let effectiveQ = (PlayerManager.shared.selectedQuality != "auto") ? PlayerManager.shared.selectedQuality : "144"
                 let rate = PlayerManager.shared.playbackRate
                 let startSec = Int(PlayerManager.shared.currentTime)
                 let js = "if (typeof window.loadNewVideo === 'function') { window.loadNewVideo('\(video.id)', \(startSec), '\(effectiveQ)', \(rate)); } else { location.reload(); }"
@@ -545,7 +545,8 @@ public struct NativePlayerView: NSViewRepresentable {
     
     public static func generateHTML(for video: Video, playerManager: PlayerManager) -> String {
         let startPos = max(0, Int(playerManager.currentTime))
-        let effectiveQ = (playerManager.selectedQuality != "auto") ? playerManager.selectedQuality : playerManager.resolvedOptimalQuality
+        // Auto: start at 144p for a fast first frame; the ABR cap then lets YouTube ramp up smoothly
+        let effectiveQ = (playerManager.selectedQuality != "auto") ? playerManager.selectedQuality : "144"
         let qParam: String = {
             switch effectiveQ {
             case "4320": return "highres"
@@ -556,6 +557,8 @@ public struct NativePlayerView: NSViewRepresentable {
             case "720": return "hd720"
             case "480": return "large"
             case "360": return "medium"
+            case "240": return "small"
+            case "144": return "tiny"
             default: return "hd1080"
             }
         }()
@@ -727,6 +730,8 @@ public struct NativePlayerView: NSViewRepresentable {
             else if (targetQuality === '720') q = 'hd720';
             else if (targetQuality === '480') q = 'large';
             else if (targetQuality === '360') q = 'medium';
+            else if (targetQuality === '240') q = 'small';
+            else if (targetQuality === '144') q = 'tiny';
             
             try {
               localStorage.setItem('yt-player-quality', JSON.stringify({
@@ -753,11 +758,6 @@ public struct NativePlayerView: NSViewRepresentable {
                     startSeconds: start,
                     suggestedQuality: q
                   }]
-                }), '*');
-                ifr.contentWindow.postMessage(JSON.stringify({
-                  event: "command",
-                  func: "loadVideoById",
-                  args: [newId, start, q]
                 }), '*');
                 ifr.contentWindow.postMessage(JSON.stringify({event: "command", func: "playVideo", args: []}), '*');
                 if (start > 0) {
@@ -857,6 +857,12 @@ public struct NativePlayerView: NSViewRepresentable {
                   ifr.contentWindow.postMessage(JSON.stringify({event: "listening"}), '*');
                 }
                 postStateSync();
+              }
+
+              if (data.event === 'onError') {
+                if (window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.playerBridge) {
+                  window.webkit.messageHandlers.playerBridge.postMessage({ type: 'playerError', code: Number(data.info) || 0 });
+                }
               }
 
               if (data.event === 'onStateChange') {
@@ -2048,6 +2054,11 @@ public struct NativePlayerView: NSViewRepresentable {
                 
                 if let type = body["type"] as? String, type == "pipStateChange", let isActive = body["isActive"] as? Bool {
                     PlayerManager.shared.isPictureInPictureActive = isActive
+                    return
+                }
+                
+                if let type = body["type"] as? String, type == "playerError" {
+                    PlayerManager.shared.handlePlayerError(code: body["code"] as? Int ?? 0)
                     return
                 }
                 
