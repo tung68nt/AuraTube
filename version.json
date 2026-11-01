@@ -1,10 +1,10 @@
 {
-  "version": "2.1.7",
-  "build": 108,
-  "title": "AuraTube v2.1.7 (Mượt mà hóa chuyển Tab Cài đặt & Khắc phục trễ chữ in đậm)",
-  "releaseNotes": "• Khắc phục hoàn toàn hiện tượng chữ in đậm bị trễ/khựng so với hiệu ứng nút khi chuyển Tab Cài đặt.\n• Tích hợp hiệu ứng trượt kính (Fluid Sliding Pill) và hiệu ứng rê chuột (Hover) mượt mà cho thanh điều hướng Cài đặt.",
-  "downloadUrl": "https://github.com/tung68nt/AuraTube/releases/download/v2.1.7/AuraTube-v2.1.7.dmg",
-  "publishedAt": "2026-10-07",
+  "version": "2.1.8",
+  "build": 109,
+  "title": "AuraTube v2.1.8 (Hiển thị lỗi phát video & khởi động nhanh hơn)",
+  "releaseNotes": "• Hiển thị thông báo lỗi rõ ràng khi video không phát được thay vì màn hình trống.\n• Chế độ chất lượng Tự động bắt đầu ở 144p để video tải và bắt đầu phát nhanh hơn.",
+  "downloadUrl": "https://github.com/tung68nt/AuraTube/releases/download/v2.1.8/AuraTube-v2.1.8.dmg",
+  "publishedAt": "2026-11-01",
   "minOSVersion": "13.0",
   "fileSize": "6.0 MB"
 }
