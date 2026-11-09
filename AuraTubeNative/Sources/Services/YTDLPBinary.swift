@@ -50,6 +50,7 @@ public final class YTDLPBinary: @unchecked Sendable {
     /// (YouTube changes often break outdated yt-dlp).
     public func prepareInBackground() {
         Task.detached(priority: .utility) {
+            _ = await self.jsRuntimeArgs()
             if self.existingPath == nil {
                 _ = try? await self.install()
                 return
@@ -125,6 +126,85 @@ public final class YTDLPBinary: @unchecked Sendable {
         if let path = existingPath { return path }
         throw lastError ?? NSError(domain: "YTDLPBinary", code: 404,
                                    userInfo: [NSLocalizedDescriptionKey: "Không thể tải yt-dlp. Vui lòng kiểm tra kết nối mạng."])
+    }
+
+    // MARK: - JavaScript runtime (required by yt-dlp for YouTube formats)
+
+    private var denoTask: Task<String?, Never>?
+
+    private var managedDenoPath: String {
+        URL(fileURLWithPath: managedPath).deletingLastPathComponent().appendingPathComponent("deno").path
+    }
+
+    private var existingJSRuntime: (name: String, path: String)? {
+        let fm = FileManager.default
+        for p in [managedDenoPath, Bundle.main.resourcePath.map { "\($0)/bin/deno" } ?? "",
+                  "/opt/homebrew/bin/deno", "/usr/local/bin/deno", NSHomeDirectory() + "/.deno/bin/deno"]
+        where !p.isEmpty && fm.isExecutableFile(atPath: p) && isValidBinary(p) {
+            return ("deno", p)
+        }
+        for p in ["/opt/homebrew/bin/node", "/usr/local/bin/node", "/usr/bin/node"] where fm.isExecutableFile(atPath: p) {
+            return ("node", p)
+        }
+        return nil
+    }
+
+    /// `--js-runtimes` arguments for yt-dlp. Without a JS runtime, YouTube only exposes a few
+    /// formats and yt-dlp fails with "Requested format is not available".
+    /// Downloads deno on first use when the Mac has neither deno nor node.
+    public func jsRuntimeArgs() async -> [String] {
+        if let rt = existingJSRuntime { return ["--js-runtimes", "\(rt.name):\(rt.path)"] }
+        lock.lock()
+        let task: Task<String?, Never>
+        if let running = denoTask {
+            task = running
+        } else {
+            task = Task<String?, Never> { await self.installDeno() }
+            denoTask = task
+        }
+        lock.unlock()
+        let path = await task.value
+        lock.lock(); denoTask = nil; lock.unlock()
+        guard let path else { return [] }
+        return ["--js-runtimes", "deno:\(path)"]
+    }
+
+    private func installDeno() async -> String? {
+        let fm = FileManager.default
+        #if arch(arm64)
+        let asset = "deno-aarch64-apple-darwin.zip"
+        #else
+        let asset = "deno-x86_64-apple-darwin.zip"
+        #endif
+        guard let url = URL(string: "https://github.com/denoland/deno/releases/latest/download/\(asset)") else { return nil }
+        let destDir = URL(fileURLWithPath: managedDenoPath).deletingLastPathComponent()
+        try? fm.createDirectory(at: destDir, withIntermediateDirectories: true)
+        for attempt in 0..<3 {
+            do {
+                var req = URLRequest(url: url, timeoutInterval: 300)
+                req.setValue("AuraTube", forHTTPHeaderField: "User-Agent")
+                let (tmp, resp) = try await URLSession.shared.download(for: req)
+                guard (resp as? HTTPURLResponse)?.statusCode == 200 else { throw URLError(.badServerResponse) }
+                let unzipDir = destDir.appendingPathComponent("deno-unzip")
+                try? fm.removeItem(at: unzipDir)
+                let p = Process()
+                p.executableURL = URL(fileURLWithPath: "/usr/bin/ditto")
+                p.arguments = ["-x", "-k", tmp.path, unzipDir.path]
+                try p.run()
+                p.waitUntilExit()
+                let extracted = unzipDir.appendingPathComponent("deno")
+                guard p.terminationStatus == 0, isValidBinary(extracted.path) else { throw URLError(.cannotDecodeContentData) }
+                try? fm.removeItem(atPath: managedDenoPath)
+                try fm.moveItem(at: extracted, to: URL(fileURLWithPath: managedDenoPath))
+                try? fm.removeItem(at: unzipDir)
+                try fm.setAttributes([.posixPermissions: 0o755], ofItemAtPath: managedDenoPath)
+                removexattr(managedDenoPath, "com.apple.quarantine", 0)
+                return managedDenoPath
+            } catch {
+                try? await Task.sleep(nanoseconds: UInt64(attempt + 1) * 2_000_000_000)
+            }
+        }
+        return nil
     }
 
     /// Mach-O (thin or fat) or a script with a shebang, and not a tiny HTML error page.

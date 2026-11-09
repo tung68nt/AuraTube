@@ -137,19 +137,15 @@ public final class DownloadManager: ObservableObject {
         self.activeDownloadId = itemId
         self.showToastHUD = true
         
-        if let ytdlp = YTDLPBinary.shared.existingPath {
-            runDownload(itemId: itemId, video: video, quality: quality, isAudioOnly: isAudioOnly, ytdlp: ytdlp)
-            return itemId
-        }
-
-        // No yt-dlp on this Mac yet: install it automatically, then start.
+        // Make sure yt-dlp and a JS runtime exist (installed automatically on first use), then start.
         if let idx = downloads.firstIndex(where: { $0.id == itemId }) {
-            downloads[idx].statusText = "Đang cài đặt yt-dlp…"
+            downloads[idx].statusText = "Đang chuẩn bị…"
         }
         Task { @MainActor [weak self] in
             do {
                 let ytdlp = try await YTDLPBinary.shared.resolve()
-                self?.runDownload(itemId: itemId, video: video, quality: quality, isAudioOnly: isAudioOnly, ytdlp: ytdlp)
+                let jsArgs = await YTDLPBinary.shared.jsRuntimeArgs()
+                self?.runDownload(itemId: itemId, video: video, quality: quality, isAudioOnly: isAudioOnly, ytdlp: ytdlp, jsArgs: jsArgs)
             } catch {
                 guard let self, let idx = self.downloads.firstIndex(where: { $0.id == itemId }) else { return }
                 self.downloads[idx].statusText = "Không cài được yt-dlp"
@@ -160,7 +156,7 @@ public final class DownloadManager: ObservableObject {
         return itemId
     }
 
-    private func runDownload(itemId: String, video: Video, quality: String, isAudioOnly: Bool, ytdlp: String) {
+    private func runDownload(itemId: String, video: Video, quality: String, isAudioOnly: Bool, ytdlp: String, jsArgs: [String]) {
         let outTemplate = downloadDir.appendingPathComponent("%(title)s.%(ext)s").path
         
         var args = [
@@ -174,17 +170,15 @@ public final class DownloadManager: ObservableObject {
             args += ["--ffmpeg-location", ffDir]
         }
         
-        if let node = self.nodeBinaryPath {
-            args += ["--js-runtimes", "node:\(node)"]
-        }
-        
+        args += jsArgs
+
         let hasFFmpeg = self.ffmpegDir != nil
         if isAudioOnly && !hasFFmpeg {
             // No ffmpeg to convert to MP3: save the original M4A audio instead of failing.
-            args += ["-f", "bestaudio[ext=m4a]/bestaudio"]
+            args += ["-f", "bestaudio[ext=m4a]/bestaudio/b"]
         } else if !hasFFmpeg {
             // No ffmpeg to merge separate streams: take the best single-file MP4.
-            args += ["-f", "best[ext=mp4][height<=\(quality)]/best[ext=mp4]/best"]
+            args += ["-f", "best[ext=mp4][height<=\(quality)]/best[ext=mp4]/b/bv*"]
         } else if isAudioOnly {
             args += [
                 "-x",
@@ -195,7 +189,7 @@ public final class DownloadManager: ObservableObject {
         } else {
             // Prioritize native Apple QuickTime compatible AVC1 (H.264) video + M4A (AAC) audio
             args += [
-                "-f", "bestvideo[vcodec^=avc1][height<=\(quality)]+bestaudio[ext=m4a]/bestvideo[ext=mp4][height<=\(quality)]+bestaudio[ext=m4a]/bestvideo[height<=\(quality)]+bestaudio/best[height<=\(quality)]/best",
+                "-f", "bestvideo[vcodec^=avc1][height<=\(quality)]+bestaudio[ext=m4a]/bestvideo[ext=mp4][height<=\(quality)]+bestaudio[ext=m4a]/bestvideo[height<=\(quality)]+bestaudio/best[height<=\(quality)]/bv*+ba/b",
                 "--merge-output-format", "mp4",
                 "--postprocessor-args", "Merger:-movflags +faststart"
             ]
