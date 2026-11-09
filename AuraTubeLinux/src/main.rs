@@ -67,8 +67,8 @@ fn selftest() -> gtk::glib::ExitCode {
         Err(e) => println!("[WARN] stream urls: {e}"),
     }
     // Public samples, so the pipeline is exercised even when YouTube blocks the runner.
-    let mp4 = "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4";
-    ok &= pipeline_test("separate video+audio", mp4, Some(mp4));
+    let sample = "https://gstreamer.freedesktop.org/data/media/sintel_trailer-480p.webm";
+    ok &= pipeline_test("separate video+audio", sample, Some(sample));
     ok &= pipeline_test("hls", "https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8", None);
     if ok {
         gtk::glib::ExitCode::SUCCESS
