@@ -1,0 +1,80 @@
+<UserControl x:Class="AuraTube.Views.WatchView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:p="clr-namespace:AuraTube.Player">
+    <Grid x:Name="Root">
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition/>
+            <ColumnDefinition x:Name="SideColumn" Width="400"/>
+        </Grid.ColumnDefinitions>
+
+        <ScrollViewer x:Name="MainScroll" VerticalScrollBarVisibility="Auto">
+            <StackPanel x:Name="MainStack" Margin="16,8,16,24">
+                <Border x:Name="PlayerFrame" CornerRadius="14" Background="Black" ClipToBounds="True">
+                    <p:PlayerSurface x:Name="Surface"/>
+                </Border>
+
+                <StackPanel x:Name="Details">
+                    <TextBlock x:Name="TitleText" FontSize="20" FontWeight="Bold" TextWrapping="Wrap" Margin="0,14,0,10"/>
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition/>
+                        </Grid.ColumnDefinitions>
+                        <StackPanel Orientation="Horizontal" Cursor="Hand" MouseLeftButtonUp="Channel_Click" Background="Transparent">
+                            <Ellipse Width="42" Height="42" Fill="{StaticResource Surface2Brush}"/>
+                            <Ellipse x:Name="AvatarEllipse" Width="42" Height="42" Margin="-42,0,0,0"/>
+                            <StackPanel Margin="12,0,16,0" VerticalAlignment="Center">
+                                <TextBlock x:Name="ChannelText" FontSize="15" FontWeight="SemiBold"/>
+                                <TextBlock x:Name="ViewsText" Style="{StaticResource SubText}"/>
+                            </StackPanel>
+                        </StackPanel>
+                        <Button x:Name="SubscribeButton" Grid.Column="1" Style="{StaticResource AccentButton}" Content="Đăng ký" Click="Subscribe_Click" VerticalAlignment="Center"/>
+                        <WrapPanel Grid.Column="2" HorizontalAlignment="Right" VerticalAlignment="Center">
+                            <Button x:Name="BookmarkButton" Style="{StaticResource PillButton}" Content="Xem sau" Margin="6,0,0,0" Click="Bookmark_Click"/>
+                            <Button Style="{StaticResource PillButton}" Content="Tải xuống" Margin="6,0,0,0" Click="Download_Click"/>
+                            <Button Style="{StaticResource PillButton}" Content="Sao chép link" Margin="6,0,0,0" Click="Copy_Click"/>
+                            <Button Style="{StaticResource PillButton}" Content="Trình phát mini" Margin="6,0,0,0" Click="Mini_Click"/>
+                        </WrapPanel>
+                    </Grid>
+
+                    <Border Background="{StaticResource SurfaceBrush}" CornerRadius="12" Padding="14" Margin="0,14,0,0">
+                        <StackPanel>
+                            <TextBlock x:Name="MetaText" FontWeight="SemiBold" FontSize="13"/>
+                            <TextBlock x:Name="DescText" TextWrapping="Wrap" FontSize="13" Margin="0,6,0,0" MaxHeight="80" Foreground="{StaticResource TextBrush}"/>
+                            <TextBlock x:Name="MoreText" Text="Xem thêm" FontWeight="SemiBold" FontSize="13" Margin="0,6,0,0" Cursor="Hand" MouseLeftButtonUp="More_Click"/>
+                        </StackPanel>
+                    </Border>
+
+                    <StackPanel x:Name="ChaptersPanel" Visibility="Collapsed" Margin="0,14,0,0">
+                        <TextBlock Text="Chương" FontSize="16" FontWeight="Bold" Margin="0,0,0,8"/>
+                        <ItemsControl x:Name="ChaptersList">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <Border Padding="10,6" CornerRadius="8" Cursor="Hand" Background="Transparent" Tag="{Binding}" MouseLeftButtonUp="Chapter_Click">
+                                        <StackPanel Orientation="Horizontal">
+                                            <TextBlock Text="{Binding Time}" Foreground="{StaticResource AccentBrush}" Width="70" FontWeight="SemiBold"/>
+                                            <TextBlock Text="{Binding Title}"/>
+                                        </StackPanel>
+                                    </Border>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </StackPanel>
+                </StackPanel>
+            </StackPanel>
+        </ScrollViewer>
+
+        <ScrollViewer x:Name="SideScroll" Grid.Column="1" VerticalScrollBarVisibility="Auto">
+            <StackPanel Margin="0,8,16,24">
+                <Grid Margin="0,0,0,10">
+                    <TextBlock Text="Tiếp theo" FontSize="16" FontWeight="Bold" VerticalAlignment="Center"/>
+                    <CheckBox x:Name="AutoplayCheck" Content="Tự động phát" HorizontalAlignment="Right" Checked="Autoplay_Changed" Unchecked="Autoplay_Changed"/>
+                </Grid>
+                <TextBlock x:Name="RelatedStatus" Style="{StaticResource SubText}" Text="Đang tải…"/>
+                <ContentControl x:Name="RelatedHost"/>
+            </StackPanel>
+        </ScrollViewer>
+    </Grid>
+</UserControl>
