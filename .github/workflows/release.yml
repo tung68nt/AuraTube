@@ -1,0 +1,83 @@
+name: Release macOS app
+
+# Push a tag like v2.1.9 after editing release.json (version, build, title, releaseNotes).
+# The job builds a universal app (Apple Silicon + Intel), uploads DMG/ZIP to the GitHub
+# release, and only then updates version.json on main so users never see an update
+# whose files are not online yet.
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Tag to release (e.g. v2.1.9)"
+        required: true
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.inputs.tag || github.ref }}
+
+      - name: Resolve version
+        id: v
+        run: |
+          TAG="${{ github.event.inputs.tag || github.ref_name }}"
+          VERSION="${TAG#v}"
+          MANIFEST_VERSION=$(jq -r .version release.json)
+          if [ "$VERSION" != "$MANIFEST_VERSION" ]; then
+            echo "release.json version ($MANIFEST_VERSION) does not match tag ($TAG)" >&2
+            exit 1
+          fi
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Write version.json for the build
+        run: |
+          V=${{ steps.v.outputs.version }}
+          jq --arg url "https://github.com/${{ github.repository }}/releases/download/v$V/AuraTube-v$V.dmg" \
+             --arg date "$(date -u +%Y-%m-%d)" \
+             '. + {downloadUrl: $url, publishedAt: $date, minOSVersion: "13.0"}' release.json > version.json
+
+      - name: Build universal app, DMG and ZIP
+        env:
+          SWIFT_BUILD_ARGS: "--arch arm64 --arch x86_64"
+          APP_BINARY: ${{ github.workspace }}/AuraTubeNative/.build/apple/Products/Release/AuraTube
+        run: |
+          sudo mkdir -p /Applications && sudo chown "$USER" /Applications || true
+          bash AuraTubeNative/package_dmg.sh
+          lipo -info /Applications/AuraTube.app/Contents/MacOS/AuraTube
+          /Applications/AuraTube.app/Contents/Resources/bin/yt-dlp --version
+
+      - name: Set file size in version.json
+        run: |
+          SIZE=$(du -m "AuraTube-v${{ steps.v.outputs.version }}.dmg" | awk '{printf "%.1f MB", $1}')
+          jq --arg s "$SIZE" '.fileSize = $s' version.json > version.tmp && mv version.tmp version.json
+          cat version.json
+
+      - name: Publish GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          V=${{ steps.v.outputs.version }}
+          jq -r .releaseNotes version.json > notes.md
+          gh release create "v$V" \
+            "AuraTube-v$V.dmg" "AuraTube-v$V.zip" AuraTube.dmg AuraTube.zip \
+            --title "$(jq -r .title version.json)" --notes-file notes.md --latest
+
+      - name: Publish update manifest (version.json) to main
+        run: |
+          cp version.json /tmp/version.json
+          git fetch origin main
+          git checkout -B main origin/main
+          cp /tmp/version.json version.json
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add version.json
+          git commit -m "chore(release): v${{ steps.v.outputs.version }}"
+          git push origin main

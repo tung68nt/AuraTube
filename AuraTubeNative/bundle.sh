@@ -11,7 +11,7 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 ROOT_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
 
 echo "==> Stopping any running instances..."
-pkill -9 -f "${APP_NAME}" || true
+pkill -9 -x "${APP_NAME}" || true
 sleep 1
 
 echo "==> Preparing bundle directory: ${BUNDLE_DIR}"
@@ -20,13 +20,27 @@ mkdir -p "${MACOS_DIR}"
 mkdir -p "${RESOURCES_DIR}"
 
 echo "==> Copying native binary..."
-cp "${SCRIPT_DIR}/.build/release/AuraTube" "${MACOS_DIR}/${APP_NAME}"
+cp "${APP_BINARY:-${SCRIPT_DIR}/.build/release/AuraTube}" "${MACOS_DIR}/${APP_NAME}"
 chmod +x "${MACOS_DIR}/${APP_NAME}"
 
 echo "==> Copying app icons..."
 if [ -f "${ROOT_DIR}/assets/icon.icns" ]; then
     cp "${ROOT_DIR}/assets/icon.icns" "${RESOURCES_DIR}/AppIcon.icns"
 fi
+
+echo "==> Bundling standalone yt-dlp (works without Homebrew/Python)..."
+mkdir -p "${RESOURCES_DIR}/bin"
+YTDLP_CACHE="${SCRIPT_DIR}/.build/yt-dlp_macos"
+if curl -fL --retry 3 -o "${YTDLP_CACHE}.tmp" "https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp_macos"; then
+    mv -f "${YTDLP_CACHE}.tmp" "${YTDLP_CACHE}"
+fi
+if [ ! -f "${YTDLP_CACHE}" ]; then
+    echo "ERROR: could not download yt-dlp_macos" >&2
+    exit 1
+fi
+cp "${YTDLP_CACHE}" "${RESOURCES_DIR}/bin/yt-dlp"
+chmod +x "${RESOURCES_DIR}/bin/yt-dlp"
+xattr -d com.apple.quarantine "${RESOURCES_DIR}/bin/yt-dlp" 2>/dev/null || true
 
 echo "==> Copying custom fonts..."
 if [ -d "${SCRIPT_DIR}/Resources/Fonts" ]; then
