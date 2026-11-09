@@ -54,6 +54,16 @@ jobs:
           lipo -info /Applications/AuraTube.app/Contents/MacOS/AuraTube
           /Applications/AuraTube.app/Contents/Resources/bin/yt-dlp --version
 
+      - name: Smoke test yt-dlp format selection (with deno)
+        continue-on-error: true
+        run: |
+          curl -fsSL -o /tmp/deno.zip https://github.com/denoland/deno/releases/latest/download/deno-aarch64-apple-darwin.zip
+          ditto -x -k /tmp/deno.zip /tmp/deno
+          Y=/Applications/AuraTube.app/Contents/Resources/bin/yt-dlp
+          $Y --js-runtimes deno:/tmp/deno/deno -s --no-playlist \
+            -f "bestvideo[vcodec^=avc1][height<=1080]+bestaudio[ext=m4a]/bv*+ba/b" \
+            "https://www.youtube.com/watch?v=jNQXAC9IVRw" || echo "::warning::yt-dlp smoke test failed (runner IP may be blocked by YouTube)"
+
       - name: Set file size in version.json
         run: |
           SIZE=$(du -m "AuraTube-v${{ steps.v.outputs.version }}.dmg" | awk '{printf "%.1f MB", $1}')

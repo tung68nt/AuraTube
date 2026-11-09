@@ -27,15 +27,25 @@ public final class YTDLPService: @unchecked Sendable {
             formatFilter = "best[height<=1080][protocol=m3u8_native]/best[height<=1080][protocol=m3u8]/best[protocol=m3u8_native]/best[protocol=m3u8]/bestvideo+bestaudio/best"
         }
         
-        let output = try await runProcess(executable: ytdlp, arguments: [
-            "--get-url",
-            "-f", formatFilter,
-            "--no-warnings",
-            "--no-playlist",
-            "--",
-            "https://www.youtube.com/watch?v=\(videoId)"
-        ])
-        
+        let jsArgs = await YTDLPBinary.shared.jsRuntimeArgs()
+        func fetch(_ filter: String) async throws -> String {
+            try await runProcess(executable: ytdlp, arguments: jsArgs + [
+                "--get-url",
+                "-f", filter,
+                "--no-warnings",
+                "--no-playlist",
+                "--",
+                "https://www.youtube.com/watch?v=\(videoId)"
+            ])
+        }
+        let output: String
+        do {
+            output = try await fetch(formatFilter + "/bv*+ba/b")
+        } catch let error as NSError where error.localizedDescription.localizedCaseInsensitiveContains("format is not available") {
+            // Last resort: any playable format YouTube offers right now.
+            output = try await fetch(quality == "audio" ? "ba/b" : "b/bv*+ba/bv*")
+        }
+
         let lines = output.components(separatedBy: .newlines).map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }.filter { !$0.isEmpty }
         guard let firstUrlStr = lines.first, let firstUrl = URL(string: firstUrlStr) else {
             throw NSError(domain: "YTDLPService", code: 500, userInfo: [NSLocalizedDescriptionKey: "Failed to extract video stream URL"])
@@ -1053,7 +1063,7 @@ public final class YTDLPService: @unchecked Sendable {
         guard let ytdlp = try? await YTDLPBinary.shared.resolve() else { return [] }
         
         do {
-            let output = try await runProcess(executable: ytdlp, arguments: [
+            let output = try await runProcess(executable: ytdlp, arguments: await YTDLPBinary.shared.jsRuntimeArgs() + [
                 "--flat-playlist",
                 "--dump-json",
                 "--no-warnings",
