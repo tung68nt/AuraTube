@@ -7,7 +7,6 @@
 //! the GStreamer packages in Ubuntu 22.04.
 
 use gst::prelude::*;
-use gtk::prelude::*;
 use gtk::{gdk, glib};
 use std::cell::{Cell, RefCell};
 use std::rc::Rc;

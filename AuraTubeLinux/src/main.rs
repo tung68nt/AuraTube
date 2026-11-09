@@ -33,8 +33,6 @@ fn main() -> gtk::glib::ExitCode {
 /// Headless end-to-end check used by CI: InnerTube, SponsorBlock, yt-dlp and the real
 /// GStreamer pipeline from `player.rs` (separate video + audio decodebins).
 fn selftest() -> gtk::glib::ExitCode {
-    use std::cell::RefCell;
-    use std::rc::Rc;
     let mut ok = true;
     let mut check = |name: &str, pass: bool, info: String| {
         println!("[{}] {name}: {info}", if pass { "OK" } else { "FAIL" });
@@ -64,34 +62,47 @@ fn selftest() -> gtk::glib::ExitCode {
     match ytdlp::stream_urls(id, "720") {
         Ok((v, a)) => {
             println!("[OK] stream urls: separate audio={}", a.is_some());
-            let ctx = gtk::glib::MainContext::default();
-            let p = player::Player::new();
-            let result: Rc<RefCell<Option<String>>> = Rc::default();
-            let r = result.clone();
-            p.set_handler(move |e| {
-                *r.borrow_mut() = Some(match e {
-                    player::Event::Ready => "ready".into(),
-                    player::Event::Eos => "eos".into(),
-                    player::Event::Error(m) => format!("error: {m}"),
-                })
-            });
-            p.load(&v, a.as_deref(), 0.0);
-            let start = std::time::Instant::now();
-            while result.borrow().is_none() && start.elapsed().as_secs() < 40 {
-                ctx.iteration(false);
-                std::thread::sleep(std::time::Duration::from_millis(20));
-            }
-            let r = result.borrow().clone().unwrap_or_else(|| "timeout".into());
-            println!("[{}] player pipeline: {r}, duration {:.0}s", if r == "ready" { "OK" } else { "WARN" }, p.duration());
-            p.stop();
+            pipeline_test("youtube", &v, a.as_deref());
         }
         Err(e) => println!("[WARN] stream urls: {e}"),
     }
+    // Public samples, so the pipeline is exercised even when YouTube blocks the runner.
+    let mp4 = "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4";
+    ok &= pipeline_test("separate video+audio", mp4, Some(mp4));
+    ok &= pipeline_test("hls", "https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8", None);
     if ok {
         gtk::glib::ExitCode::SUCCESS
     } else {
         gtk::glib::ExitCode::FAILURE
     }
+}
+
+fn pipeline_test(name: &str, video: &str, audio: Option<&str>) -> bool {
+    use std::cell::RefCell;
+    use std::rc::Rc;
+    let ctx = gtk::glib::MainContext::default();
+    let p = player::Player::new();
+    let result: Rc<RefCell<Option<String>>> = Rc::default();
+    let r = result.clone();
+    p.set_handler(move |e| {
+        *r.borrow_mut() = Some(match e {
+            player::Event::Ready => "ready".into(),
+            player::Event::Eos => "eos".into(),
+            player::Event::Error(m) => format!("error: {m}"),
+        })
+    });
+    p.load(video, audio, 3.0);
+    let start = std::time::Instant::now();
+    // Wait past the initial seek (first AsyncDone) for the Ready that follows it.
+    while result.borrow().is_none() && start.elapsed().as_secs() < 40 {
+        ctx.iteration(false);
+        std::thread::sleep(std::time::Duration::from_millis(20));
+    }
+    let r = result.borrow().clone().unwrap_or_else(|| "timeout".into());
+    let pass = r == "ready";
+    println!("[{}] player {name}: {r}, position {:.1}s / {:.0}s", if pass { "OK" } else { "FAIL" }, p.position(), p.duration());
+    p.stop();
+    pass
 }
 
 #[cfg(test)]
