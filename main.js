@@ -46,36 +46,50 @@ let isDockVisible = true;
 let isTrayPinned = false;
 app.isQuitting = false;
 
-const PORT = process.env.PORT || 3000;
+// Dedicated port so AuraTube never collides with other local dev servers (e.g. :3000).
+// Kept stable across launches because the renderer's localStorage is tied to the origin.
+const PREFERRED_PORT = Number(process.env.AURATUBE_PORT) || 47321;
+let PORT = PREFERRED_PORT;
 
+// Only accept a server that identifies itself as AuraTube, never some other app on the port.
 function checkServerReady(callback) {
-  const req = http.get(`http://127.0.0.1:${PORT}/api/trending`, (res) => {
-    callback(true);
+  const req = http.get(`http://127.0.0.1:${PORT}/api/__auratube`, (res) => {
+    let body = '';
+    res.on('data', c => { body += c; });
+    res.on('end', () => callback(res.statusCode === 200 && body.includes('"auratube"')));
   });
-  req.on('error', () => {
-    callback(false);
+  req.on('error', () => callback(false));
+  req.setTimeout(1500, () => req.destroy());
+}
+
+function isPortFree(port) {
+  return new Promise(resolve => {
+    const srv = require('net').createServer();
+    srv.once('error', () => resolve(false));
+    srv.listen(port, '127.0.0.1', () => srv.close(() => resolve(true)));
   });
 }
 
 function startServerIfNeeded(done) {
-  checkServerReady((ready) => {
-    if (ready) {
-      done();
-    } else {
-      try {
-        require(path.join(__dirname, 'server.js'));
-      } catch (err) {
-        console.error('Failed to load server.js:', err);
-      }
-      const interval = setInterval(() => {
-        checkServerReady((ok) => {
-          if (ok) {
-            clearInterval(interval);
-            done();
-          }
-        });
-      }, 500);
+  checkServerReady(async (ready) => {
+    if (ready) return done();
+    for (let p = PREFERRED_PORT; p < PREFERRED_PORT + 50; p++) {
+      if (await isPortFree(p)) { PORT = p; break; }
     }
+    process.env.PORT = String(PORT);
+    try {
+      require(path.join(__dirname, 'server.js'));
+    } catch (err) {
+      console.error('Failed to load server.js:', err);
+    }
+    const interval = setInterval(() => {
+      checkServerReady((ok) => {
+        if (ok) {
+          clearInterval(interval);
+          done();
+        }
+      });
+    }, 300);
   });
 }
 

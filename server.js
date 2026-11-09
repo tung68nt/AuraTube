@@ -512,6 +512,9 @@ app.post('/api/open-folder', (req, res) => {
 /**
  * Fallback to index.html for SPA routes
  */
+// Identity probe used by the desktop shell to make sure it talks to AuraTube
+app.get('/api/__auratube', (req, res) => res.json({ app: 'auratube' }));
+
 app.get('*', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
