@@ -88,19 +88,6 @@ public final class DownloadManager: ObservableObject {
         return downloads.first
     }
     
-    private var binaryPath: String {
-        let candidates = [
-            Bundle.main.resourcePath.map { "\($0)/bin/yt-dlp" } ?? "",
-            "/opt/homebrew/bin/yt-dlp",
-            "/usr/local/bin/yt-dlp",
-            "/usr/bin/yt-dlp"
-        ]
-        for path in candidates where !path.isEmpty && FileManager.default.fileExists(atPath: path) {
-            return path
-        }
-        return "/opt/homebrew/bin/yt-dlp"
-    }
-    
     private var ffmpegDir: String? {
         let candidates = [
             "/opt/homebrew/bin/ffmpeg",
@@ -150,16 +137,30 @@ public final class DownloadManager: ObservableObject {
         self.activeDownloadId = itemId
         self.showToastHUD = true
         
-        let ytdlp = self.binaryPath
-        guard FileManager.default.fileExists(atPath: ytdlp) else {
-            if let idx = downloads.firstIndex(where: { $0.id == itemId }) {
-                downloads[idx].statusText = "Không tìm thấy yt-dlp"
-                downloads[idx].isError = true
-                downloads[idx].errorMessage = "Chưa cài đặt yt-dlp tại \(ytdlp)"
-            }
+        if let ytdlp = YTDLPBinary.shared.existingPath {
+            runDownload(itemId: itemId, video: video, quality: quality, isAudioOnly: isAudioOnly, ytdlp: ytdlp)
             return itemId
         }
-        
+
+        // No yt-dlp on this Mac yet: install it automatically, then start.
+        if let idx = downloads.firstIndex(where: { $0.id == itemId }) {
+            downloads[idx].statusText = "Đang cài đặt yt-dlp…"
+        }
+        Task { @MainActor [weak self] in
+            do {
+                let ytdlp = try await YTDLPBinary.shared.resolve()
+                self?.runDownload(itemId: itemId, video: video, quality: quality, isAudioOnly: isAudioOnly, ytdlp: ytdlp)
+            } catch {
+                guard let self, let idx = self.downloads.firstIndex(where: { $0.id == itemId }) else { return }
+                self.downloads[idx].statusText = "Không cài được yt-dlp"
+                self.downloads[idx].isError = true
+                self.downloads[idx].errorMessage = error.localizedDescription
+            }
+        }
+        return itemId
+    }
+
+    private func runDownload(itemId: String, video: Video, quality: String, isAudioOnly: Bool, ytdlp: String) {
         let outTemplate = downloadDir.appendingPathComponent("%(title)s.%(ext)s").path
         
         var args = [
@@ -177,7 +178,14 @@ public final class DownloadManager: ObservableObject {
             args += ["--js-runtimes", "node:\(node)"]
         }
         
-        if isAudioOnly {
+        let hasFFmpeg = self.ffmpegDir != nil
+        if isAudioOnly && !hasFFmpeg {
+            // No ffmpeg to convert to MP3: save the original M4A audio instead of failing.
+            args += ["-f", "bestaudio[ext=m4a]/bestaudio"]
+        } else if !hasFFmpeg {
+            // No ffmpeg to merge separate streams: take the best single-file MP4.
+            args += ["-f", "best[ext=mp4][height<=\(quality)]/best[ext=mp4]/best"]
+        } else if isAudioOnly {
             args += [
                 "-x",
                 "--audio-format", "mp3",
@@ -198,7 +206,7 @@ public final class DownloadManager: ObservableObject {
                 downloads[idx].isError = true
                 downloads[idx].errorMessage = "ID video không đúng định dạng YouTube"
             }
-            return itemId
+            return
         }
         args += ["--", "https://www.youtube.com/watch?v=\(video.id)"]
         
@@ -273,7 +281,7 @@ public final class DownloadManager: ObservableObject {
             }
         }
         
-        return itemId
+        return
     }
     
     public func cancelDownload(id: String) {

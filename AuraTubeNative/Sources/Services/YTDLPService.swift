@@ -3,20 +3,6 @@ import Foundation
 public final class YTDLPService: @unchecked Sendable {
     public static let shared = YTDLPService()
     
-    private let ytDlpPaths = [
-        Bundle.main.resourcePath.map { "\($0)/bin/yt-dlp" } ?? "",
-        "/opt/homebrew/bin/yt-dlp",
-        "/usr/local/bin/yt-dlp",
-        "/usr/bin/yt-dlp"
-    ]
-    
-    private var binaryPath: String {
-        for path in ytDlpPaths where !path.isEmpty && FileManager.default.fileExists(atPath: path) {
-            return path
-        }
-        return "/opt/homebrew/bin/yt-dlp"
-    }
-    
     private init() {}
     
     // MARK: - Direct Stream Extraction (AVPlayer)
@@ -25,10 +11,7 @@ public final class YTDLPService: @unchecked Sendable {
         guard videoId.range(of: "^[a-zA-Z0-9_-]{11}$", options: .regularExpression) != nil else {
             throw NSError(domain: "YTDLPService", code: 400, userInfo: [NSLocalizedDescriptionKey: "Invalid video ID format"])
         }
-        let ytdlp = binaryPath
-        guard FileManager.default.fileExists(atPath: ytdlp) else {
-            throw NSError(domain: "YTDLPService", code: 404, userInfo: [NSLocalizedDescriptionKey: "yt-dlp binary not found at \(ytdlp)"])
-        }
+        let ytdlp = try await YTDLPBinary.shared.resolve()
         
         let formatFilter: String
         switch quality {
@@ -1067,8 +1050,7 @@ public final class YTDLPService: @unchecked Sendable {
     }
     
     private func searchViaYtDlp(query: String, limit: Int = 18) async -> [Video] {
-        let ytdlp = binaryPath
-        guard FileManager.default.fileExists(atPath: ytdlp) else { return [] }
+        guard let ytdlp = try? await YTDLPBinary.shared.resolve() else { return [] }
         
         do {
             let output = try await runProcess(executable: ytdlp, arguments: [

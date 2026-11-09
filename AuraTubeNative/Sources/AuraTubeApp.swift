@@ -36,6 +36,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             }
         }
         
+        // Make sure yt-dlp is available (downloads it on Macs without Homebrew) and keep it fresh
+        YTDLPBinary.shared.prepareInBackground()
+
         // Auto-check for updates after app launch if enabled
         // Warm the web player once the window is up, so the first video starts quickly
         DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {

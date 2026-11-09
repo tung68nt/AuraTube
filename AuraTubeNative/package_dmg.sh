@@ -23,9 +23,9 @@ TOOL_NAME="Huong Dan Mo Khoa (Doc Khi Bi Bao Loi).txt"
 
 echo "==> 1. Building release bundle for AuraTube v${VERSION} (Build ${BUILD})..."
 if [ -d "/Applications/Xcode.app/Contents/Developer" ]; then
-    DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer xcrun swift build --package-path "${SOURCE_DIR}" -c release && bash "${SOURCE_DIR}/bundle.sh"
+    DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer xcrun swift build --package-path "${SOURCE_DIR}" -c release ${SWIFT_BUILD_ARGS:-} && bash "${SOURCE_DIR}/bundle.sh"
 else
-    swift build --package-path "${SOURCE_DIR}" -c release && bash "${SOURCE_DIR}/bundle.sh"
+    swift build --package-path "${SOURCE_DIR}" -c release ${SWIFT_BUILD_ARGS:-} && bash "${SOURCE_DIR}/bundle.sh"
 fi
 
 # Prepare staging temporary directory
