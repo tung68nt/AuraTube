@@ -1,9 +1,9 @@
 {
-  "version": "2.1.10",
-  "build": 111,
-  "title": "AuraTube v2.1.10 (Sửa lỗi \"Requested format is not available\")",
-  "releaseNotes": "• Sửa lỗi \"Requested format is not available\" khi tải/phát video: ứng dụng tự cài bộ chạy JavaScript (deno) mà yt-dlp cần để lấy đủ định dạng video từ YouTube.\n• Thêm các phương án dự phòng chọn định dạng, nếu định dạng ưu tiên không có thì tự lấy định dạng tốt nhất còn lại.",
-  "downloadUrl": "https://github.com/tung68nt/AuraTube/releases/download/v2.1.10/AuraTube-v2.1.10.dmg",
+  "version": "2.1.11",
+  "build": 112,
+  "title": "AuraTube v2.1.11 (Có bản Windows & Ubuntu)",
+  "releaseNotes": "• Phát hành bản cho Windows (bộ cài .exe và bản portable) và Ubuntu (.deb, AppImage).\n• Bản Windows/Ubuntu đóng gói sẵn yt-dlp và tự tải lại nếu thiếu, dùng Node có sẵn trong ứng dụng để lấy đủ định dạng video.\n• Máy không có ffmpeg vẫn tải được video MP4 và âm thanh M4A.\n• Bản macOS: không thay đổi so với v2.1.10.",
+  "downloadUrl": "https://github.com/tung68nt/AuraTube/releases/download/v2.1.11/AuraTube-v2.1.11.dmg",
   "publishedAt": "2026-11-09",
   "minOSVersion": "13.0",
   "fileSize": "45.0 MB"
