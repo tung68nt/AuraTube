@@ -17,3 +17,4 @@ AuraTube.app/
 venv/
 .venv/
 .agents/
+bin/

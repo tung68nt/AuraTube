@@ -1,27 +1,26 @@
-const { spawn, execFile } = require('child_process');
+const cp = require('child_process');
 const path = require('path');
 const fs = require('fs');
 const os = require('os');
+const binaries = require('./binaries');
 
-// Path to yt-dlp binary (detected on macOS via homebrew or system)
-const YTDLP_PATH = fs.existsSync('/opt/homebrew/bin/yt-dlp')
-  ? '/opt/homebrew/bin/yt-dlp'
-  : (fs.existsSync('/usr/local/bin/yt-dlp') ? '/usr/local/bin/yt-dlp' : 'yt-dlp');
+// yt-dlp is located (or downloaded on first use) per platform; see binaries.js
+const YTDLP_PATH = binaries.findYtdlp() || binaries.MANAGED_YTDLP;
+const JS_RUNTIME = binaries.jsRuntime();
+const CHILD_ENV = { ...process.env, ...JS_RUNTIME.env };
+const FFMPEG_DIR = binaries.ffmpegLocation();
 
-// Find actual system Node.js binary (CRITICAL: NEVER use process.execPath inside Electron!)
-function getRealNodePath() {
-  const candidates = [
-    '/opt/homebrew/bin/node',
-    '/usr/local/bin/node',
-    '/usr/bin/node'
-  ];
-  for (const c of candidates) {
-    if (fs.existsSync(c)) return c;
-  }
-  return 'node';
+// Wrappers: always run the current yt-dlp (installing it if missing) with the JS runtime env.
+function execFile(_bin, args, opts, cb) {
+  if (typeof opts === 'function') { cb = opts; opts = {}; }
+  binaries.ensureYtdlp()
+    .then(bin => cp.execFile(bin, args, { ...opts, env: CHILD_ENV }, cb))
+    .catch(err => cb(err, '', err.message));
 }
 
-const NODE_PATH = getRealNodePath();
+function spawn(_bin, args) {
+  return cp.spawn(binaries.findYtdlp() || binaries.MANAGED_YTDLP, args, { env: CHILD_ENV });
+}
 
 const DOWNLOADS_DIR = path.join(os.homedir(), 'Downloads', 'YouTube_Adfree');
 if (!fs.existsSync(DOWNLOADS_DIR)) {
@@ -32,14 +31,15 @@ const INFO_YTDLP_ARGS = [
   '--no-warnings',
   '--no-update',
   '--force-ipv4',
-  '--js-runtimes', `node:${NODE_PATH}`
+  ...JS_RUNTIME.args
 ];
 
 const COMMON_YTDLP_ARGS = [
   '--no-warnings',
   '--no-update',
   '--force-ipv4',
-  '--js-runtimes', `node:${NODE_PATH}`
+  ...JS_RUNTIME.args,
+  ...(FFMPEG_DIR ? ['--ffmpeg-location', FFMPEG_DIR] : [])
 ];
 
 const infoCache = new Map();
@@ -317,7 +317,14 @@ function downloadMedia(videoId, format = 'mp4', onProgress, onComplete, onError)
   let args = [];
   const filenameTemplate = path.join(DOWNLOADS_DIR, '%(title)s.%(ext)s');
 
-  if (format === 'mp3') {
+  if (!FFMPEG_DIR) {
+    // No ffmpeg on this machine: cannot convert to MP3 or merge streams, so pick single-file formats.
+    const h = parseInt(format, 10);
+    const filter = format === 'mp3'
+      ? 'bestaudio[ext=m4a]/bestaudio/b'
+      : (!isNaN(h) && h > 0 ? `best[ext=mp4][height<=${h}]/best[ext=mp4]/b/bv*` : 'best[ext=mp4]/b/bv*');
+    args = [...COMMON_YTDLP_ARGS, '-f', filter, '-o', filenameTemplate, '--no-playlist', '--', url];
+  } else if (format === 'mp3') {
     args = [
       ...COMMON_YTDLP_ARGS,
       '-x',
@@ -354,6 +361,10 @@ function downloadMedia(videoId, format = 'mp4', onProgress, onComplete, onError)
     if (match && onProgress) {
       onProgress(parseFloat(match[1]));
     }
+  });
+
+  child.on('error', (err) => {
+    if (onError) onError(new Error(`Không chạy được yt-dlp: ${err.message}`));
   });
 
   child.stderr.on('data', (data) => {
