@@ -22,10 +22,10 @@ app.commandLine.appendSwitch('enable-gpu-rasterization');
 app.commandLine.appendSwitch('enable-zero-copy');
 
 // Ensure Homebrew and system tools (yt-dlp, ffmpeg, node) are in PATH
-const defaultPaths = ['/opt/homebrew/bin', '/usr/local/bin', '/usr/bin', '/bin'];
+const defaultPaths = process.platform === 'win32' ? [] : ['/opt/homebrew/bin', '/usr/local/bin', '/usr/bin', '/bin'];
 for (const p of defaultPaths) {
   if (!process.env.PATH || !process.env.PATH.includes(p)) {
-    process.env.PATH = `${p}:${process.env.PATH || ''}`;
+    process.env.PATH = `${p}${require('path').delimiter}${process.env.PATH || ''}`;
   }
 }
 
@@ -358,9 +358,9 @@ function createTray() {
   }
 
   // Use official YouTube template icon (crisp white in Dark Mode, native macOS menu bar standard)
-  const trayIconPath = path.join(__dirname, 'assets/ytTemplate.png');
+  const trayIconPath = path.join(__dirname, process.platform === 'darwin' ? 'assets/ytTemplate.png' : 'assets/yt_tray.png');
   const trayIcon = nativeImage.createFromPath(trayIconPath);
-  trayIcon.setTemplateImage(true);
+  if (process.platform === 'darwin') trayIcon.setTemplateImage(true);
 
   tray = new Tray(trayIcon);
   tray.setToolTip('AuraTube - Trình phát YouTube');

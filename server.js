@@ -6,14 +6,16 @@ const { Readable } = require('stream');
 const https = require('https');
 const http = require('http');
 const ytdlp = require('./src/services/ytdlp');
+// Install yt-dlp in the background if this machine has none (Windows/Linux/macOS)
+require('./src/services/binaries').ensureYtdlp().catch(err => console.warn('yt-dlp install failed:', err.message));
 const invidious = require('./src/services/invidious');
 const fastyoutube = require('./src/services/fastyoutube');
 
 // Ensure Homebrew binaries are accessible even when launched from macOS Finder / /Applications
-const defaultPaths = ['/opt/homebrew/bin', '/usr/local/bin', '/usr/bin', '/bin'];
+const defaultPaths = process.platform === 'win32' ? [] : ['/opt/homebrew/bin', '/usr/local/bin', '/usr/bin', '/bin'];
 for (const p of defaultPaths) {
   if (!process.env.PATH || !process.env.PATH.includes(p)) {
-    process.env.PATH = `${p}:${process.env.PATH || ''}`;
+    process.env.PATH = `${p}${require('path').delimiter}${process.env.PATH || ''}`;
   }
 }
 
@@ -497,8 +499,9 @@ app.get('/api/downloads', (req, res) => {
 app.post('/api/open-folder', (req, res) => {
   try {
     const { execFile } = require('child_process');
-    execFile('open', [ytdlp.DOWNLOADS_DIR], (err) => {
-      if (err) return res.status(500).json({ success: false, error: err.message });
+    const opener = process.platform === 'win32' ? 'explorer' : (process.platform === 'darwin' ? 'open' : 'xdg-open');
+    execFile(opener, [ytdlp.DOWNLOADS_DIR], (err) => {
+      if (err && process.platform !== 'win32') return res.status(500).json({ success: false, error: err.message });
       res.json({ success: true });
     });
   } catch (err) {

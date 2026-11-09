@@ -91,3 +91,56 @@ jobs:
           git add version.json
           git commit -m "chore(release): v${{ steps.v.outputs.version }}"
           git push origin main
+
+  desktop:
+    # Electron build for Windows and Ubuntu, uploaded to the same GitHub release.
+    needs: release
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            ytdlp: yt-dlp.exe
+            target: win
+          - os: ubuntu-latest
+            ytdlp: yt-dlp_linux
+            target: linux
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.inputs.tag || github.ref }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Bundle yt-dlp for ${{ matrix.target }}
+        run: |
+          mkdir -p bin
+          OUT=bin/yt-dlp; [ "${{ matrix.target }}" = win ] && OUT=bin/yt-dlp.exe
+          curl -fL --retry 3 -o "$OUT" "https://github.com/yt-dlp/yt-dlp/releases/latest/download/${{ matrix.ytdlp }}"
+          chmod +x "$OUT"
+          "$OUT" --version
+
+      - name: Build
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          TAG="${{ github.event.inputs.tag || github.ref_name }}"
+          npm ci
+          npm version "${TAG#v}" --no-git-tag-version --allow-same-version
+          npm run dist:${{ matrix.target }}
+          ls dist
+
+      - name: Upload to release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          TAG="${{ github.event.inputs.tag || github.ref_name }}"
+          shopt -s nullglob
+          gh release upload "$TAG" dist/*.exe dist/*.AppImage dist/*.deb --clobber
