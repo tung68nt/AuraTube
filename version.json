@@ -1,10 +1,10 @@
 {
-  "version": "2.1.8",
-  "build": 109,
-  "title": "AuraTube v2.1.8 (Hiển thị lỗi phát video & khởi động nhanh hơn)",
-  "releaseNotes": "• Hiển thị thông báo lỗi rõ ràng khi video không phát được thay vì màn hình trống.\n• Chế độ chất lượng Tự động bắt đầu ở 144p để video tải và bắt đầu phát nhanh hơn.",
-  "downloadUrl": "https://github.com/tung68nt/AuraTube/releases/download/v2.1.8/AuraTube-v2.1.8.dmg",
-  "publishedAt": "2026-11-01",
+  "version": "2.1.9",
+  "build": 110,
+  "title": "AuraTube v2.1.9 (Tự cài yt-dlp, sửa lỗi không tải được video)",
+  "releaseNotes": "• Sửa lỗi \"chưa cài yt-dlp\" trên các máy không có Homebrew: yt-dlp nay được đóng gói sẵn trong ứng dụng và tự tải về nếu thiếu.\n• yt-dlp được tự động cập nhật định kỳ để luôn tải được video khi YouTube thay đổi.\n• Máy chưa có ffmpeg vẫn tải được video MP4 và âm thanh (M4A) thay vì báo lỗi.\n• Hỗ trợ cả máy Mac Intel và Apple Silicon.",
+  "downloadUrl": "https://github.com/tung68nt/AuraTube/releases/download/v2.1.9/AuraTube-v2.1.9.dmg",
+  "publishedAt": "2026-11-09",
   "minOSVersion": "13.0",
-  "fileSize": "6.0 MB"
+  "fileSize": "45.0 MB"
 }
