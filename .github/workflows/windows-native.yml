@@ -1,0 +1,39 @@
+name: Windows native build
+
+# CI for the native WPF app: builds installer + portable zip on every PR/push that
+# touches AuraTubeWindows/, and keeps them as workflow artifacts.
+on:
+  pull_request:
+    paths: ["AuraTubeWindows/**", ".github/workflows/windows-native.yml"]
+  push:
+    branches: [main]
+    paths: ["AuraTubeWindows/**"]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "8.0.x"
+      - name: Build, publish and package
+        shell: pwsh
+        run: |
+          $v = (Get-Content release.json | ConvertFrom-Json).version
+          ./AuraTubeWindows/build.ps1 -Version $v
+      - name: Smoke test yt-dlp with a JS runtime
+        shell: pwsh
+        continue-on-error: true
+        run: |
+          $y = "AuraTubeWindows/dist/publish/bin/yt-dlp.exe"
+          & $y --js-runtimes "node:$((Get-Command node).Source)" -s --no-playlist -f "bv*[protocol^=m3u8]/b" "https://www.youtube.com/watch?v=jNQXAC9IVRw"
+          if ($LASTEXITCODE -ne 0) { Write-Host "::warning::yt-dlp smoke test failed (runner IP may be blocked by YouTube)" }
+      - uses: actions/upload-artifact@v4
+        with:
+          name: AuraTube-Windows
+          path: |
+            AuraTubeWindows/dist/*.exe
+            AuraTubeWindows/dist/*.zip
+          if-no-files-found: error

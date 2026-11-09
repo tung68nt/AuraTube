@@ -1,0 +1,104 @@
+<Window x:Class="AuraTube.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="AuraTube" Width="1360" Height="860" MinWidth="900" MinHeight="600"
+        Background="{StaticResource BgBrush}" Icon="Assets/AuraTube.ico"
+        WindowStartupLocation="CenterScreen" FontFamily="{StaticResource UiFont}">
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition/>
+        </Grid.RowDefinitions>
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="Auto"/>
+            <ColumnDefinition/>
+        </Grid.ColumnDefinitions>
+
+        <!-- Top bar -->
+        <Grid x:Name="TopBar" Grid.ColumnSpan="2" Height="60" Margin="8,0,16,0">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="230"/>
+                <ColumnDefinition/>
+                <ColumnDefinition Width="Auto"/>
+            </Grid.ColumnDefinitions>
+            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                <Button x:Name="BackButton" Style="{StaticResource IconButton}" Content="&#xE72B;" ToolTip="Quay lại (Alt+←)" Click="Back_Click"/>
+                <Image Source="Assets/logo.png" Width="28" Height="28" Margin="6,0,8,0"/>
+                <TextBlock Text="AuraTube" FontSize="19" FontWeight="Bold" VerticalAlignment="Center"/>
+            </StackPanel>
+            <Grid Grid.Column="1" MaxWidth="640" HorizontalAlignment="Stretch" VerticalAlignment="Center" Margin="12,0">
+                <Border Background="{StaticResource SurfaceBrush}" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" CornerRadius="20" Height="40">
+                    <Grid Margin="14,0,4,0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Style="{StaticResource Icon}" Text="&#xE721;" Foreground="{StaticResource SubTextBrush}" Margin="0,0,10,0"/>
+                        <TextBox x:Name="SearchBox" Grid.Column="1" Style="{StaticResource SearchBox}"
+                                 KeyDown="SearchBox_KeyDown" TextChanged="SearchBox_TextChanged" GotKeyboardFocus="SearchBox_GotFocus"/>
+                        <TextBlock x:Name="SearchPlaceholder" Grid.Column="1" Text="Tìm kiếm hoặc dán link YouTube…" IsHitTestVisible="False"
+                                   Foreground="{StaticResource SubTextBrush}" VerticalAlignment="Center" Margin="2,0,0,0"/>
+                        <Button Grid.Column="2" Style="{StaticResource IconButton}" Width="32" Height="32" Content="&#xE894;" ToolTip="Xoá" Click="ClearSearch_Click"/>
+                    </Grid>
+                </Border>
+                <Popup x:Name="SuggestPopup" PlacementTarget="{Binding ElementName=SearchBox}" Placement="Bottom" StaysOpen="False" AllowsTransparency="True" VerticalOffset="10" HorizontalOffset="-40">
+                    <Border Background="{StaticResource SurfaceBrush}" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" CornerRadius="12" Padding="6" MinWidth="520">
+                        <ListBox x:Name="SuggestList" Background="Transparent" BorderThickness="0" Foreground="{StaticResource TextBrush}"
+                                 FontSize="14" MouseLeftButtonUp="SuggestList_Click" KeyDown="SuggestList_KeyDown">
+                            <ListBox.ItemContainerStyle>
+                                <Style TargetType="ListBoxItem">
+                                    <Setter Property="Padding" Value="10,7"/>
+                                    <Setter Property="Foreground" Value="{StaticResource TextBrush}"/>
+                                </Style>
+                            </ListBox.ItemContainerStyle>
+                        </ListBox>
+                    </Border>
+                </Popup>
+            </Grid>
+            <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
+                <Button Style="{StaticResource IconButton}" Content="&#xE71B;" ToolTip="Mở link YouTube" Click="OpenLink_Click"/>
+                <Button x:Name="UpdateBadge" Style="{StaticResource AccentButton}" Content="Có bản cập nhật" Visibility="Collapsed" Margin="6,0" Click="UpdateBadge_Click"/>
+                <Button Style="{StaticResource IconButton}" Content="&#xE77B;" ToolTip="Đăng nhập Google để đồng bộ kênh đăng ký" Click="SignIn_Click"/>
+            </StackPanel>
+        </Grid>
+
+        <!-- Sidebar -->
+        <StackPanel x:Name="Sidebar" Grid.Row="1" Width="230" Margin="0,4,0,0">
+            <RadioButton x:Name="NavHome" Style="{StaticResource NavButton}" Tag="&#xE80F;" Content="Trang chủ" IsChecked="True" Click="Nav_Click"/>
+            <RadioButton x:Name="NavShorts" Style="{StaticResource NavButton}" Tag="&#xE8B2;" Content="Shorts" Click="Nav_Click"/>
+            <RadioButton x:Name="NavSubs" Style="{StaticResource NavButton}" Tag="&#xE8F2;" Content="Kênh đăng ký" Click="Nav_Click"/>
+            <Border Height="1" Background="{StaticResource BorderBrush}" Margin="16,10"/>
+            <RadioButton x:Name="NavBookmarks" Style="{StaticResource NavButton}" Tag="&#xE823;" Content="Xem sau" Click="Nav_Click"/>
+            <RadioButton x:Name="NavHistory" Style="{StaticResource NavButton}" Tag="&#xE81C;" Content="Video đã xem" Click="Nav_Click"/>
+            <RadioButton x:Name="NavDownloads" Style="{StaticResource NavButton}" Tag="&#xE896;" Content="Tệp đã tải về" Click="Nav_Click"/>
+            <Border Height="1" Background="{StaticResource BorderBrush}" Margin="16,10"/>
+            <RadioButton x:Name="NavSettings" Style="{StaticResource NavButton}" Tag="&#xE713;" Content="Cài đặt" Click="Nav_Click"/>
+            <TextBlock x:Name="SubsHeader" Text="KÊNH ĐĂNG KÝ" Style="{StaticResource SubText}" Margin="24,18,0,6" FontWeight="SemiBold"/>
+            <ItemsControl x:Name="SubsList" Margin="8,0">
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate>
+                        <Border Padding="12,6" CornerRadius="8" Cursor="Hand" Background="Transparent" Tag="{Binding}" MouseLeftButtonUp="SubItem_Click">
+                            <StackPanel Orientation="Horizontal">
+                                <Ellipse Width="24" Height="24" Margin="0,0,10,0">
+                                    <Ellipse.Fill>
+                                        <ImageBrush ImageSource="{Binding AvatarUrl, IsAsync=True, TargetNullValue={x:Null}}" Stretch="UniformToFill"/>
+                                    </Ellipse.Fill>
+                                </Ellipse>
+                                <TextBlock Text="{Binding Title}" VerticalAlignment="Center" FontSize="13" TextTrimming="CharacterEllipsis" MaxWidth="150"/>
+                            </StackPanel>
+                        </Border>
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+        </StackPanel>
+
+        <ContentControl x:Name="Host" Grid.Row="1" Grid.Column="1" Focusable="False"/>
+
+        <!-- Toast -->
+        <Border x:Name="ToastBorder" Grid.RowSpan="2" Grid.ColumnSpan="2" HorizontalAlignment="Center" VerticalAlignment="Bottom" Margin="0,0,0,40"
+                Background="#E6262630" CornerRadius="18" Padding="18,10" Visibility="Collapsed" IsHitTestVisible="False">
+            <TextBlock x:Name="ToastText" FontSize="14"/>
+        </Border>
+    </Grid>
+</Window>

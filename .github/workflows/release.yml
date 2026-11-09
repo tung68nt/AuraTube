@@ -144,3 +144,53 @@ jobs:
           TAG="${{ github.event.inputs.tag || github.ref_name }}"
           shopt -s nullglob
           gh release upload "$TAG" dist/*.exe dist/*.AppImage dist/*.deb --clobber
+
+  windows-native:
+    # Native WPF app (AuraTubeWindows/). Uploads installer + portable zip to the same release and
+    # publishes version-windows.json (the Windows app's own update manifest; the Mac updater keeps
+    # reading version.json). Runs alongside the Electron "desktop" job until that one is retired.
+    needs: release
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.inputs.tag || github.ref }}
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "8.0.x"
+
+      - name: Build installer and portable zip
+        shell: pwsh
+        run: |
+          $tag = "${{ github.event.inputs.tag || github.ref_name }}"
+          ./AuraTubeWindows/build.ps1 -Version $tag.TrimStart('v')
+
+      - name: Upload to release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          TAG="${{ github.event.inputs.tag || github.ref_name }}"
+          gh release upload "$TAG" AuraTubeWindows/dist/*.exe AuraTubeWindows/dist/*.zip --clobber
+
+      - name: Publish version-windows.json to main
+        shell: bash
+        run: |
+          TAG="${{ github.event.inputs.tag || github.ref_name }}"
+          V="${TAG#v}"
+          SETUP="AuraTube-Windows-Setup-v$V.exe"
+          SIZE=$(du -m "AuraTubeWindows/dist/$SETUP" | awk '{printf "%.1f MB", $1}')
+          jq --arg url "https://github.com/${{ github.repository }}/releases/download/$TAG/$SETUP" \
+             --arg date "$(date -u +%Y-%m-%d)" --arg size "$SIZE" \
+             '. + {windowsDownloadUrl: $url, downloadUrl: $url, publishedAt: $date, minOSVersion: "10.0.17763", fileSize: $size}' \
+             release.json > /tmp/version-windows.json
+          cat /tmp/version-windows.json
+          git fetch origin main
+          git checkout -B main origin/main
+          cp /tmp/version-windows.json version-windows.json
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add version-windows.json
+          git commit -m "chore(release): windows v$V"
+          for i in 1 2 3; do git push origin main && break; git pull --rebase origin main; done

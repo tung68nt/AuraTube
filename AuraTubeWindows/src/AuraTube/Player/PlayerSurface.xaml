@@ -1,0 +1,77 @@
+<UserControl x:Class="AuraTube.Player.PlayerSurface"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vlc="clr-namespace:LibVLCSharp.WPF;assembly=LibVLCSharp.WPF"
+             Background="Black">
+    <vlc:VideoView x:Name="Video" Background="Black">
+        <!-- Overlay: near-transparent background so the layered overlay window receives mouse input. -->
+        <Grid x:Name="Overlay" Background="#01000000" MouseMove="Overlay_MouseMove" MouseLeftButtonDown="Overlay_MouseDown" MouseWheel="Overlay_MouseWheel">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition/>
+                <RowDefinition Height="Auto"/>
+            </Grid.RowDefinitions>
+
+            <Border x:Name="TopBar" Padding="16,12" IsHitTestVisible="False">
+                <Border.Background>
+                    <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
+                        <GradientStop Color="#B0000000" Offset="0"/>
+                        <GradientStop Color="#00000000" Offset="1"/>
+                    </LinearGradientBrush>
+                </Border.Background>
+                <TextBlock x:Name="TitleText" FontSize="16" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" Foreground="White"/>
+            </Border>
+
+            <StackPanel Grid.Row="1" HorizontalAlignment="Center" VerticalAlignment="Center" IsHitTestVisible="False">
+                <TextBlock x:Name="CenterIcon" FontFamily="{StaticResource IconFont}" FontSize="44" Foreground="White" HorizontalAlignment="Center"/>
+                <TextBlock x:Name="CenterText" FontSize="14" Foreground="White" HorizontalAlignment="Center" TextWrapping="Wrap" MaxWidth="520" TextAlignment="Center" Margin="0,8,0,0"/>
+            </StackPanel>
+
+            <Border x:Name="ToastBox" Grid.Row="1" HorizontalAlignment="Left" VerticalAlignment="Bottom" Margin="16" Background="#D0202028"
+                    CornerRadius="14" Padding="14,8" Visibility="Collapsed" IsHitTestVisible="False">
+                <TextBlock x:Name="ToastText" Foreground="White" FontSize="13"/>
+            </Border>
+
+            <Border x:Name="BottomBar" Grid.Row="2" Padding="14,24,14,8">
+                <Border.Background>
+                    <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
+                        <GradientStop Color="#00000000" Offset="0"/>
+                        <GradientStop Color="#C8000000" Offset="1"/>
+                    </LinearGradientBrush>
+                </Border.Background>
+                <StackPanel>
+                    <Grid x:Name="SeekArea" Height="18" Cursor="Hand" Background="#01000000"
+                          MouseLeftButtonDown="Seek_MouseDown" MouseMove="Seek_MouseMove" MouseLeftButtonUp="Seek_MouseUp">
+                        <Border Height="4" Background="#55FFFFFF" CornerRadius="2" VerticalAlignment="Center"/>
+                        <Canvas x:Name="SegmentCanvas" Height="4" VerticalAlignment="Center" IsHitTestVisible="False"/>
+                        <Border x:Name="SeekFill" Height="4" Background="{StaticResource AccentBrush}" CornerRadius="2" VerticalAlignment="Center" HorizontalAlignment="Left" Width="0"/>
+                        <Canvas IsHitTestVisible="False">
+                            <Ellipse x:Name="SeekThumb" Width="12" Height="12" Fill="{StaticResource AccentBrush}" Canvas.Top="3"/>
+                        </Canvas>
+                    </Grid>
+                    <Grid Margin="0,4,0,0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        <StackPanel Orientation="Horizontal">
+                            <Button x:Name="PlayButton" Style="{StaticResource IconButton}" Content="&#xE768;" ToolTip="Phát/Tạm dừng (Space)" Click="Play_Click" Foreground="White"/>
+                            <Button x:Name="NextButton" Style="{StaticResource IconButton}" Content="&#xE893;" ToolTip="Video tiếp theo (Shift+N)" Click="Next_Click" Foreground="White"/>
+                            <Button x:Name="MuteButton" Style="{StaticResource IconButton}" Content="&#xE767;" ToolTip="Tắt tiếng (M)" Click="Mute_Click" Foreground="White"/>
+                            <Slider x:Name="VolumeSlider" Width="90" Minimum="0" Maximum="100" VerticalAlignment="Center" ValueChanged="Volume_Changed"/>
+                            <TextBlock x:Name="TimeText" Foreground="White" FontSize="13" VerticalAlignment="Center" Margin="12,0,0,0"/>
+                            <TextBlock x:Name="ChapterText" Foreground="#CCFFFFFF" FontSize="13" VerticalAlignment="Center" Margin="12,0,0,0" TextTrimming="CharacterEllipsis" MaxWidth="300"/>
+                        </StackPanel>
+                        <StackPanel Grid.Column="2" Orientation="Horizontal">
+                            <Button x:Name="SpeedButton" Style="{StaticResource IconButton}" Width="Auto" Padding="10,0" FontFamily="{StaticResource UiFont}" FontSize="13" Content="1x" ToolTip="Tốc độ phát" Click="Speed_Click" Foreground="White"/>
+                            <Button x:Name="QualityButton" Style="{StaticResource IconButton}" Width="Auto" Padding="10,0" FontFamily="{StaticResource UiFont}" FontSize="13" Content="Auto" ToolTip="Chất lượng" Click="Quality_Click" Foreground="White"/>
+                            <Button x:Name="MiniButton" Style="{StaticResource IconButton}" Content="&#xE8A7;" ToolTip="Trình phát mini (I)" Click="Mini_Click" Foreground="White"/>
+                            <Button x:Name="FullButton" Style="{StaticResource IconButton}" Content="&#xE740;" ToolTip="Toàn màn hình (F)" Click="Full_Click" Foreground="White"/>
+                        </StackPanel>
+                    </Grid>
+                </StackPanel>
+            </Border>
+        </Grid>
+    </vlc:VideoView>
+</UserControl>
