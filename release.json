@@ -1,6 +1,6 @@
 {
-  "version": "2.1.11",
-  "build": 112,
-  "title": "AuraTube v2.1.11 (Có bản Windows & Ubuntu)",
-  "releaseNotes": "• Phát hành bản cho Windows (bộ cài .exe và bản portable) và Ubuntu (.deb, AppImage).\n• Bản Windows/Ubuntu đóng gói sẵn yt-dlp và tự tải lại nếu thiếu, dùng Node có sẵn trong ứng dụng để lấy đủ định dạng video.\n• Máy không có ffmpeg vẫn tải được video MP4 và âm thanh M4A.\n• Bản macOS: không thay đổi so với v2.1.10."
+  "version": "2.1.12",
+  "build": 113,
+  "title": "AuraTube v2.1.12 (Sửa lỗi Windows/Ubuntu mở nhầm ứng dụng khác)",
+  "releaseNotes": "• Windows/Ubuntu: sửa lỗi AuraTube hiển thị nhầm trang của ứng dụng khác khi máy đang chạy dịch vụ ở cổng 3000. AuraTube nay dùng cổng riêng và chỉ kết nối tới máy chủ của chính nó.\n• Bản macOS: không thay đổi."
 }
