@@ -1,0 +1,61 @@
+name: Linux native build
+
+# Builds the GTK4/libadwaita app in AuraTubeLinux/ on Ubuntu 22.04 (oldest supported
+# target) and uploads the .deb as a workflow artifact. Releases are built by release.yml.
+on:
+  push:
+    paths: ["AuraTubeLinux/**", ".github/workflows/linux-native.yml"]
+  pull_request:
+    paths: ["AuraTubeLinux/**", ".github/workflows/linux-native.yml"]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-22.04
+    defaults:
+      run:
+        working-directory: AuraTubeLinux
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            libgtk-4-dev libadwaita-1-dev libgstreamer1.0-dev \
+            libgstreamer-plugins-base1.0-dev libdbus-1-dev pkg-config
+
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: AuraTubeLinux
+
+      - name: Build
+        run: cargo build --release --locked || cargo build --release
+
+      - name: Test
+        run: cargo test --release
+
+      - name: Bundle yt-dlp and package .deb
+        run: |
+          mkdir -p bin
+          curl -fL --retry 3 -o bin/yt-dlp https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp_linux
+          chmod +x bin/yt-dlp
+          bin/yt-dlp --version
+          cargo install cargo-deb --locked
+          cargo deb --no-build
+          ls -la target/debian
+
+      - name: Smoke test (install .deb, start headless)
+        run: |
+          sudo apt-get install -y ./target/debian/*.deb xvfb dbus-x11
+          dpkg -L auratube | head -20
+          timeout 15 xvfb-run -a dbus-launch --exit-with-session auratube || code=$?
+          echo "exit code: ${code:-0}"
+          # 124 = still running when timeout hit, which is what we want.
+          [ "${code:-0}" = 124 ]
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: auratube-linux-deb
+          path: AuraTubeLinux/target/debian/*.deb

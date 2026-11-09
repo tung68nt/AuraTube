@@ -1,0 +1,41 @@
+[package]
+name = "auratube"
+version = "2.1.11"
+edition = "2021"
+description = "AuraTube - trình xem YouTube không quảng cáo cho Linux"
+license = "MIT"
+authors = ["Tung Nguyen"]
+homepage = "https://github.com/tung68nt/AuraTube"
+
+[dependencies]
+gtk = { package = "gtk4", version = "0.9", features = ["v4_6"] }
+adw = { package = "libadwaita", version = "0.7" }
+gst = { package = "gstreamer", version = "0.23" }
+gst-app = { package = "gstreamer-app", version = "0.23" }
+gst-video = { package = "gstreamer-video", version = "0.23" }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+ureq = { version = "2", features = ["json"] }
+async-channel = "2"
+zip = { version = "2", default-features = false, features = ["deflate"] }
+souvlaki = "0.7"
+ksni = "0.2"
+
+[profile.release]
+lto = "thin"
+strip = true
+
+[package.metadata.deb]
+maintainer = "Tung Nguyen"
+copyright = "2026, Tung Nguyen"
+section = "video"
+priority = "optional"
+depends = "$auto, gstreamer1.0-plugins-base, gstreamer1.0-plugins-good, gstreamer1.0-plugins-bad, gstreamer1.0-libav"
+recommends = "ffmpeg"
+extended-description = "Ứng dụng xem YouTube không quảng cáo, viết bằng GTK4/libadwaita và GStreamer. Đi kèm yt-dlp."
+assets = [
+  ["target/release/auratube", "usr/bin/", "755"],
+  ["packaging/auratube.desktop", "usr/share/applications/", "644"],
+  ["packaging/auratube.png", "usr/share/icons/hicolor/512x512/apps/", "644"],
+  ["bin/yt-dlp", "usr/lib/auratube/", "755"],
+]
