@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Name=AuraTube
+GenericName=YouTube không quảng cáo
+Comment=Xem YouTube không quảng cáo
+Exec=auratube %u
+Icon=auratube
+Terminal=false
+Categories=AudioVideo;Video;Player;
+StartupWMClass=auratube
+MimeType=x-scheme-handler/auratube;

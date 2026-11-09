@@ -144,3 +144,71 @@ jobs:
           TAG="${{ github.event.inputs.tag || github.ref_name }}"
           shopt -s nullglob
           gh release upload "$TAG" dist/*.exe dist/*.AppImage dist/*.deb --clobber
+
+  linux-native:
+    # Native GTK4/libadwaita build (AuraTubeLinux/). Runs next to the Electron Linux build
+    # until that one is retired. Publishes version-linux.json only after the .deb is online.
+    needs: release
+    runs-on: ubuntu-22.04
+    defaults:
+      run:
+        working-directory: AuraTubeLinux
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.inputs.tag || github.ref }}
+
+      - name: Install build dependencies
+        run: |
+          sudo apt-get remove -y libunwind-14-dev || true
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            libgtk-4-dev libadwaita-1-dev libgstreamer1.0-dev \
+            libgstreamer-plugins-base1.0-dev libdbus-1-dev pkg-config
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - name: Set version from tag
+        id: v
+        run: |
+          TAG="${{ github.event.inputs.tag || github.ref_name }}"
+          V="${TAG#v}"
+          sed -i "0,/^version = .*/s//version = \"$V\"/" Cargo.toml
+          echo "version=$V" >> "$GITHUB_OUTPUT"
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+
+      - name: Build, bundle yt-dlp, package .deb
+        run: |
+          cargo build --release
+          mkdir -p bin
+          curl -fL --retry 3 -o bin/yt-dlp https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp_linux
+          chmod +x bin/yt-dlp && bin/yt-dlp --version
+          cargo install cargo-deb --locked
+          cargo deb --no-build
+          cp target/debian/*.deb "../AuraTube-linux-v${{ steps.v.outputs.version }}-amd64.deb"
+
+      - name: Upload to release
+        working-directory: .
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release upload "${{ steps.v.outputs.tag }}" "AuraTube-linux-v${{ steps.v.outputs.version }}-amd64.deb" --clobber
+
+      - name: Publish version-linux.json to main
+        working-directory: .
+        run: |
+          V=${{ steps.v.outputs.version }}
+          URL="https://github.com/${{ github.repository }}/releases/download/v$V/AuraTube-linux-v$V-amd64.deb"
+          jq --arg url "$URL" --arg date "$(date -u +%Y-%m-%d)" \
+             '{version, build, title, releaseNotes} + {downloadUrl: $url, publishedAt: $date}' release.json > /tmp/version-linux.json
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          for i in 1 2 3; do
+            git fetch origin main && git checkout -B main origin/main
+            cp /tmp/version-linux.json version-linux.json
+            git add version-linux.json
+            git diff --cached --quiet && exit 0
+            git commit -m "chore(release): version-linux.json v$V"
+            git push origin main && exit 0
+            sleep 5
+          done
+          exit 1
