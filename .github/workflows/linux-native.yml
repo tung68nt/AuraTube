@@ -32,7 +32,7 @@ jobs:
           workspaces: AuraTubeLinux
 
       - name: Build
-        run: cargo build --release --locked || cargo build --release
+        run: cargo build --release
 
       - name: Test
         run: cargo test --release
@@ -55,6 +55,11 @@ jobs:
           echo "exit code: ${code:-0}"
           # 124 = still running when timeout hit, which is what we want.
           [ "${code:-0}" = 124 ]
+
+      - name: Self test (InnerTube, yt-dlp, GStreamer)
+        run: |
+          sudo apt-get install -y gstreamer1.0-plugins-good gstreamer1.0-plugins-bad gstreamer1.0-libav nodejs
+          auratube --selftest
 
       - uses: actions/upload-artifact@v4
         with:
