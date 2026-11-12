@@ -45,7 +45,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             MainWebPlayerPool.shared.prewarm()
         }
         
-        if UpdateService.shared.autoCheckEnabled {
+        // If the last in-app update did not take effect, explain why instead of offering it again
+        let lastUpdateFailed = UpdateService.shared.verifyPendingUpdate()
+        
+        if UpdateService.shared.autoCheckEnabled && !lastUpdateFailed {
             DispatchQueue.main.asyncAfter(deadline: .now() + 3.0) {
                 Task { @MainActor in
                     UpdateService.shared.checkForUpdates(isUserInitiated: false)

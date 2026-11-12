@@ -557,18 +557,19 @@ public struct LiquidGlassButton<Content: View>: View {
                 .background(
                     ZStack {
                         if isProminent {
-                            let colors = prominentGradient ?? [
-                                Color(red: 0.08, green: 0.48, blue: 0.98),
-                                Color(red: 0.42, green: 0.18, blue: 0.92)
-                            ]
+                            // Monochrome primary: ink on light, paper on dark (or a caller-supplied gradient)
                             RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
                                 .fill(
                                     LinearGradient(
-                                        colors: colors.map { $0.opacity(hoverVm.isHovered ? 0.95 : 0.85) },
-                                        startPoint: .topLeading,
-                                        endPoint: .bottomTrailing
+                                        colors: prominentGradient ?? [
+                                            isDark ? Color(white: 0.96) : Color(white: 0.09),
+                                            isDark ? Color(white: 0.96) : Color(white: 0.09)
+                                        ],
+                                        startPoint: .top,
+                                        endPoint: .bottom
                                     )
                                 )
+                                .opacity(hoverVm.isHovered ? 0.88 : 1.0)
                         } else {
                             NativeGlassFill(shape: RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
                             
@@ -605,7 +606,7 @@ public struct LiquidGlassButton<Content: View>: View {
                         .strokeBorder(
                             isProminent ?
                                 LinearGradient(
-                                    colors: [Color.white.opacity(0.35), Color.white.opacity(0.12)],
+                                    colors: [Color.clear, Color.clear],
                                     startPoint: .top,
                                     endPoint: .bottom
                                 ) :
@@ -633,7 +634,7 @@ public struct LiquidGlassButton<Content: View>: View {
                 .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
                 .shadow(
                     color: isProminent ?
-                        Color.blue.opacity(hoverVm.isHovered ? 0.4 : 0.2) :
+                        Color.black.opacity(hoverVm.isHovered ? 0.18 : 0.10) :
                         Color.black.opacity(isDark ? (hoverVm.isHovered ? 0.24 : 0.12) : (hoverVm.isHovered ? 0.08 : 0.04)),
                     radius: hoverVm.isHovered ? 5 : 2.5,
                     x: 0,

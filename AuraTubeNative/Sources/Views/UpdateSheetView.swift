@@ -459,7 +459,7 @@ public struct UpdateSheetView: View {
                     Image(systemName: "exclamationmark.triangle.fill")
                         .foregroundColor(.orange)
                         .font(.system(size: 15))
-                    Text("Không thể kiểm tra cập nhật")
+                    Text(updateService.lastInstallFailed ? "Cập nhật chưa hoàn tất" : "Không thể kiểm tra cập nhật")
                         .font(.system(size: 16, weight: .bold))
                         .foregroundColor(ThemeColor.textPrimary(for: colorScheme))
                 }
@@ -489,6 +489,22 @@ public struct UpdateSheetView: View {
                             )
                     }
                     .buttonStyle(.plain)
+                    
+                    if updateService.lastInstallFailed {
+                        Button(action: { updateService.openReleasesPage() }) {
+                            Text("Tải thủ công")
+                                .font(.system(size: 12.5))
+                                .foregroundColor(ThemeColor.textPrimary(for: colorScheme))
+                                .fixedSize()
+                                .padding(.horizontal, 14)
+                                .frame(height: 26)
+                                .background(
+                                    RoundedRectangle(cornerRadius: 6, style: .continuous)
+                                        .fill(isDark ? Color.white.opacity(0.08) : Color.black.opacity(0.06))
+                                )
+                        }
+                        .buttonStyle(.plain)
+                    }
                     
                     Button(action: { updateService.checkForUpdates(isUserInitiated: true) }) {
                         Text("Thử lại")
