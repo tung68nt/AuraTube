@@ -1153,18 +1153,20 @@ public struct ContentView: View {
         if updateService.isUpdateAvailable, let update = updateService.latestUpdate {
             LiquidGlassButton(action: {
                 updateService.showUpdateSheet = true
-            }, cornerRadius: 8, isProminent: true) {
-                HStack(spacing: 5) {
-                    Image(systemName: "arrow.triangle.2.circlepath")
-                        .font(.system(size: 11, weight: .bold))
-                        .foregroundColor(.white)
-                    Text("Bản mới v\(update.version)")
-                        .font(.system(size: 11.5, weight: .bold))
-                        .foregroundColor(.white)
+            }, cornerRadius: 8) {
+                HStack(spacing: 6) {
+                    Circle()
+                        .fill(Color.accentColor)
+                        .frame(width: 6, height: 6)
+                    Text("v\(update.version)")
+                        .font(.system(size: 11.5, weight: .semibold))
+                        .monospacedDigit()
+                        .foregroundColor(.primary)
                 }
                 .padding(.horizontal, 10)
                 .padding(.vertical, 5)
             }
+            .help("Có bản mới v\(update.version)")
         }
     }
     
@@ -2462,20 +2464,13 @@ struct UpdateNotificationBanner: View {
             
             VStack(alignment: .leading, spacing: 3) {
                 HStack(spacing: 6) {
-                    Text("Đã có bản cập nhật mới AuraTube v\(update.version)")
-                        .font(.system(size: 13, weight: .bold))
+                    Text("AuraTube v\(update.version) đã sẵn sàng")
+                        .font(.system(size: 13, weight: .semibold))
                         .foregroundColor(ThemeColor.textPrimary(for: colorScheme))
-                    
-                    Text("KHUYÊN DÙNG")
-                        .font(.system(size: 9, weight: .black))
-                        .padding(.horizontal, 5)
-                        .padding(.vertical, 1.5)
-                        .background(Color.green.opacity(colorScheme == .dark ? 0.25 : 0.15))
-                        .foregroundColor(colorScheme == .dark ? .green : Color(red: 0.1, green: 0.6, blue: 0.25))
-                        .clipShape(RoundedRectangle(cornerRadius: 4, style: .continuous))
+
                 }
                 
-                Text("Vui lòng cập nhật ngay để khắc phục triệt để lỗi âm thanh và tận hưởng trải nghiệm mượt mà nhất.")
+                Text("Cài bản mới để có các bản sửa lỗi và cải tiến gần nhất.")
                     .font(.system(size: 11.5))
                     .foregroundColor(ThemeColor.textSecondary(for: colorScheme))
                     .lineLimit(1)
@@ -2487,13 +2482,9 @@ struct UpdateNotificationBanner: View {
                 LiquidGlassButton(action: {
                     updateService.showUpdateSheet = true
                 }, cornerRadius: 8, isProminent: true) {
-                    HStack(spacing: 5) {
-                        Image(systemName: "arrow.down.circle.fill")
-                            .font(.system(size: 12))
-                        Text("Cập nhật ngay")
-                            .font(.system(size: 12, weight: .bold))
-                    }
-                    .foregroundColor(.white)
+                    Text("Cập nhật")
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundColor(colorScheme == .dark ? .black : .white)
                     .padding(.horizontal, 13)
                     .padding(.vertical, 6)
                 }
